@@ -125,6 +125,69 @@ Reason: Deferred with the settings bundle. The bugfix is relevant only after ado
 Backport commit: not landed
 ```
 
+### Swift-Contextual Candidates Deferred
+
+```text
+Commit: 16ee0c44
+Original subject: Stabilize border ownership reconciliation
+Touched Swift files:
+- Sources/OmniWM/Core/Border/*
+- Sources/OmniWM/Core/Controller/BorderCoordinator.swift
+- Sources/OmniWM/Core/Controller/AXEventHandler.swift
+- Sources/OmniWM/Core/Controller/LayoutRefreshController.swift
+- Sources/OmniWM/Core/Controller/NiriLayoutHandler.swift
+- Sources/OmniWM/Core/Controller/ServiceLifecycleManager.swift
+- Sources/OmniWM/Core/Controller/WMController.swift
+- Sources/OmniWM/Core/Controller/WorkspaceNavigationHandler.swift
+- Tests/OmniWMTests/Border*
+Touched Zig/build files: none
+Bug reproducible on 6fde9b9? unknown
+Tests added or updated:
+- BorderCoordinatorTests
+- BorderManagerTests
+- BorderWindowTests
+Action: swift-contextual
+Reason: Deferred. Dry-run shows multiple Swift conflicts across border/controller ownership paths, and no reproduced Swift-baseline bug justified importing a 2k-line reconciliation rewrite into the conservative branch.
+Backport commit: not landed
+
+Commit: a739e703
+Original subject: Unify spring animations around exact snappy config
+Touched Swift files:
+- Sources/OmniWM/Core/Animation/SpringAnimation.swift
+- Sources/OmniWM/Core/Controller/LayoutRefreshController.swift
+- Sources/OmniWM/Core/Layout/Niri/*
+- Sources/OmniWM/Core/Overview/OverviewAnimator.swift
+- Tests/OmniWMTests/*Animation*
+- Tests/OmniWMTests/LayoutRefreshControllerTests.swift
+- Tests/OmniWMTests/NiriLayoutEngineTests.swift
+Touched Zig/build files: none
+Bug reproducible on 6fde9b9? unknown
+Tests added or updated:
+- SpringAnimationTests
+- LayoutRefreshControllerTests
+- NiriLayoutEngineTests
+Action: swift-contextual
+Reason: Deferred. Dry-run shows Swift conflicts in animation/layout paths, and this is a motion polish change rather than a confirmed Swift-baseline bugfix.
+Backport commit: not landed
+
+Commit: 7b19fdad
+Original subject: Polish Dwindle motion with spring animations
+Touched Swift files:
+- Sources/OmniWM/Core/Animation/*
+- Sources/OmniWM/Core/Controller/DwindleLayoutHandler.swift
+- Sources/OmniWM/Core/Layout/Dwindle/*
+- Tests/OmniWMTests/DwindleLayoutEngineTests.swift
+- Tests/OmniWMTests/SpringAnimationTests.swift
+Touched Zig/build files: none
+Bug reproducible on 6fde9b9? unknown
+Tests added or updated:
+- DwindleLayoutEngineTests
+- SpringAnimationTests
+Action: swift-contextual
+Reason: Deferred. Dry-run shows many Swift conflicts and one removed-local test surface; this is a broad Dwindle motion rewrite best handled as its own reproduced, targeted patch.
+Backport commit: not landed
+```
+
 ### `cbceeab7cd41d971c270dff87cfdc1cbf90a1577`
 
 ```text
