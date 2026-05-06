@@ -639,6 +639,7 @@ private func makeCenteredCrossMonitorFixture(
             workingFrame: workingFrame,
             gaps: gap
         )
+        state.viewOffsetPixels = .static(state.viewOffsetPixels.target())
         return state
     }
 
@@ -690,6 +691,133 @@ private func makeCenteredCrossMonitorFixture(
     ) -> CGFloat {
         state.columnX(at: state.activeColumnIndex, columns: columns, gap: gap)
             + state.viewOffsetPixels.target()
+    }
+
+    private func niriFitViewportStart(
+        currentViewStart: CGFloat,
+        viewportWidth: CGFloat,
+        targetPos: CGFloat,
+        targetWidth: CGFloat,
+        gap: CGFloat
+    ) -> CGFloat {
+        if viewportWidth <= targetWidth {
+            return targetPos
+        }
+
+        let padding = min(max((viewportWidth - targetWidth) / 2, 0), gap)
+        let preferredStart = targetPos - padding
+        let preferredEnd = targetPos + targetWidth + padding
+
+        if currentViewStart <= preferredStart && preferredEnd <= currentViewStart + viewportWidth {
+            return currentViewStart
+        }
+
+        let distToLeft = abs(currentViewStart - preferredStart)
+        let distToRight = abs((currentViewStart + viewportWidth) - preferredEnd)
+        return distToLeft <= distToRight ? preferredStart : preferredEnd - viewportWidth
+    }
+
+    private func niriCenteredViewportStart(
+        currentViewStart: CGFloat,
+        viewportWidth: CGFloat,
+        targetPos: CGFloat,
+        targetWidth: CGFloat,
+        gap: CGFloat
+    ) -> CGFloat {
+        if viewportWidth <= targetWidth {
+            return niriFitViewportStart(
+                currentViewStart: currentViewStart,
+                viewportWidth: viewportWidth,
+                targetPos: targetPos,
+                targetWidth: targetWidth,
+                gap: gap
+            )
+        }
+
+        return targetPos - (viewportWidth - targetWidth) / 2
+    }
+
+    private func niriExpectedViewportStart(
+        columns: [NiriContainer],
+        gap: CGFloat,
+        viewportWidth: CGFloat,
+        currentViewStart: CGFloat,
+        targetIndex: Int,
+        centerMode: CenterFocusedColumn,
+        fromIndex: Int? = nil
+    ) -> CGFloat {
+        let targetPos = columns.prefix(targetIndex).reduce(CGFloat(0)) { $0 + $1.cachedWidth + gap }
+        let targetWidth = columns[targetIndex].cachedWidth
+
+        switch centerMode {
+        case .always:
+            return niriCenteredViewportStart(
+                currentViewStart: currentViewStart,
+                viewportWidth: viewportWidth,
+                targetPos: targetPos,
+                targetWidth: targetWidth,
+                gap: gap
+            )
+
+        case .never:
+            return niriFitViewportStart(
+                currentViewStart: currentViewStart,
+                viewportWidth: viewportWidth,
+                targetPos: targetPos,
+                targetWidth: targetWidth,
+                gap: gap
+            )
+
+        case .onOverflow:
+            guard let fromIndex, fromIndex != targetIndex, columns.indices.contains(fromIndex) else {
+                return niriFitViewportStart(
+                    currentViewStart: currentViewStart,
+                    viewportWidth: viewportWidth,
+                    targetPos: targetPos,
+                    targetWidth: targetWidth,
+                    gap: gap
+                )
+            }
+
+            if viewportWidth <= targetWidth {
+                return niriCenteredViewportStart(
+                    currentViewStart: currentViewStart,
+                    viewportWidth: viewportWidth,
+                    targetPos: targetPos,
+                    targetWidth: targetWidth,
+                    gap: gap
+                )
+            }
+
+            let sourceIndex = fromIndex > targetIndex
+                ? min(targetIndex + 1, columns.count - 1)
+                : max(targetIndex - 1, 0)
+            let sourcePos = columns.prefix(sourceIndex).reduce(CGFloat(0)) { $0 + $1.cachedWidth + gap }
+            let sourceWidth = columns[sourceIndex].cachedWidth
+            let pairSpan = if sourcePos < targetPos {
+                targetPos - sourcePos + targetWidth
+            } else {
+                sourcePos - targetPos + sourceWidth
+            }
+
+            if pairSpan + gap * 2 <= viewportWidth {
+                return niriFitViewportStart(
+                    currentViewStart: currentViewStart,
+                    viewportWidth: viewportWidth,
+                    targetPos: targetPos,
+                    targetWidth: targetWidth,
+                    gap: gap
+                )
+            }
+
+            return niriCenteredViewportStart(
+                currentViewStart: currentViewStart,
+                viewportWidth: viewportWidth,
+                targetPos: targetPos,
+                targetWidth: targetWidth,
+                gap: gap
+            )
+        }
     }
 
     private func resolvedSettings(
@@ -1631,10 +1759,21 @@ private func makeCenteredCrossMonitorFixture(
         let columns = engine.columns(in: wsId)
         let viewStart = state.columnX(at: state.activeColumnIndex, columns: columns, gap: gap)
             + state.viewOffsetPixels.target()
+        let expectedViewStart = niriExpectedViewportStart(
+            columns: columns,
+            gap: gap,
+            viewportWidth: workingFrame.width,
+            currentViewStart: 0,
+            targetIndex: 1,
+            centerMode: .never,
+            fromIndex: 0
+        )
+        let expectedTargetOffset = expectedViewStart
+            - state.columnX(at: 1, columns: columns, gap: gap)
 
         #expect(state.activeColumnIndex == 1)
-        #expect(abs(viewStart) < 0.1)
-        #expect(abs(state.viewOffsetPixels.target() + leftWidth + gap) < 0.1)
+        #expect(abs(viewStart - expectedViewStart) < 0.1)
+        #expect(abs(state.viewOffsetPixels.target() - expectedTargetOffset) < 0.1)
     }
 
     @Test func ensureSelectionVisibleDoesNotShiftFullyVisibleViewportInOnOverflowMode() {
@@ -1705,13 +1844,13 @@ private func makeCenteredCrossMonitorFixture(
             }
 
             let columnStride = columnWidth + fixture.gap
-            let expectedViewStart = columnStride * CGFloat(scenario.expectedViewStartIndex)
+            let initialViewStart = columnStride * CGFloat(scenario.expectedViewStartIndex)
 
             var state = ViewportState()
             state.selectedNodeId = fixture.windows[scenario.initialActiveIndex].id
             state.activeColumnIndex = scenario.initialActiveIndex
             state.viewOffsetPixels = .static(
-                expectedViewStart
+                initialViewStart
                     - state.columnX(
                         at: scenario.initialActiveIndex,
                         columns: columns,
@@ -1725,6 +1864,16 @@ private func makeCenteredCrossMonitorFixture(
                 state: &state,
                 workingFrame: fixture.monitor.visibleFrame,
                 gaps: fixture.gap
+            )
+
+            let expectedViewStart = niriExpectedViewportStart(
+                columns: columns,
+                gap: fixture.gap,
+                viewportWidth: fixture.monitor.visibleFrame.width,
+                currentViewStart: initialViewStart,
+                targetIndex: scenario.targetIndex,
+                centerMode: .onOverflow,
+                fromIndex: scenario.initialActiveIndex
             )
 
             #expect(state.activeColumnIndex == scenario.targetIndex, Comment(rawValue: scenario.label))
@@ -1810,7 +1959,15 @@ private func makeCenteredCrossMonitorFixture(
                 gaps: fixture.gap
             )
 
-            let expectedViewStart = CGFloat(scenario.expectedViewStartIndex) * columnStride
+            let expectedViewStart = niriExpectedViewportStart(
+                columns: columns,
+                gap: fixture.gap,
+                viewportWidth: fixture.monitor.visibleFrame.width,
+                currentViewStart: initialViewStart,
+                targetIndex: scenario.targetIndex,
+                centerMode: scenario.centerMode,
+                fromIndex: scenario.initialActiveIndex
+            )
             let expectedTargetOffset = expectedViewStart
                 - state.columnX(at: scenario.targetIndex, columns: columns, gap: fixture.gap)
 
@@ -2333,7 +2490,7 @@ private func makeCenteredCrossMonitorFixture(
             gaps: 8
         )
 
-        #expect(abs(state.viewOffsetPixels.target() + 604) < 0.1)
+        #expect(abs(state.viewOffsetPixels.target() + 400) < 0.1)
     }
 
     @Test func moveWindowVerticalKeepsInColumnReorderBehavior() {
@@ -3083,7 +3240,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == newToken)
         #expect(state.selectedNodeId == newNode.id)
         #expect(state.activeColumnIndex == 1)
-        #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == 403)
+        #expect(lastAppliedBorderWindowIdForLayoutPlanTests(on: controller) == nil)
     }
 
     @Test @MainActor func snapshotPlanEmitsHideDiffForOffscreenWindows() async throws {
@@ -5778,7 +5935,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(lastAppliedBorderFrameForLayoutPlanTests(on: controller) == observedFrame)
     }
 
-    @Test @MainActor func focusNeighborRoundTripDoesNotStartSecondSpringAfterSettledOffscreenMove() async throws {
+    @Test @MainActor func focusNeighborRoundTripUsesPaddedViewportOffsets() async throws {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,
               let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
@@ -5864,18 +6021,36 @@ private func makeCenteredCrossMonitorFixture(
         await waitForLayoutPlanRefreshWork(on: controller)
 
         let firstMoveState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let expectedFirstMoveStart = niriExpectedViewportStart(
+            columns: columns,
+            gap: gap,
+            viewportWidth: workingFrame.width,
+            currentViewStart: 0,
+            targetIndex: 2,
+            centerMode: .never,
+            fromIndex: 1
+        )
         #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[2].token)
         #expect(firstMoveState.viewOffsetPixels.isAnimating)
-        #expect(abs(viewportStart(for: firstMoveState, columns: columns, gap: gap) - columnStride) < 0.1)
+        #expect(abs(viewportStart(for: firstMoveState, columns: columns, gap: gap) - expectedFirstMoveStart) < 0.1)
 
         settleViewport()
         controller.niriLayoutHandler.focusNeighbor(direction: .left)
         await waitForLayoutPlanRefreshWork(on: controller)
 
         let firstReverseState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let expectedFirstReverseStart = niriExpectedViewportStart(
+            columns: columns,
+            gap: gap,
+            viewportWidth: workingFrame.width,
+            currentViewStart: expectedFirstMoveStart,
+            targetIndex: 1,
+            centerMode: .never,
+            fromIndex: 2
+        )
         #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[1].token)
-        #expect(!firstReverseState.viewOffsetPixels.isAnimating)
-        #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - columnStride) < 0.1)
+        #expect(firstReverseState.viewOffsetPixels.isAnimating)
+        #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - expectedFirstReverseStart) < 0.1)
     }
 
     @Test @MainActor func focusNeighborWithAnimationsDisabledUsesExactVisibleColumnOffsets() async throws {
@@ -5969,34 +6144,58 @@ private func makeCenteredCrossMonitorFixture(
             }
 
             setSelection(activeIndex: scenario.startingActiveIndex, visibleStartIndex: 0)
+            var expectedActiveIndex = scenario.startingActiveIndex
+            var expectedViewStart: CGFloat = 0
 
             controller.niriLayoutHandler.focusNeighbor(direction: .right)
             await waitForLayoutPlanRefreshWork(on: controller)
 
             let movedState = controller.workspaceManager.niriViewportState(for: workspaceId)
+            expectedViewStart = niriExpectedViewportStart(
+                columns: columns,
+                gap: gap,
+                viewportWidth: workingFrame.width,
+                currentViewStart: expectedViewStart,
+                targetIndex: scenario.startingActiveIndex + 1,
+                centerMode: .never,
+                fromIndex: scenario.startingActiveIndex
+            )
+            expectedActiveIndex = scenario.startingActiveIndex + 1
             #expect(
                 controller.workspaceManager.preferredFocusToken(in: workspaceId)
                     == windows[scenario.startingActiveIndex + 1].token,
                 comment
             )
             #expect(!movedState.viewOffsetPixels.isAnimating, comment)
-            #expect(abs(viewportStart(for: movedState, columns: columns, gap: gap) - columnStride) < 0.1, comment)
+            #expect(abs(viewportStart(for: movedState, columns: columns, gap: gap) - expectedViewStart) < 0.1, comment)
 
             for _ in 0..<windows.count {
                 if controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[0].token {
                     break
                 }
 
+                let targetIndex = max(0, expectedActiveIndex - 1)
                 controller.niriLayoutHandler.focusNeighbor(direction: .left)
                 await waitForLayoutPlanRefreshWork(on: controller)
 
                 let stepState = controller.workspaceManager.niriViewportState(for: workspaceId)
+                expectedViewStart = niriExpectedViewportStart(
+                    columns: columns,
+                    gap: gap,
+                    viewportWidth: workingFrame.width,
+                    currentViewStart: expectedViewStart,
+                    targetIndex: targetIndex,
+                    centerMode: .never,
+                    fromIndex: expectedActiveIndex
+                )
+                expectedActiveIndex = targetIndex
                 #expect(!stepState.viewOffsetPixels.isAnimating, comment)
+                #expect(abs(viewportStart(for: stepState, columns: columns, gap: gap) - expectedViewStart) < 0.1, comment)
             }
 
             let finalState = controller.workspaceManager.niriViewportState(for: workspaceId)
             #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[0].token, comment)
-            #expect(abs(viewportStart(for: finalState, columns: columns, gap: gap)) < 0.1, comment)
+            #expect(abs(viewportStart(for: finalState, columns: columns, gap: gap) - expectedViewStart) < 0.1, comment)
         }
     }
 
@@ -6079,6 +6278,15 @@ private func makeCenteredCrossMonitorFixture(
         await waitForLayoutPlanRefreshWork(on: controller)
 
         let animatingState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let expectedAnimatedStart = niriExpectedViewportStart(
+            columns: columns,
+            gap: gap,
+            viewportWidth: workingFrame.width,
+            currentViewStart: 0,
+            targetIndex: 2,
+            centerMode: .never,
+            fromIndex: 1
+        )
         #expect(animatingState.viewOffsetPixels.isAnimating)
 
         controller.setAnimationsEnabled(false)
@@ -6090,15 +6298,24 @@ private func makeCenteredCrossMonitorFixture(
 
         let settledState = controller.workspaceManager.niriViewportState(for: workspaceId)
         #expect(!settledState.viewOffsetPixels.isAnimating)
-        #expect(abs(viewportStart(for: settledState, columns: columns, gap: gap) - columnStride) < 0.1)
+        #expect(abs(viewportStart(for: settledState, columns: columns, gap: gap) - expectedAnimatedStart) < 0.1)
 
         controller.niriLayoutHandler.focusNeighbor(direction: .left)
         await waitForLayoutPlanRefreshWork(on: controller)
 
         let nextState = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let expectedNextStart = niriExpectedViewportStart(
+            columns: columns,
+            gap: gap,
+            viewportWidth: workingFrame.width,
+            currentViewStart: expectedAnimatedStart,
+            targetIndex: 1,
+            centerMode: .never,
+            fromIndex: 2
+        )
         #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[1].token)
         #expect(!nextState.viewOffsetPixels.isAnimating)
-        #expect(abs(viewportStart(for: nextState, columns: columns, gap: gap) - columnStride) < 0.1)
+        #expect(abs(viewportStart(for: nextState, columns: columns, gap: gap) - expectedNextStart) < 0.1)
     }
 
     @Test @MainActor func visibleSecondaryWorkspacePlanRestoresInactiveHiddenWindows() async throws {
