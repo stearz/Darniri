@@ -41,3 +41,24 @@ Backport commit:
 ## Records
 
 Records are added as commits are accepted, skipped, or manually translated.
+
+### `6b39ba9e95006860ec0b5b855bb46c90fc251872`
+
+```text
+Commit: 6b39ba9e95006860ec0b5b855bb46c90fc251872
+Original subject: Fix cross-workspace hidden window reveals
+Touched Swift files:
+- Sources/OmniWM/Core/Controller/LayoutRefreshController.swift
+- Tests/OmniWMTests/AXEventHandlerTests.swift
+- Tests/OmniWMTests/LayoutRefreshControllerTests.swift
+- Tests/OmniWMTests/RefreshRoutingTests.swift
+Touched Zig/build files: none
+Bug reproducible on 6fde9b9? unknown; source commit adds focused regression coverage for the reveal behavior
+Tests added or updated:
+- AXEventHandlerTests
+- LayoutRefreshControllerTests
+- RefreshRoutingTests
+Action: direct-dry-run
+Reason: Applies without manual edits, touches only Swift/test files, and passes the staged no-Zig audit.
+Backport commit: this commit
+```
