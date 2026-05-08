@@ -277,6 +277,60 @@ private func prepareIPCNiriState(
         #expect(controller.workspaceManager.workspace(for: token) == targetWorkspaceId)
     }
 
+    @Test func focusWindowOrWorkspaceDownFallsBackAtColumnEdge() throws {
+        let controller = makeLayoutPlanTestController()
+        let router = makeIPCCommandRouter(for: controller)
+        let sourceWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let targetWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        let handles = prepareIPCNiriState(
+            on: controller,
+            assignments: [
+                (sourceWorkspaceId, 2111)
+            ],
+            focusedWindowId: 2111
+        )
+        let token = try #require(handles[2111]).id
+
+        let result = router.handle(.focusWindowOrWorkspaceDown)
+
+        #expect(result == .executed)
+        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+        #expect(controller.workspaceManager.workspace(for: token) == sourceWorkspaceId)
+    }
+
+    @Test func focusWindowOrWorkspaceDownFallsBackFromEmptyWorkspace() throws {
+        let controller = makeLayoutPlanTestController()
+        let router = makeIPCCommandRouter(for: controller)
+        let sourceWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let targetWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        controller.enableNiriLayout()
+        controller.syncMonitorsToNiriEngine()
+        controller.workspaceManager.updateNiriViewportState(ViewportState(), for: sourceWorkspaceId)
+
+        let result = router.handle(.focusWindowOrWorkspaceDown)
+
+        #expect(result == .executed)
+        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+    }
+
+    @Test func focusWindowOrWorkspaceUpFallsBackFromEmptyWorkspace() throws {
+        let controller = makeLayoutPlanTestController()
+        let router = makeIPCCommandRouter(for: controller)
+        let targetWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let sourceWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: targetWorkspaceId))
+        #expect(controller.workspaceManager.setActiveWorkspace(sourceWorkspaceId, on: monitor.id))
+        _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
+        controller.enableNiriLayout()
+        controller.syncMonitorsToNiriEngine()
+        controller.workspaceManager.updateNiriViewportState(ViewportState(), for: sourceWorkspaceId)
+
+        let result = router.handle(.focusWindowOrWorkspaceUp)
+
+        #expect(result == .executed)
+        #expect(controller.activeWorkspace()?.id == targetWorkspaceId)
+    }
+
     @Test func moveToWorkspaceOnMonitorRejectsWorkspaceOnWrongAdjacentMonitor() throws {
         let primaryMonitor = makeLayoutPlanPrimaryTestMonitor(name: "Primary")
         let secondaryMonitor = makeLayoutPlanSecondaryTestMonitor(name: "Secondary", x: 1920)

@@ -167,6 +167,8 @@ enum ActionCatalog {
             action(id: "focusWindowBottom", command: .focusWindowBottom, category: .focus, binding: .unassigned),
             action(id: "focusWindowDownOrTop", command: .focusWindowDownOrTop, category: .focus, binding: .unassigned),
             action(id: "focusWindowUpOrBottom", command: .focusWindowUpOrBottom, category: .focus, binding: .unassigned),
+            action(id: "focusWindowOrWorkspaceDown", command: .focusWindowOrWorkspaceDown, category: .focus, binding: .unassigned),
+            action(id: "focusWindowOrWorkspaceUp", command: .focusWindowOrWorkspaceUp, category: .focus, binding: .unassigned),
         ])
 
         specs.append(contentsOf: [
@@ -351,6 +353,7 @@ enum ActionCatalog {
              .focusPrevious, .focusDownOrLeft, .focusUpOrRight,
              .focusWindowInColumn, .focusWindowTop, .focusWindowBottom,
              .focusWindowDownOrTop, .focusWindowUpOrBottom,
+             .focusWindowOrWorkspaceDown, .focusWindowOrWorkspaceUp,
              .focusColumnFirst, .focusColumnLast, .focusColumn:
             .niri
 
@@ -412,6 +415,8 @@ enum ActionCatalog {
         case .focusWindowBottom: "Focus Bottom Window"
         case .focusWindowDownOrTop: "Focus Down or Top"
         case .focusWindowUpOrBottom: "Focus Up or Bottom"
+        case .focusWindowOrWorkspaceDown: "Focus Window or Workspace Down"
+        case .focusWindowOrWorkspaceUp: "Focus Window or Workspace Up"
         case .focusColumnFirst: "Focus First Column"
         case .focusColumnLast: "Focus Last Column"
         case let .focusColumn(idx): "Focus Column \(idx + 1)"
@@ -473,6 +478,10 @@ enum ActionCatalog {
             .focusWindowDownOrTop
         case .focusWindowUpOrBottom:
             .focusWindowUpOrBottom
+        case .focusWindowOrWorkspaceDown:
+            .focusWindowOrWorkspaceDown
+        case .focusWindowOrWorkspaceUp:
+            .focusWindowOrWorkspaceUp
         case .focusColumn:
             .focusColumn
         case .focusColumnFirst:

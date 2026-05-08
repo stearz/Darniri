@@ -358,6 +358,12 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
             IPCCommandRequest.focusWindowUpOrBottom
         )
         try assertRoundTrip(
+            IPCCommandRequest.focusWindowOrWorkspaceDown
+        )
+        try assertRoundTrip(
+            IPCCommandRequest.focusWindowOrWorkspaceUp
+        )
+        try assertRoundTrip(
             IPCCommandRequest.moveColumnToIndex(columnIndex: 3)
         )
         try assertRoundTrip(

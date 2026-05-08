@@ -109,6 +109,10 @@ final class CommandHandler {
             focusWindowDownOrTopInNiri()
         case .focusWindowUpOrBottom:
             focusWindowUpOrBottomInNiri()
+        case .focusWindowOrWorkspaceDown:
+            focusWindowOrWorkspaceInNiri(direction: .down)
+        case .focusWindowOrWorkspaceUp:
+            focusWindowOrWorkspaceInNiri(direction: .up)
         case .focusColumnFirst:
             focusColumnFirstInNiri()
         case .focusColumnLast:
@@ -335,6 +339,26 @@ final class CommandHandler {
         }
     }
 
+    private func focusWindowOrWorkspaceInNiri(direction: Direction) {
+        guard direction == .down || direction == .up else { return }
+        executeCombinedNavigation(onNoTarget: { [weak self] in
+            self?.controller?.workspaceNavigationHandler.switchWorkspaceRelative(
+                isNext: direction == .down,
+                wrapAround: false
+            )
+        }) { engine, currentNode, wsId, motion, state, workingFrame, gaps in
+            engine.focusTarget(
+                direction: direction,
+                currentSelection: currentNode,
+                in: wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: workingFrame,
+                gaps: gaps
+            )
+        }
+    }
+
     private func focusColumnFirstInNiri() {
         executeCombinedNavigation { engine, currentNode, wsId, motion, state, workingFrame, gaps in
             engine.focusColumnFirst(
@@ -376,6 +400,7 @@ final class CommandHandler {
     }
 
     private func executeCombinedNavigation(
+        onNoTarget: (() -> Void)? = nil,
         _ navigationAction: (
             NiriLayoutEngine,
             NiriNode,
@@ -393,9 +418,23 @@ final class CommandHandler {
         guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
 
         var state = controller.workspaceManager.niriViewportState(for: wsId)
-        guard let currentId = state.selectedNodeId,
-              let currentNode = engine.findNode(by: currentId)
-        else {
+        let currentNode: NiriNode
+        if let currentId = state.selectedNodeId,
+           let node = engine.findNode(by: currentId)
+        {
+            currentNode = node
+        } else if let lastFocused = controller.workspaceManager.lastFocusedToken(in: wsId),
+                  let node = engine.findNode(for: lastFocused)
+        {
+            state.selectedNodeId = node.id
+            currentNode = node
+        } else if let selectedId = engine.validateSelection(state.selectedNodeId, in: wsId),
+                  let node = engine.findNode(by: selectedId)
+        {
+            state.selectedNodeId = selectedId
+            currentNode = node
+        } else {
+            onNoTarget?()
             return
         }
 
@@ -403,6 +442,7 @@ final class CommandHandler {
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let motion = controller.motionPolicy.snapshot()
         guard let newNode = navigationAction(engine, currentNode, wsId, motion, &state, workingFrame, gap) else {
+            onNoTarget?()
             return
         }
 

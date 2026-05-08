@@ -419,6 +419,8 @@ public enum IPCAutomationManifest {
         command(["focus-window", "bottom"], name: .focusWindowBottom, summary: "Focus the bottom window in the focused Niri column.", layoutCompatibility: .niri),
         command(["focus-window", "down-or-top"], name: .focusWindowDownOrTop, summary: "Focus down in the focused Niri column, wrapping to the top.", layoutCompatibility: .niri),
         command(["focus-window", "up-or-bottom"], name: .focusWindowUpOrBottom, summary: "Focus up in the focused Niri column, wrapping to the bottom.", layoutCompatibility: .niri),
+        command(["focus-window-or-workspace-down"], name: .focusWindowOrWorkspaceDown, summary: "Focus down in the focused Niri column, or switch to the workspace below at the column edge.", layoutCompatibility: .niri),
+        command(["focus-window-or-workspace-up"], name: .focusWindowOrWorkspaceUp, summary: "Focus up in the focused Niri column, or switch to the workspace above at the column edge.", layoutCompatibility: .niri),
         command(["focus-column"], name: .focusColumn, summary: "Focus a Niri column by one-based index.", arguments: [columnIndexArgument], layoutCompatibility: .niri),
         command(["focus-column", "first"], name: .focusColumnFirst, summary: "Focus the first Niri column.", layoutCompatibility: .niri),
         command(["focus-column", "last"], name: .focusColumnLast, summary: "Focus the last Niri column.", layoutCompatibility: .niri),

@@ -35,10 +35,14 @@ import OmniWMIPC
         let indexed = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-window-in-column", "3"])
         let top = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-window", "top"])
         let wrap = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-window", "down-or-top"])
+        let workspaceDown = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-window-or-workspace-down"])
+        let workspaceUp = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-window-or-workspace-up"])
 
         guard case let .command(indexedCommand) = indexed.request.payload,
               case let .command(topCommand) = top.request.payload,
-              case let .command(wrapCommand) = wrap.request.payload
+              case let .command(wrapCommand) = wrap.request.payload,
+              case let .command(workspaceDownCommand) = workspaceDown.request.payload,
+              case let .command(workspaceUpCommand) = workspaceUp.request.payload
         else {
             Issue.record("Expected command payloads")
             return
@@ -47,6 +51,8 @@ import OmniWMIPC
         #expect(indexedCommand == .focusWindowInColumn(windowIndex: 3))
         #expect(topCommand == .focusWindowTop)
         #expect(wrapCommand == .focusWindowDownOrTop)
+        #expect(workspaceDownCommand == .focusWindowOrWorkspaceDown)
+        #expect(workspaceUpCommand == .focusWindowOrWorkspaceUp)
     }
 
     @Test func parsesNiriColumnMoveCommands() throws {

@@ -34,6 +34,10 @@ final class IPCCommandRouter {
             return controller.commandHandler.performCommand(.focusWindowDownOrTop)
         case .focusWindowUpOrBottom:
             return controller.commandHandler.performCommand(.focusWindowUpOrBottom)
+        case .focusWindowOrWorkspaceDown:
+            return controller.commandHandler.performCommand(.focusWindowOrWorkspaceDown)
+        case .focusWindowOrWorkspaceUp:
+            return controller.commandHandler.performCommand(.focusWindowOrWorkspaceUp)
         case let .focusColumn(columnIndex):
             guard let zeroBasedIndex = zeroBasedIndex(from: columnIndex) else {
                 return .invalidArguments

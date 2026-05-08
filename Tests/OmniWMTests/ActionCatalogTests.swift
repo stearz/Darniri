@@ -37,11 +37,14 @@ import Testing
     @Test func niriWindowFocusActionsUsePublicCommandDescriptors() throws {
         let indexed = try #require(ActionCatalog.spec(for: "focusWindowInColumn.1"))
         let top = try #require(ActionCatalog.spec(for: "focusWindowTop"))
+        let fallback = try #require(ActionCatalog.spec(for: "focusWindowOrWorkspaceDown"))
 
         #expect(indexed.ipcCommandName == .focusWindowInColumn)
         #expect(indexed.ipcDescriptor?.path == "command focus-window-in-column <number>")
         #expect(top.ipcCommandName == .focusWindowTop)
         #expect(top.ipcDescriptor?.path == "command focus-window top")
+        #expect(fallback.ipcCommandName == .focusWindowOrWorkspaceDown)
+        #expect(fallback.ipcDescriptor?.path == "command focus-window-or-workspace-down")
     }
 
     @Test func niriColumnMoveActionsUsePublicCommandDescriptors() throws {

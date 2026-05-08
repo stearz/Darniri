@@ -45,6 +45,8 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case focusWindowBottom
     case focusWindowDownOrTop
     case focusWindowUpOrBottom
+    case focusWindowOrWorkspaceDown
+    case focusWindowOrWorkspaceUp
     case focusColumnFirst
     case focusColumnLast
     case focusColumn(Int)
