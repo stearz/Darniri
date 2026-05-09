@@ -1449,6 +1449,245 @@ private func makeCenteredCrossMonitorFixture(
         #expect(isW1OrW3)
     }
 
+    @Test func removalTransactionActiveMiddleColumnUsesRightNeighborFallback() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
+        let wsId = UUID()
+        let workingFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let gap: CGFloat = 8
+
+        let h1 = makeTestHandle()
+        let h2 = makeTestHandle()
+        let h3 = makeTestHandle()
+
+        let _ = engine.addWindow(handle: h1, to: wsId, afterSelection: nil)
+        let w2 = engine.addWindow(handle: h2, to: wsId, afterSelection: nil)
+        let w3 = engine.addWindow(handle: h3, to: wsId, afterSelection: w2.id)
+        assignFixedWidths(engine.columns(in: wsId), width: 200)
+
+        var state = ViewportState()
+        state.activeColumnIndex = 1
+        state.selectedNodeId = w2.id
+        state.viewOffsetPixels = .static(0)
+
+        let result = engine.removeWindows(
+            Set([h2.id]),
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: workingFrame,
+            gaps: gap,
+            selectedNodeId: w2.id,
+            removedNodeIds: [w2.id]
+        )
+
+        #expect(engine.columns(in: wsId).count == 2)
+        #expect(engine.findNode(by: w2.id) == nil)
+        #expect(result.removedTokens == Set([h2.id]))
+        #expect(result.removedColumnIndicesBefore == [1])
+        #expect(result.activeIndexBefore == Optional(1))
+        #expect(result.activeIndexAfter == Optional(1))
+        #expect(result.finalSelectionId == w3.id)
+        #expect(state.selectedNodeId == w3.id)
+        #expect(state.activeColumnIndex == 1)
+    }
+
+    @Test func removalTransactionRestoresPendingPreviousActivationOffset() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
+        let wsId = UUID()
+        let workingFrame = CGRect(x: 0, y: 0, width: 2000, height: 800)
+
+        let h1 = makeTestHandle()
+        let h2 = makeTestHandle()
+        let w1 = engine.addWindow(handle: h1, to: wsId, afterSelection: nil)
+        let w2 = engine.addWindow(handle: h2, to: wsId, afterSelection: w1.id)
+        assignFixedWidths(engine.columns(in: wsId), width: 200)
+
+        var state = ViewportState()
+        state.activeColumnIndex = 1
+        state.selectedNodeId = w2.id
+        state.viewOffsetPixels = .static(456)
+        state.viewOffsetToRestore = 999
+        state.activatePrevColumnOnRemoval = 123
+
+        let result = engine.removeWindows(
+            Set([h2.id]),
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: workingFrame,
+            gaps: 8,
+            selectedNodeId: w2.id,
+            removedNodeIds: [w2.id]
+        )
+
+        #expect(engine.columns(in: wsId).count == 1)
+        #expect(result.finalSelectionId == w1.id)
+        #expect(result.visibilityWasCorrected)
+        #expect(state.selectedNodeId == w1.id)
+        #expect(state.activeColumnIndex == 0)
+        #expect(state.activatePrevColumnOnRemoval == nil)
+        #expect(state.viewOffsetToRestore == nil)
+        #expect(abs(state.viewOffsetPixels.current() + 8) < 0.001)
+    }
+
+    @Test func removalTransactionClearsPendingPreviousWhenPreviousTargetIsRemoved() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
+        let wsId = UUID()
+        let workingFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+        let h1 = makeTestHandle()
+        let h2 = makeTestHandle()
+        let h3 = makeTestHandle()
+        let _ = engine.addWindow(handle: h1, to: wsId, afterSelection: nil)
+        let w2 = engine.addWindow(handle: h2, to: wsId, afterSelection: nil)
+        let w3 = engine.addWindow(handle: h3, to: wsId, afterSelection: w2.id)
+        assignFixedWidths(engine.columns(in: wsId), width: 200)
+
+        var state = ViewportState()
+        state.activeColumnIndex = 2
+        state.selectedNodeId = w3.id
+        state.viewOffsetPixels = .static(0)
+        state.activatePrevColumnOnRemoval = 321
+
+        let result = engine.removeWindows(
+            Set([h2.id]),
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: workingFrame,
+            gaps: 8,
+            selectedNodeId: w3.id,
+            removedNodeIds: [w2.id]
+        )
+
+        #expect(engine.columns(in: wsId).count == 2)
+        #expect(result.finalSelectionId == w3.id)
+        #expect(state.selectedNodeId == w3.id)
+        #expect(state.activeColumnIndex == 1)
+        #expect(state.activatePrevColumnOnRemoval == nil)
+        #expect(abs(state.viewOffsetPixels.current() - 208) < 0.001)
+    }
+
+    @Test func removalTransactionBatchExcludesRemovedFallbackTargets() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
+        let wsId = UUID()
+        let workingFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+        let h1 = makeTestHandle()
+        let h2 = makeTestHandle()
+        let h3 = makeTestHandle()
+        let h4 = makeTestHandle()
+        let _ = engine.addWindow(handle: h1, to: wsId, afterSelection: nil)
+        let w2 = engine.addWindow(handle: h2, to: wsId, afterSelection: nil)
+        let w3 = engine.addWindow(handle: h3, to: wsId, afterSelection: w2.id)
+        let w4 = engine.addWindow(handle: h4, to: wsId, afterSelection: w3.id)
+        assignFixedWidths(engine.columns(in: wsId), width: 200)
+
+        engine.interactiveResize = InteractiveResize(
+            windowId: w2.id,
+            workspaceId: wsId,
+            originalColumnWidth: 200,
+            originalWindowHeight: nil,
+            edges: [.right],
+            startMouseLocation: .zero,
+            columnIndex: 1,
+            originalViewOffset: nil
+        )
+
+        var state = ViewportState()
+        state.activeColumnIndex = 1
+        state.selectedNodeId = w2.id
+        state.viewOffsetPixels = .static(0)
+
+        let result = engine.removeWindows(
+            Set([h2.id, h3.id]),
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: workingFrame,
+            gaps: 8,
+            selectedNodeId: w2.id,
+            removedNodeIds: [w2.id, w3.id]
+        )
+
+        #expect(engine.columns(in: wsId).count == 2)
+        #expect(engine.interactiveResize == nil)
+        #expect(result.removedColumnIndicesBefore == [1, 1])
+        #expect(result.finalSelectionId == w4.id)
+        #expect(state.selectedNodeId == w4.id)
+        #expect(state.activeColumnIndex == 1)
+    }
+
+    @Test func removalTransactionSurvivingColumnTileFallbackAdjustsWithinColumn() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 3)
+        let wsId = UUID()
+        let root = NiriRoot(workspaceId: wsId)
+        engine.roots[wsId] = root
+
+        let column = NiriContainer()
+        root.appendChild(column)
+        column.cachedWidth = 300
+
+        let bottom = NiriWindow(token: makeTestHandle(pid: 201).id)
+        let top = NiriWindow(token: makeTestHandle(pid: 202).id)
+        bottom.height = .auto(weight: 2)
+        top.height = .auto(weight: 3)
+        column.appendChild(bottom)
+        column.appendChild(top)
+        column.setActiveTileIdx(1)
+        engine.tokenToNode[bottom.token] = bottom
+        engine.tokenToNode[top.token] = top
+
+        var state = ViewportState()
+        state.activeColumnIndex = 0
+        state.selectedNodeId = top.id
+
+        let result = engine.removeWindows(
+            Set([top.token]),
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            gaps: 8,
+            selectedNodeId: top.id,
+            removedNodeIds: [top.id]
+        )
+
+        #expect(engine.columns(in: wsId).count == 1)
+        #expect(column.windowNodes.map(\.id) == [bottom.id])
+        #expect(column.activeWindow?.id == bottom.id)
+        #expect(bottom.height == .auto(weight: 1.0))
+        #expect(result.removedColumnIndicesBefore.isEmpty)
+        #expect(result.finalSelectionId == bottom.id)
+        #expect(state.selectedNodeId == bottom.id)
+    }
+
+    @Test func removalTransactionNoOpDoesNotValidateStaleSelection() {
+        let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
+        let wsId = UUID()
+        let window = engine.addWindow(handle: makeTestHandle(), to: wsId, afterSelection: nil)
+        let staleSelection = NodeId()
+
+        var state = ViewportState()
+        state.activeColumnIndex = 0
+        state.selectedNodeId = staleSelection
+
+        let result = engine.removeWindows(
+            [],
+            in: wsId,
+            state: &state,
+            motion: .disabled,
+            workingFrame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            gaps: 8,
+            selectedNodeId: staleSelection,
+            removedNodeIds: []
+        )
+
+        #expect(result.finalSelectionId == nil)
+        #expect(state.selectedNodeId == staleSelection)
+        #expect(engine.validateSelection(state.selectedNodeId, in: wsId) == window.id)
+    }
+
     @Test func viewportOffsetAdjustsForInsertionBeforeActive() {
         let engine = NiriLayoutEngine(maxWindowsPerColumn: 1)
         let wsId = UUID()

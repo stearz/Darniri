@@ -212,6 +212,7 @@ extension NiriLayoutEngine {
     ) {
         guard column.children.isEmpty else { return }
 
+        // Window-close removals use removeWindows(...); this is structural cleanup for move/consume paths.
         column.remove()
     }
 

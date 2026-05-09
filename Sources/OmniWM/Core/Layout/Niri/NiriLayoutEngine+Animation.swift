@@ -27,35 +27,13 @@ extension NiriLayoutEngine {
                    - columnX(at: removedIdx, columns: cols, gaps: gaps)
         let postRemovalCount = cols.count - 1
 
-        if activeIdx <= removedIdx {
-            for col in cols[(removedIdx + 1)...] {
-                if col.hasMoveAnimationRunning {
-                    col.offsetMoveAnimCurrent(offset)
-                } else {
-                    col.animateMoveFrom(
-                        displacement: CGPoint(x: offset, y: 0),
-                        clock: animationClock,
-                        config: windowMovementAnimationConfig,
-                        displayRefreshRate: displayRefreshRate,
-                        animated: motion.animationsEnabled
-                    )
-                }
-            }
-        } else {
-            for col in cols[..<removedIdx] {
-                if col.hasMoveAnimationRunning {
-                    col.offsetMoveAnimCurrent(-offset)
-                } else {
-                    col.animateMoveFrom(
-                        displacement: CGPoint(x: -offset, y: 0),
-                        clock: animationClock,
-                        config: windowMovementAnimationConfig,
-                        displayRefreshRate: displayRefreshRate,
-                        animated: motion.animationsEnabled
-                    )
-                }
-            }
-        }
+        animateColumnsAroundRemoval(
+            columns: cols,
+            removedIdx: removedIdx,
+            activeIdx: activeIdx,
+            offset: offset,
+            motion: motion
+        )
 
         let removingNode = cols[removedIdx].windowNodes.first
         let fallback = removingNode.flatMap { fallbackSelectionOnRemoval(removing: $0.id, in: workspaceId) }
@@ -91,6 +69,41 @@ extension NiriLayoutEngine {
                 fallbackSelectionId: fallback,
                 restorePreviousViewOffset: nil
             )
+        }
+    }
+
+    func animateColumnsAroundRemoval(
+        columns cols: [NiriContainer],
+        removedIdx: Int,
+        activeIdx: Int,
+        offset: CGFloat,
+        motion: MotionSnapshot
+    ) {
+        guard removedIdx >= 0, removedIdx < cols.count else { return }
+
+        let animatedColumns: ArraySlice<NiriContainer>
+        let displacement: CGFloat
+        if activeIdx <= removedIdx {
+            guard removedIdx + 1 < cols.count else { return }
+            animatedColumns = cols[(removedIdx + 1)...]
+            displacement = offset
+        } else {
+            animatedColumns = cols[..<removedIdx]
+            displacement = -offset
+        }
+
+        for col in animatedColumns {
+            if col.hasMoveAnimationRunning {
+                col.offsetMoveAnimCurrent(displacement)
+            } else {
+                col.animateMoveFrom(
+                    displacement: CGPoint(x: displacement, y: 0),
+                    clock: animationClock,
+                    config: windowMovementAnimationConfig,
+                    displayRefreshRate: displayRefreshRate,
+                    animated: motion.animationsEnabled
+                )
+            }
         }
     }
 

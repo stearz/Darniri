@@ -33,9 +33,7 @@ enum NiriWindowMoveResult {
     struct RemovalContext {
         var existingHandleIds: Set<WindowToken>
         var wasEmptyBeforeSync: Bool
-        var columnRemovalResult: NiriLayoutEngine.ColumnRemovalResult?
-        var precomputedFallback: NodeId?
-        var originalColumnIndex: Int?
+        var removalResult: NiriLayoutEngine.NiriRemovalResult
     }
 
     var scrollAnimationByDisplay: [CGDirectDisplayID: WorkspaceDescriptor.ID] = [:]
@@ -407,55 +405,24 @@ enum NiriWindowMoveResult {
         removedNodeIds: [NodeId]
     ) -> RemovalContext {
         let existingHandleIds = pass.engine.root(for: pass.wsId)?.windowIdSet ?? []
-        let currentHandleIds = Set(windowTokens)
-        let removedHandleIds = existingHandleIds.subtracting(currentHandleIds)
-        let removedNodeIdSet = Set(removedNodeIds)
-
-        var precomputedFallback: NodeId?
-        var originalColumnIndex: Int?
-        var columnRemovalResult: NiriLayoutEngine.ColumnRemovalResult?
-
+        let removedHandleIds = existingHandleIds.subtracting(Set(windowTokens))
         let wasEmptyBeforeSync = pass.engine.columns(in: pass.wsId).isEmpty
 
-        for removedHandleId in removedHandleIds {
-            guard let window = pass.engine.findNode(for: removedHandleId),
-                  let col = pass.engine.column(of: window),
-                  let colIdx = pass.engine.columnIndex(of: col, in: pass.wsId) else { continue }
-
-            let allWindowsInColumnRemoved = col.windowNodes.allSatisfy { w in
-                !currentHandleIds.contains(w.token)
-            }
-
-            if allWindowsInColumnRemoved && columnRemovalResult == nil {
-                originalColumnIndex = colIdx
-                columnRemovalResult = pass.engine.animateColumnsForRemoval(
-                    columnIndex: colIdx,
-                    in: pass.wsId,
-                    motion: motion,
-                    state: &state,
-                    gaps: pass.gap
-                )
-            }
-
-            let shouldPrecomputeFallback = if removedNodeIdSet.isEmpty {
-                window.id == currentSelection
-            } else {
-                removedNodeIdSet.contains(window.id)
-            }
-            if shouldPrecomputeFallback {
-                precomputedFallback = pass.engine.fallbackSelectionOnRemoval(
-                    removing: window.id,
-                    in: pass.wsId
-                )
-            }
-        }
+        let removalResult = pass.engine.removeWindows(
+            removedHandleIds,
+            in: pass.wsId,
+            state: &state,
+            motion: motion,
+            workingFrame: pass.insetFrame,
+            gaps: pass.gap,
+            selectedNodeId: currentSelection,
+            removedNodeIds: removedNodeIds
+        )
 
         return RemovalContext(
             existingHandleIds: existingHandleIds,
             wasEmptyBeforeSync: wasEmptyBeforeSync,
-            columnRemovalResult: columnRemovalResult,
-            precomputedFallback: precomputedFallback,
-            originalColumnIndex: originalColumnIndex
+            removalResult: removalResult
         )
     }
 
@@ -497,7 +464,7 @@ enum NiriWindowMoveResult {
 
             let originalActiveIdx = state.activeColumnIndex
             let insertedBeforeActive = newColumnData.filter { $0.colIdx <= originalActiveIdx }
-            if !insertedBeforeActive.isEmpty, removal.columnRemovalResult == nil {
+            if !insertedBeforeActive.isEmpty, removal.removalResult.removedColumnIndicesBefore.isEmpty {
                 let totalInsertedWidth = insertedBeforeActive.reduce(CGFloat(0)) { total, data in
                     total + data.col.cachedWidth + pass.gap
                 }
@@ -531,25 +498,11 @@ enum NiriWindowMoveResult {
     ) -> (viewportNeedsRecalc: Bool, rememberedFocusToken: WindowToken?) {
         state.displayRefreshRate = snapshot.displayRefreshRate
 
-        if let result = removal.columnRemovalResult {
-            if let prevOffset = state.activatePrevColumnOnRemoval {
-                state.viewOffsetPixels = .static(prevOffset)
-                state.activatePrevColumnOnRemoval = nil
-            }
-
-            if let fallback = result.fallbackSelectionId {
-                state.selectedNodeId = fallback
-            } else if let selectedId = state.selectedNodeId, pass.engine.findNode(by: selectedId) == nil {
-                state.selectedNodeId = removal.precomputedFallback
-                    ?? pass.engine.validateSelection(selectedId, in: pass.wsId)
-            }
-        } else {
-            if let selectedId = state.selectedNodeId {
-                if pass.engine.findNode(by: selectedId) == nil {
-                    state.selectedNodeId = removal.precomputedFallback
-                        ?? pass.engine.validateSelection(selectedId, in: pass.wsId)
-                }
-            }
+        if let finalSelectionId = removal.removalResult.finalSelectionId {
+            state.selectedNodeId = finalSelectionId
+        } else if let selectedId = state.selectedNodeId,
+                  pass.engine.findNode(by: selectedId) == nil {
+            state.selectedNodeId = pass.engine.validateSelection(selectedId, in: pass.wsId)
         }
 
         if state.selectedNodeId == nil {
@@ -566,7 +519,7 @@ enum NiriWindowMoveResult {
         }
 
         let offsetBefore = state.viewOffsetPixels.current()
-        var viewportNeedsRecalc = false
+        var viewportNeedsRecalc = removal.removalResult.viewportNeedsRecalc
 
         let isGestureOrAnimation = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
 
@@ -580,21 +533,19 @@ enum NiriWindowMoveResult {
            !isGestureOrAnimation,
            snapshot.isActiveWorkspace,
            let selectedId = state.selectedNodeId,
-           let selectedNode = pass.engine.findNode(by: selectedId)
+           let selectedNode = pass.engine.findNode(by: selectedId),
+           !removal.removalResult.visibilityWasCorrected,
+           removal.removalResult.removedTokens.isEmpty || removal.removalResult.fromIndexForVisibility != nil
         {
-            if let restoreOffset = removal.columnRemovalResult?.restorePreviousViewOffset {
-                state.viewOffsetPixels = .static(restoreOffset)
-            } else {
-                pass.engine.ensureSelectionVisible(
-                    node: selectedNode,
-                    in: pass.wsId,
-                    motion: motion,
-                    state: &state,
-                    workingFrame: pass.insetFrame,
-                    gaps: pass.gap,
-                    fromContainerIndex: removal.originalColumnIndex
-                )
-            }
+            pass.engine.ensureSelectionVisible(
+                node: selectedNode,
+                in: pass.wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: pass.insetFrame,
+                gaps: pass.gap,
+                fromContainerIndex: removal.removalResult.fromIndexForVisibility
+            )
             if abs(state.viewOffsetPixels.current() - offsetBefore) > 1 {
                 viewportNeedsRecalc = true
             }
