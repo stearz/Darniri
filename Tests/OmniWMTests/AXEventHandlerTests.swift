@@ -5220,6 +5220,46 @@ private func waitUntilAXEventTest(
         #expect(relayoutReasons == [.windowRuleReevaluation])
     }
 
+    @Test @MainActor func automaticHeuristicReevaluationDoesNotFloatExistingTiledWindow() async {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let pid = getpid()
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 826),
+            pid: pid,
+            windowId: 826,
+            to: workspaceId,
+            mode: .tiling
+        )
+        controller.axEventHandler.axWindowRefProvider = { windowId, _ in
+            guard windowId == 826 else { return nil }
+            return AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                bundleId: "com.jetbrains.rustrover",
+                hasFullscreenButton: false
+            )
+        }
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { reason, _ in
+            Issue.record("Unexpected relayout reason: \(reason)")
+            return true
+        }
+
+        let outcome = await controller.reevaluateWindowRules(for: [.window(token)])
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(outcome.resolvedAnyTarget)
+        #expect(outcome.evaluatedAnyWindow)
+        #expect(!outcome.relayoutNeeded)
+        #expect(controller.workspaceManager.entry(for: token)?.mode == .tiling)
+    }
+
     @Test @MainActor func appHideAndUnhideUseVisibilityRouteAndPreserveModelState() async {
         let controller = makeAXEventTestController()
         guard let workspaceId = controller.activeWorkspace()?.id else {

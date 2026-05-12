@@ -1377,6 +1377,30 @@ final class WMController {
         return nil
     }
 
+    private func trackedModeForAutomaticReevaluation(
+        decision: WindowDecision,
+        existingEntry: WindowModel.Entry?,
+        context: WindowRuleReevaluationContext
+    ) -> TrackedWindowMode? {
+        guard let trackedMode = trackedModeForLifecycle(
+            decision: decision,
+            existingEntry: existingEntry
+        ) else {
+            return nil
+        }
+
+        guard context == .automatic,
+              let existingEntry,
+              existingEntry.mode == .tiling,
+              trackedMode == .floating,
+              decision.source == .heuristic
+        else {
+            return trackedMode
+        }
+
+        return .tiling
+    }
+
     func resolvedWorkspaceId(
         for evaluation: WindowDecisionEvaluation,
         axRef: AXWindowRef,
@@ -1607,9 +1631,10 @@ final class WMController {
             evaluatedAnyWindow = true
             let evaluation = evaluateWindowDisposition(axRef: axRef, pid: token.pid)
 
-            guard let trackedMode = trackedModeForLifecycle(
+            guard let effectiveTrackedMode = trackedModeForAutomaticReevaluation(
                 decision: evaluation.decision,
-                existingEntry: existingEntry
+                existingEntry: existingEntry,
+                context: context
             ) else {
                 if let existingEntry {
                     affectedWorkspaceIds.insert(existingEntry.workspaceId)
@@ -1635,17 +1660,17 @@ final class WMController {
                 pid: token.pid,
                 windowId: token.windowId,
                 to: workspaceId,
-                mode: oldMode ?? trackedMode,
+                mode: oldMode ?? effectiveTrackedMode,
                 ruleEffects: evaluation.decision.ruleEffects
             )
 
-            if let oldMode, oldMode != trackedMode {
+            if let oldMode, oldMode != effectiveTrackedMode {
                 _ = transitionWindowMode(
                     for: token,
-                    to: trackedMode,
+                    to: effectiveTrackedMode,
                     preferredMonitor: workspaceManager.monitor(for: workspaceId)
                 )
-            } else if trackedMode == .floating {
+            } else if effectiveTrackedMode == .floating {
                 seedFloatingGeometryIfNeeded(
                     for: token,
                     preferredMonitor: workspaceManager.monitor(for: workspaceId)
@@ -1672,7 +1697,7 @@ final class WMController {
             if existingEntry == nil
                 || oldEffects != evaluation.decision.ruleEffects
                 || oldWorkspaceId != workspaceId
-                || oldMode != trackedMode
+                || oldMode != effectiveTrackedMode
             {
                 if let oldWorkspaceId {
                     affectedWorkspaceIds.insert(oldWorkspaceId)
