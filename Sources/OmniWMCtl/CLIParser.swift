@@ -36,29 +36,9 @@ struct ParsedCLICommand: Equatable {
 }
 
 enum CLIParser {
-    private static let ruleOptionFlags: [String] = [
-        "--bundle-id",
-        "--app-name-substring",
-        "--title-substring",
-        "--title-regex",
-        "--ax-role",
-        "--ax-subrole",
-        "--layout",
-        "--assign-to-workspace",
-        "--min-width",
-        "--min-height",
-    ]
-
-    private static let commandAliases: [(alias: String, canonical: String)] = [
-        ("command focus-monitor previous", "command focus-monitor prev"),
-        ("command switch-workspace previous", "command switch-workspace prev"),
-        ("command switch-workspace back", "command switch-workspace back-and-forth"),
-    ]
-
-    private static let queryAliases: [(alias: String, canonical: String)] = [
-        ("query monitors", "query displays"),
-        ("query --monitor", "query --display"),
-    ]
+    private static var ruleDefinitionOptionFlags: Set<String> {
+        Set(IPCAutomationManifest.ruleDefinitionOptionDescriptors.map(\.flag))
+    }
 
     static func parse(arguments: [String], environment: [String: String] = ProcessInfo.processInfo.environment) throws -> ParsedCLICommand {
         let normalized = normalize(arguments: arguments)
@@ -185,12 +165,6 @@ enum CLIParser {
 
         while index < rawArguments.count {
             let argument = rawArguments[index]
-            if index < execIndex, argument == "--json" {
-                outputFormat = .json
-                index += 1
-                continue
-            }
-
             if index < execIndex, argument == "--format", index + 1 < rawArguments.count,
                let format = CLIOutputFormat(rawValue: rawArguments[index + 1])
             {
@@ -211,15 +185,14 @@ enum CLIParser {
             throw CLIParseError.usage(usageText)
         }
 
-        let normalizedArguments = canonicalizeCommandArguments(arguments)
-        for descriptor in IPCAutomationManifest.commandDescriptors(matching: normalizedArguments) {
+        for descriptor in IPCAutomationManifest.commandDescriptors(matching: arguments) {
             let commandWordCount = descriptor.commandWords.count
-            let remainingCount = normalizedArguments.count - commandWordCount
+            let remainingCount = arguments.count - commandWordCount
             guard remainingCount == descriptor.arguments.count else {
                 continue
             }
 
-            let argumentTokens = Array(normalizedArguments.dropFirst(commandWordCount))
+            let argumentTokens = Array(arguments.dropFirst(commandWordCount))
             do {
                 let argumentValues = try zip(descriptor.arguments, argumentTokens).map(parseCommandArgumentValue)
                 let request = try IPCCommandRequest(name: descriptor.name, argumentValues: argumentValues)
@@ -237,8 +210,7 @@ enum CLIParser {
             throw CLIParseError.usage(usageText)
         }
 
-        let canonicalName = rawName == "monitors" ? IPCQueryName.displays.rawValue : rawName
-        guard let queryName = IPCQueryName(rawValue: canonicalName),
+        guard let queryName = IPCQueryName(rawValue: rawName),
               let descriptor = IPCAutomationManifest.queryDescriptor(for: queryName)
         else {
             throw CLIParseError.usage(usageText)
@@ -275,7 +247,7 @@ enum CLIParser {
                 throw CLIParseError.usage(usageText)
             }
 
-            let selectorName = argument == "--monitor" ? IPCQuerySelectorName.display.rawValue : String(argument.dropFirst(2))
+            let selectorName = String(argument.dropFirst(2))
             guard let selector = IPCQuerySelectorName(rawValue: selectorName),
                   descriptor.selectors.contains(where: { $0.name == selector }),
                   seenSelectors.insert(selector).inserted
@@ -352,7 +324,7 @@ enum CLIParser {
 
         while index < arguments.count {
             let flag = arguments[index]
-            guard ruleOptionFlags.contains(flag),
+            guard ruleDefinitionOptionFlags.contains(flag),
                   seenFlags.insert(flag).inserted,
                   index + 1 < arguments.count,
                   !arguments[index + 1].hasPrefix("--")
@@ -477,7 +449,7 @@ enum CLIParser {
                     id: id,
                     workspace: IPCWorkspaceRequest(
                         name: .focusName,
-                        target: WorkspaceTarget(resolvingLegacyValue: targetValue)
+                        target: WorkspaceTarget(resolvingInput: targetValue)
                     )
                 )
             }
@@ -602,24 +574,6 @@ enum CLIParser {
         )
     }
 
-    private static func canonicalizeCommandArguments(_ arguments: [String]) -> [String] {
-        guard arguments.count >= 2 else {
-            return arguments
-        }
-
-        var normalized = arguments
-        if normalized[0] == "focus-monitor", normalized[1] == "previous" {
-            normalized[1] = "prev"
-        }
-        if normalized[0] == "switch-workspace", normalized[1] == "previous" {
-            normalized[1] = "prev"
-        }
-        if normalized[0] == "switch-workspace", normalized[1] == "back" {
-            normalized[1] = "back-and-forth"
-        }
-        return normalized
-    }
-
     private static func parseDirection(_ rawValue: String) throws -> IPCDirection {
         guard let direction = IPCDirection(rawValue: rawValue) else {
             throw CLIParseError.usage(usageText)
@@ -729,6 +683,12 @@ enum CLIParser {
         let subscriptionNames = IPCSubscriptionChannel.allCases.map(\.rawValue).joined(separator: ",")
         let commandLines = IPCAutomationManifest.commandDescriptors.map(\.path)
         let ruleLines = IPCAutomationManifest.ruleActionDescriptors.map(\.path)
+        let ruleOptionLines = IPCAutomationManifest.ruleDefinitionOptionDescriptors.map { descriptor in
+            if let valuePlaceholder = descriptor.valuePlaceholder {
+                return "  \(descriptor.flag) \(valuePlaceholder)"
+            }
+            return "  \(descriptor.flag)"
+        }
         let workspaceLines = IPCAutomationManifest.workspaceActionDescriptors.map(\.path)
         let windowLines = IPCAutomationManifest.windowActionDescriptors.map(\.path)
 
@@ -754,19 +714,11 @@ enum CLIParser {
             "",
             "Formats:",
             "  --format json|table|tsv|text",
-            "  --json (alias for --format json)",
             "",
             "Rule Options:",
-            "  --bundle-id <bundle-id>",
-            "  --app-name-substring <text>",
-            "  --title-substring <text>",
-            "  --title-regex <pattern>",
-            "  --ax-role <role>",
-            "  --ax-subrole <subrole>",
-            "  --layout <auto|tile|float>",
-            "  --assign-to-workspace <name>",
-            "  --min-width <points>",
-            "  --min-height <points>",
+        ]
+        lines += ruleOptionLines
+        lines += [
             "",
             "Query Selectors:",
         ]
@@ -785,12 +737,6 @@ enum CLIParser {
         for descriptor in IPCAutomationManifest.queryDescriptors where !descriptor.fields.isEmpty {
             lines.append("  \(descriptor.name.rawValue): \(descriptor.fields.joined(separator: ", "))")
         }
-
-        lines.append("")
-        lines.append("Aliases:")
-        lines.append("  query monitors -> query displays")
-        lines.append("  query --monitor -> query --display")
-        lines += commandAliases.map { "  \($0.alias) -> \($0.canonical)" }
 
         return lines.joined(separator: "\n")
     }()

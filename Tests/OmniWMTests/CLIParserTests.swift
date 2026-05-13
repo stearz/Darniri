@@ -4,7 +4,97 @@ import Testing
 import OmniWMIPC
 @testable import OmniWMCtl
 
+private func representativeCommandToken(for kind: IPCCommandArgumentKind) -> String {
+    switch kind {
+    case .direction:
+        "left"
+    case .workspaceNumber:
+        "2"
+    case .columnIndex:
+        "3"
+    case .windowIndex:
+        "4"
+    case .layout:
+        "niri"
+    case .resizeOperation:
+        "grow"
+    case .sizeChange:
+        "+10%"
+    }
+}
+
+private func representativeCommandValue(for kind: IPCCommandArgumentKind) -> IPCCommandArgumentValue {
+    switch kind {
+    case .direction:
+        .direction(.left)
+    case .workspaceNumber:
+        .integer(2)
+    case .columnIndex:
+        .integer(3)
+    case .windowIndex:
+        .integer(4)
+    case .layout:
+        .layout(.niri)
+    case .resizeOperation:
+        .resizeOperation(.grow)
+    case .sizeChange:
+        .sizeChange(.adjustProportion(10))
+    }
+}
+
+private func sampleRuleOptionValue(for flag: String) -> String {
+    switch flag {
+    case "--bundle-id":
+        "com.example.terminal"
+    case "--app-name-substring":
+        "Terminal"
+    case "--title-substring":
+        "Shell"
+    case "--title-regex":
+        "Docs.*"
+    case "--ax-role":
+        "AXWindow"
+    case "--ax-subrole":
+        "AXStandardWindow"
+    case "--layout":
+        "float"
+    case "--assign-to-workspace":
+        "2"
+    case "--min-width":
+        "640"
+    case "--min-height":
+        "480"
+    default:
+        "value"
+    }
+}
+
 @Suite struct CLIParserTests {
+    @Test func manifestCommandDescriptorsAreParseableAndWireRoundTrip() throws {
+        for descriptor in IPCAutomationManifest.commandDescriptors {
+            let argumentTokens = descriptor.arguments.map { representativeCommandToken(for: $0.kind) }
+            let parsed = try CLIParser.parse(
+                arguments: ["omniwmctl", "command"] + descriptor.commandWords + argumentTokens
+            )
+
+            guard case let .command(command) = parsed.request.payload else {
+                Issue.record("Expected command payload for \(descriptor.path)")
+                continue
+            }
+
+            let expectedCommand = try IPCCommandRequest(
+                name: descriptor.name,
+                argumentValues: descriptor.arguments.map { representativeCommandValue(for: $0.kind) }
+            )
+            let encoded = try IPCWire.encodeRequestLine(parsed.request)
+            let decoded = try IPCWire.decodeRequest(from: Data(encoded.dropLast()))
+
+            #expect(command.name == descriptor.name)
+            #expect(command == expectedCommand)
+            #expect(decoded == parsed.request)
+        }
+    }
+
     @Test func parsesFocusCommand() throws {
         let parsed = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus", "left"])
 
@@ -310,11 +400,12 @@ import OmniWMIPC
         #expect(subscribe.sendInitial == false)
     }
 
-    @Test func parsesWatchAllWithTopLevelJSONFlag() throws {
+    @Test func parsesWatchAllWithTopLevelFormatFlag() throws {
         let parsed = try CLIParser.parse(
             arguments: [
                 "omniwmctl",
-                "--json",
+                "--format",
+                "json",
                 "watch",
                 "--all",
                 "--exec",
@@ -416,9 +507,9 @@ import OmniWMIPC
         }
     }
 
-    @Test func parsesQueryMonitorAliasesAndDisplaySelectorAlias() throws {
+    @Test func parsesDisplayQuerySelector() throws {
         let parsed = try CLIParser.parse(
-            arguments: ["omniwmctl", "query", "monitors", "--monitor", "Built-in Retina Display"]
+            arguments: ["omniwmctl", "query", "displays", "--display", "Built-in Retina Display"]
         )
 
         #expect(parsed.outputFormat == .json)
@@ -431,29 +522,25 @@ import OmniWMIPC
         #expect(query.selectors.display == "Built-in Retina Display")
     }
 
-    @Test func parsesCommandAliasesForPreviousAndBackAndForth() throws {
-        let previous = try CLIParser.parse(arguments: ["omniwmctl", "command", "focus-monitor", "previous"])
-        let workspacePrevious = try CLIParser.parse(
-            arguments: ["omniwmctl", "command", "switch-workspace", "previous"]
-        )
-        let back = try CLIParser.parse(arguments: ["omniwmctl", "command", "switch-workspace", "back"])
+    @Test func rejectsRemovedCompatibilityAliases() {
+        let removedCompatibilityArgv = [
+            ["omniwmctl", "query", "monitors", "--display", "Built-in Retina Display"],
+            ["omniwmctl", "query", "displays", "--monitor", "Built-in Retina Display"],
+            ["omniwmctl", "command", "focus-monitor", "previous"],
+            ["omniwmctl", "command", "switch-workspace", "previous"],
+            ["omniwmctl", "command", "switch-workspace", "back"],
+        ]
 
-        guard case let .command(previousCommand) = previous.request.payload else {
-            Issue.record("Expected a focus-monitor command payload")
-            return
+        for arguments in removedCompatibilityArgv {
+            do {
+                _ = try CLIParser.parse(arguments: arguments)
+                Issue.record("Expected parser failure for \(arguments.joined(separator: " "))")
+            } catch let error as CLIParseError {
+                #expect(error == .usage(CLIParser.usageText))
+            } catch {
+                Issue.record("Unexpected parser error: \(error)")
+            }
         }
-        guard case let .command(workspacePreviousCommand) = workspacePrevious.request.payload else {
-            Issue.record("Expected a switch-workspace previous command payload")
-            return
-        }
-        guard case let .command(backCommand) = back.request.payload else {
-            Issue.record("Expected a switch-workspace command payload")
-            return
-        }
-
-        #expect(previousCommand == .focusMonitorPrevious)
-        #expect(workspacePreviousCommand == .switchWorkspacePrevious)
-        #expect(backCommand == .switchWorkspaceBackAndForth)
     }
 
     @Test func parsesRuleCommandsAndExplicitOutputFormats() throws {
@@ -549,6 +636,87 @@ import OmniWMIPC
         #expect(focusedRule == .apply(target: .focused))
         #expect(windowRule == .apply(target: .window(windowId: "ow_window")))
         #expect(pidRule == .apply(target: .pid(42)))
+    }
+
+    @Test func parsesEveryRuleDefinitionOptionForAddAndReplace() throws {
+        let ruleId = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!.uuidString
+
+        for descriptor in IPCAutomationManifest.ruleDefinitionOptionDescriptors {
+            let extraOption: [String]
+            if descriptor.flag == "--bundle-id" {
+                extraOption = []
+            } else {
+                extraOption = [descriptor.flag, sampleRuleOptionValue(for: descriptor.flag)]
+            }
+
+            let add = try CLIParser.parse(
+                arguments: [
+                    "omniwmctl",
+                    "rule",
+                    "add",
+                    "--bundle-id",
+                    sampleRuleOptionValue(for: "--bundle-id")
+                ] + extraOption
+            )
+            let replace = try CLIParser.parse(
+                arguments: [
+                    "omniwmctl",
+                    "rule",
+                    "replace",
+                    ruleId,
+                    "--bundle-id",
+                    sampleRuleOptionValue(for: "--bundle-id")
+                ] + extraOption
+            )
+
+            guard case let .rule(addRule) = add.request.payload,
+                  case .add = addRule
+            else {
+                Issue.record("Expected add rule payload for \(descriptor.flag)")
+                continue
+            }
+
+            guard case let .rule(replaceRule) = replace.request.payload,
+                  case .replace = replaceRule
+            else {
+                Issue.record("Expected replace rule payload for \(descriptor.flag)")
+                continue
+            }
+        }
+    }
+
+    @Test func rejectsDuplicateAndUnknownRuleDefinitionOptions() {
+        let invalidArgv = [
+            [
+                "omniwmctl",
+                "rule",
+                "add",
+                "--bundle-id",
+                "com.example.terminal",
+                "--bundle-id",
+                "com.example.browser",
+            ],
+            [
+                "omniwmctl",
+                "rule",
+                "add",
+                "--bundle-id",
+                "com.example.terminal",
+                "--unknown",
+                "value",
+            ],
+        ]
+
+        for arguments in invalidArgv {
+            do {
+                _ = try CLIParser.parse(arguments: arguments)
+                Issue.record("Expected parser failure for \(arguments.joined(separator: " "))")
+            } catch let error as CLIParseError {
+                #expect(error == .usage(CLIParser.usageText))
+            } catch {
+                Issue.record("Unexpected parser error: \(error)")
+            }
+        }
     }
 
     @Test func rejectsMixedRuleApplySelectors() {

@@ -522,18 +522,73 @@ public enum IPCAutomationManifest {
         ),
     ]
 
+    public static let ruleDefinitionOptionDescriptors: [IPCRuleActionOptionDescriptor] = [
+        .init(
+            flag: "--bundle-id",
+            summary: "Match windows by application bundle identifier.",
+            valuePlaceholder: "<bundle-id>"
+        ),
+        .init(
+            flag: "--app-name-substring",
+            summary: "Match windows by application display-name substring.",
+            valuePlaceholder: "<text>"
+        ),
+        .init(
+            flag: "--title-substring",
+            summary: "Match windows by title substring.",
+            valuePlaceholder: "<text>"
+        ),
+        .init(
+            flag: "--title-regex",
+            summary: "Match windows by title regular expression.",
+            valuePlaceholder: "<pattern>"
+        ),
+        .init(
+            flag: "--ax-role",
+            summary: "Match windows by accessibility role.",
+            valuePlaceholder: "<role>"
+        ),
+        .init(
+            flag: "--ax-subrole",
+            summary: "Match windows by accessibility subrole.",
+            valuePlaceholder: "<subrole>"
+        ),
+        .init(
+            flag: "--layout",
+            summary: "Set the rule layout action.",
+            valuePlaceholder: "<auto|tile|float>"
+        ),
+        .init(
+            flag: "--assign-to-workspace",
+            summary: "Assign matching windows to a workspace name.",
+            valuePlaceholder: "<name>"
+        ),
+        .init(
+            flag: "--min-width",
+            summary: "Set the minimum floating width in points.",
+            valuePlaceholder: "<points>"
+        ),
+        .init(
+            flag: "--min-height",
+            summary: "Set the minimum floating height in points.",
+            valuePlaceholder: "<points>"
+        ),
+    ]
+
     public static let ruleActionDescriptors: [IPCRuleActionDescriptor] = [
         .init(
             path: "rule add --bundle-id <bundle-id> [options]",
             name: .add,
             summary: "Append a new persisted user rule.",
-            arguments: ["bundle-id"]
+            arguments: ["bundle-id"],
+            options: ruleDefinitionOptionDescriptors
         ),
         .init(
             path: "rule replace <rule-id> --bundle-id <bundle-id> [options]",
             name: .replace,
             summary: "Replace a persisted user rule in place.",
-            arguments: ["rule-id", "bundle-id"]
+            arguments: ["rule-id", "bundle-id"],
+            options: ruleDefinitionOptionDescriptors
         ),
         .init(
             path: "rule remove <rule-id>",

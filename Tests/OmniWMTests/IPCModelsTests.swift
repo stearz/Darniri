@@ -73,32 +73,8 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
         #expect(object["id"] as? String == "req-3")
     }
 
-    @Test func eventEnvelopeDecodesLegacyShapeWithoutStableResponseFields() throws {
-        let legacyJSON = """
-        {
-          "channel": "focus",
-          "kind": "event",
-          "result": {
-            "kind": "focused-window",
-            "payload": {
-              "window": null
-            }
-          },
-          "version": 1
-        }
-        """
-
-        let decoded = try IPCWire.decodeEvent(from: Data(legacyJSON.utf8))
-
-        #expect(decoded.id.isEmpty)
-        #expect(decoded.ok)
-        #expect(decoded.status == .success)
-        #expect(decoded.code == nil)
-        #expect(decoded.channel == .focus)
-    }
-
     @Test func publicDTOsRoundTripThroughJSON() throws {
-        #expect(OmniWMIPCProtocol.version == 3)
+        #expect(OmniWMIPCProtocol.version == 4)
         #expect(IPCErrorCode.protocolMismatch.rawValue == "protocol_mismatch")
 
         try assertRoundTrip(
@@ -419,6 +395,28 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
         #expect(applyDescriptor?.options.allSatisfy { $0.exclusiveGroup == "target" } == true)
     }
 
+    @Test func manifestPublishesStructuredRuleDefinitionOptions() {
+        let expectedFlags = [
+            "--bundle-id",
+            "--app-name-substring",
+            "--title-substring",
+            "--title-regex",
+            "--ax-role",
+            "--ax-subrole",
+            "--layout",
+            "--assign-to-workspace",
+            "--min-width",
+            "--min-height",
+        ]
+        let addDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .add)
+        let replaceDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .replace)
+
+        #expect(IPCAutomationManifest.ruleDefinitionOptionDescriptors.map(\.flag) == expectedFlags)
+        #expect(IPCAutomationManifest.ruleDefinitionOptionDescriptors.allSatisfy { $0.valuePlaceholder != nil })
+        #expect(addDescriptor?.options == IPCAutomationManifest.ruleDefinitionOptionDescriptors)
+        #expect(replaceDescriptor?.options == IPCAutomationManifest.ruleDefinitionOptionDescriptors)
+    }
+
     @Test func commandDescriptorsCoverEveryPublicCommandName() {
         let descriptorNames = Set(IPCAutomationManifest.commandDescriptors.map(\.name))
 
@@ -449,15 +447,12 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
 
     @Test func opaqueWindowIDSupportsSessionScopedValidation() {
         let encoded = IPCWindowOpaqueID.encode(pid: 4242, windowId: 73, sessionToken: "session-a")
-        let decoded = IPCWindowOpaqueID.decode(encoded)
         let sessionDecoded = IPCWindowOpaqueID.decode(encoded, expectingSessionToken: "session-a")
-        let legacyEncoded = IPCWindowOpaqueID.encode(pid: 4242, windowId: 73)
+        let sessionlessEncoded = "ow_" + Data("4242:73".utf8).base64EncodedString()
 
-        #expect(decoded?.pid == 4242)
-        #expect(decoded?.windowId == 73)
         #expect(sessionDecoded?.pid == 4242)
         #expect(sessionDecoded?.windowId == 73)
         #expect(IPCWindowOpaqueID.decode(encoded, expectingSessionToken: "session-b") == nil)
-        #expect(IPCWindowOpaqueID.decode(legacyEncoded, expectingSessionToken: "session-a") == nil)
+        #expect(IPCWindowOpaqueID.decode(sessionlessEncoded, expectingSessionToken: "session-a") == nil)
     }
 }

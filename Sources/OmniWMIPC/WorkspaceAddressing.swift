@@ -45,7 +45,7 @@ public enum WorkspaceTarget: Equatable, Sendable {
     case rawID(String)
     case displayName(String)
 
-    public init(resolvingLegacyValue value: String) {
+    public init(resolvingInput value: String) {
         if let rawID = WorkspaceIDPolicy.normalizeRawID(value) {
             self = .rawID(rawID)
         } else {
@@ -58,14 +58,6 @@ public enum WorkspaceTarget: Equatable, Sendable {
         self = .rawID(rawID)
     }
 
-    public var legacyValue: String {
-        switch self {
-        case let .rawID(rawID):
-            rawID
-        case let .displayName(displayName):
-            displayName
-        }
-    }
 }
 
 extension WorkspaceTarget: Codable {
@@ -80,13 +72,6 @@ extension WorkspaceTarget: Codable {
     }
 
     public init(from decoder: Decoder) throws {
-        if let singleValue = try? decoder.singleValueContainer(),
-           let legacyValue = try? singleValue.decode(String.self)
-        {
-            self.init(resolvingLegacyValue: legacyValue)
-            return
-        }
-
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         let value = try container.decode(String.self, forKey: .value)

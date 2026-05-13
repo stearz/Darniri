@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OmniWMIPCProtocol {
-    public static let version = 3
+    public static let version = 4
 }
 
 public struct IPCNoPayload: Codable, Equatable, Sendable {
@@ -1721,43 +1721,27 @@ public struct IPCWorkspaceRequest: Equatable, Sendable {
     public let name: IPCWorkspaceActionName
     public let target: WorkspaceTarget
 
-    public var workspaceName: String {
-        target.legacyValue
-    }
-
     public init(name: IPCWorkspaceActionName, target: WorkspaceTarget) {
         self.name = name
         self.target = target
-    }
-
-    public init(name: IPCWorkspaceActionName, workspaceName: String) {
-        self.name = name
-        target = WorkspaceTarget(resolvingLegacyValue: workspaceName)
     }
 }
 
 extension IPCWorkspaceRequest: Codable {
     private enum CodingKeys: String, CodingKey {
         case name
-        case workspaceName
         case workspaceTarget
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(IPCWorkspaceActionName.self, forKey: .name)
-        if let target = try container.decodeIfPresent(WorkspaceTarget.self, forKey: .workspaceTarget) {
-            self.target = target
-        } else {
-            let workspaceName = try container.decode(String.self, forKey: .workspaceName)
-            self.target = WorkspaceTarget(resolvingLegacyValue: workspaceName)
-        }
+        target = try container.decode(WorkspaceTarget.self, forKey: .workspaceTarget)
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(name, forKey: .name)
-        try container.encode(workspaceName, forKey: .workspaceName)
         try container.encode(target, forKey: .workspaceTarget)
     }
 }
@@ -2866,11 +2850,11 @@ public struct IPCEventEnvelope: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try container.decode(Int.self, forKey: .version)
-        id = try container.decodeIfPresent(String.self, forKey: .id) ?? ""
+        id = try container.decode(String.self, forKey: .id)
         kind = try container.decode(IPCEventKind.self, forKey: .kind)
         channel = try container.decode(IPCSubscriptionChannel.self, forKey: .channel)
-        ok = try container.decodeIfPresent(Bool.self, forKey: .ok) ?? true
-        status = try container.decodeIfPresent(IPCResponseStatus.self, forKey: .status) ?? .success
+        ok = try container.decode(Bool.self, forKey: .ok)
+        status = try container.decode(IPCResponseStatus.self, forKey: .status)
         code = try container.decodeIfPresent(IPCErrorCode.self, forKey: .code)
         result = try container.decode(IPCResult.self, forKey: .result)
     }
@@ -2896,19 +2880,13 @@ public enum IPCWindowOpaqueIDValidationResult: Equatable, Sendable {
 
 public enum IPCWindowOpaqueID {
     private struct DecodedPayload {
-        let sessionToken: String?
+        let sessionToken: String
         let pid: Int32
         let windowId: Int
     }
 
     public static func encode(pid: Int32, windowId: Int, sessionToken: String) -> String {
         let payload = "\(sessionToken):\(pid):\(windowId)"
-        return "ow_" + base64URLEncoded(Data(payload.utf8))
-    }
-
-    @available(*, deprecated, message: "Use session-scoped opaque window ids.")
-    public static func encode(pid: Int32, windowId: Int) -> String {
-        let payload = "\(pid):\(windowId)"
         return "ow_" + base64URLEncoded(Data(payload.utf8))
     }
 
@@ -2919,10 +2897,7 @@ public enum IPCWindowOpaqueID {
         guard let decoded = decodePayload(value) else {
             return .invalid
         }
-        guard let decodedSessionToken = decoded.sessionToken else {
-            return .stale
-        }
-        guard decodedSessionToken == sessionToken else {
+        guard decoded.sessionToken == sessionToken else {
             return .stale
         }
         return .valid(pid: decoded.pid, windowId: decoded.windowId)
@@ -2940,14 +2915,6 @@ public enum IPCWindowOpaqueID {
         }
     }
 
-    @available(*, deprecated, message: "Use session-scoped opaque window ids.")
-    public static func decode(_ value: String) -> (pid: Int32, windowId: Int)? {
-        guard let decoded = decodePayload(value) else {
-            return nil
-        }
-        return (decoded.pid, decoded.windowId)
-    }
-
     private static func decodePayload(_ value: String) -> DecodedPayload? {
         guard value.hasPrefix("ow_") else { return nil }
         let encoded = String(value.dropFirst(3))
@@ -2958,24 +2925,13 @@ public enum IPCWindowOpaqueID {
         }
 
         let parts = payload.split(separator: ":", omittingEmptySubsequences: false)
-        switch parts.count {
-        case 2:
-            guard let pid = Int32(parts[0]),
-                  let windowId = Int(parts[1])
-            else {
-                return nil
-            }
-            return DecodedPayload(sessionToken: nil, pid: pid, windowId: windowId)
-        case 3:
-            guard let pid = Int32(parts[1]),
-                  let windowId = Int(parts[2])
-            else {
-                return nil
-            }
-            return DecodedPayload(sessionToken: String(parts[0]), pid: pid, windowId: windowId)
-        default:
+        guard parts.count == 3,
+              let pid = Int32(parts[1]),
+              let windowId = Int(parts[2])
+        else {
             return nil
         }
+        return DecodedPayload(sessionToken: String(parts[0]), pid: pid, windowId: windowId)
     }
 
     private static func base64URLEncoded(_ data: Data) -> String {

@@ -2,18 +2,6 @@ import Foundation
 import OmniWMIPC
 
 enum CLICompletionGenerator {
-    private static let commandAliasTokens: [[String]] = [
-        ["focus-monitor", "previous"],
-        ["switch-workspace", "previous"],
-        ["switch-workspace", "back"],
-    ]
-
-    private static let queryAliasNames = ["monitors"]
-
-    private static let queryFlagAliases: [IPCQuerySelectorName: [String]] = [
-        .display: ["--monitor"],
-    ]
-
     private static let subscribeFlags = ["--all", "--no-send-initial"]
     private static let watchFlags = ["--all", "--no-send-initial", "--exec"]
 
@@ -49,7 +37,6 @@ enum CLICompletionGenerator {
                 suggestions="\(shellWords(queryNames))"
               else
                 local query_name="${words[3]}"
-                [[ "$query_name" == "monitors" ]] && query_name="displays"
                 local prev="${words[CURRENT-1]}"
                 if [[ "$prev" == "--fields" ]]; then
                   case "$query_name" in
@@ -89,6 +76,11 @@ enum CLICompletionGenerator {
             rule)
               if (( CURRENT == 3 )); then
                 suggestions="\(shellWords(ruleActionNames))"
+              elif [[ "${words[3]}" == "add" || "${words[3]}" == "replace" ]]; then
+                local prev="${words[CURRENT-1]}"
+                if [[ " \(shellWords(ruleDefinitionFlags)) " != *" $prev "* ]]; then
+                  suggestions="\(shellWords(ruleDefinitionFlags))"
+                fi
               elif [[ "${words[3]}" == "apply" ]]; then
                 local prev="${words[CURRENT-1]}"
                 if [[ "$prev" != "--window" && "$prev" != "--pid" ]]; then
@@ -151,7 +143,6 @@ enum CLICompletionGenerator {
               fi
 
               query_name="${COMP_WORDS[2]}"
-              [[ "$query_name" == "monitors" ]] && query_name="displays"
               suggestions=""
               if [[ "$prev" == "--fields" ]]; then
                 case "$query_name" in
@@ -203,6 +194,12 @@ enum CLICompletionGenerator {
               if [[ ${COMP_CWORD} -eq 2 ]]; then
                 __omniwmctl_compgen "\(shellWords(ruleActionNames))"
                 return 0
+              fi
+              if [[ "${COMP_WORDS[2]}" == "add" || "${COMP_WORDS[2]}" == "replace" ]]; then
+                if [[ " \(shellWords(ruleDefinitionFlags)) " != *" $prev "* ]]; then
+                  __omniwmctl_compgen "\(shellWords(ruleDefinitionFlags))"
+                  return 0
+                fi
               fi
               if [[ "${COMP_WORDS[2]}" == "apply" && "$prev" != "--window" && "$prev" != "--pid" ]]; then
                 __omniwmctl_compgen "\(shellWords(ruleApplyFlags))"
@@ -296,6 +293,12 @@ enum CLICompletionGenerator {
         let ruleLines = ruleActionNames.map { action in
             "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule' -a '\(action)'"
         }
+        let ruleDefinitionLines = ruleDefinitionFlags.flatMap { flag in
+            [
+                "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from add' -a '\(flag)'",
+                "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from replace' -a '\(flag)'",
+            ]
+        }
         let ruleApplyLines = ruleApplyFlags.map { flag in
             "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from apply' -a '\(flag)'"
         }
@@ -327,6 +330,7 @@ enum CLICompletionGenerator {
                 + commandFallbackLines.sorted()
                 + commandSecondArgumentLines.sorted()
                 + ruleLines
+                + ruleDefinitionLines
                 + ruleApplyLines
                 + subscribeLines
                 + watchLines
@@ -342,7 +346,7 @@ enum CLICompletionGenerator {
     }
 
     private static var queryNames: [String] {
-        sortedUnique(IPCAutomationManifest.queryDescriptors.map(\.name.rawValue) + queryAliasNames)
+        sortedUnique(IPCAutomationManifest.queryDescriptors.map(\.name.rawValue))
     }
 
     private static var subscriptionNames: [String] {
@@ -355,6 +359,10 @@ enum CLICompletionGenerator {
 
     private static var ruleApplyFlags: [String] {
         IPCAutomationManifest.ruleActionDescriptor(for: .apply)?.options.map(\.flag) ?? []
+    }
+
+    private static var ruleDefinitionFlags: [String] {
+        IPCAutomationManifest.ruleDefinitionOptionDescriptors.map(\.flag)
     }
 
     private static var workspaceActionNames: [String] {
@@ -380,10 +388,6 @@ enum CLICompletionGenerator {
             if let literals = literalValues(for: descriptor.arguments.first?.kind) {
                 map[first, default: []].formUnion(literals)
             }
-        }
-
-        for alias in commandAliasTokens where alias.count > 1 {
-            map[alias[0], default: []].insert(alias[1])
         }
 
         return map.mapValues { Array($0).sorted() }
@@ -433,26 +437,19 @@ enum CLICompletionGenerator {
             let flags = sortedUnique(selectorFlags(for: descriptor) + (descriptor.fields.isEmpty ? [] : ["--fields"]))
             map[descriptor.name.rawValue] = flags
         }
-        map["monitors"] = map[IPCQueryName.displays.rawValue] ?? []
         return map
     }
 
     private static var queryFieldsByName: [String: [String]] {
-        var map = Dictionary(
+        Dictionary(
             uniqueKeysWithValues: IPCAutomationManifest.queryDescriptors.map { descriptor in
                 (descriptor.name.rawValue, descriptor.fields)
             }
         )
-        map["monitors"] = map[IPCQueryName.displays.rawValue] ?? []
-        return map
     }
 
     private static func selectorFlags(for descriptor: IPCQueryDescriptor) -> [String] {
-        var flags = descriptor.selectors.map(\.name.flag)
-        if descriptor.selectors.contains(where: { $0.name == .display }) {
-            flags.append(contentsOf: queryFlagAliases[.display] ?? [])
-        }
-        return flags
+        descriptor.selectors.map(\.name.flag)
     }
 
     private static func literalValues(for kind: IPCCommandArgumentKind?) -> [String]? {

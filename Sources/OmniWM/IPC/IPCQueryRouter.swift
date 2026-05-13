@@ -22,7 +22,7 @@ final class IPCQueryRouter {
     }
 
     func versionResult() -> IPCVersionResult {
-        IPCVersionResult(appVersion: appVersion)
+        IPCVersionResult(protocolVersion: OmniWMIPCProtocol.version, appVersion: appVersion)
     }
 
     func workspaceBarResult() -> IPCWorkspaceBarQueryResult {
@@ -234,6 +234,7 @@ final class IPCQueryRouter {
 
     func capabilitiesResult() -> IPCCapabilitiesQueryResult {
         IPCCapabilitiesQueryResult(
+            protocolVersion: OmniWMIPCProtocol.version,
             appVersion: appVersion,
             authorizationRequired: true,
             windowIdScope: "session",

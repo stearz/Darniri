@@ -79,7 +79,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "2")
+            IPCWorkspaceRequest(name: .focusName, target: .rawID("2"))
         )
 
         #expect(result == .executed)
@@ -96,7 +96,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "Code")
+            IPCWorkspaceRequest(name: .focusName, target: .displayName("Code"))
         )
 
         #expect(result == .executed)
@@ -113,7 +113,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "10")
+            IPCWorkspaceRequest(name: .focusName, target: .rawID("10"))
         )
 
         #expect(result == .executed)
@@ -130,7 +130,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "Code")
+            IPCWorkspaceRequest(name: .focusName, target: .displayName("Code"))
         )
 
         #expect(result == .invalidArguments)
@@ -438,7 +438,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "2")
+            IPCWorkspaceRequest(name: .focusName, target: .rawID("2"))
         )
 
         #expect(controller.isOverviewOpen())
@@ -511,7 +511,7 @@ private func prepareIPCNiriState(
         let router = makeIPCCommandRouter(for: controller)
 
         let result = router.handle(
-            IPCWorkspaceRequest(name: .focusName, workspaceName: "999")
+            IPCWorkspaceRequest(name: .focusName, target: .rawID("999"))
         )
 
         #expect(result == .notFound)
