@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private enum TestAwaitError: Error {
     case timedOut

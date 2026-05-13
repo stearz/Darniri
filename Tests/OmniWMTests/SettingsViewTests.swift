@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeSettingsWorkflowTestDirectory() -> URL {
     let directory = FileManager.default.temporaryDirectory

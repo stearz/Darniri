@@ -651,7 +651,8 @@ extension NiriLayoutEngine {
         switch window.height {
         case let .fixed(height):
             height
-        case .auto, .preset:
+        case .auto,
+             .preset:
             window.resolvedHeight ?? window.frame?.height ?? max(1, window.heightWeight)
         }
     }

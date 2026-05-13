@@ -11,7 +11,11 @@ import QuartzCore
         self.controller = controller
     }
 
-    func registerDwindleAnimation(_ workspaceId: WorkspaceDescriptor.ID, monitor: Monitor, on displayId: CGDirectDisplayID) -> Bool {
+    func registerDwindleAnimation(
+        _ workspaceId: WorkspaceDescriptor.ID,
+        monitor: Monitor,
+        on displayId: CGDirectDisplayID
+    ) -> Bool {
         if dwindleAnimationByDisplay[displayId]?.0 == workspaceId {
             return false
         }

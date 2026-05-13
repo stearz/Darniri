@@ -28,7 +28,9 @@ final class CommandHandler {
         let layoutType = currentLayoutType()
 
         switch (command.layoutCompatibility, layoutType) {
-        case (.niri, .dwindle), (.dwindle, .niri), (.dwindle, .defaultLayout):
+        case (.niri, .dwindle),
+             (.dwindle, .niri),
+             (.dwindle, .defaultLayout):
             return .ignoredLayoutMismatch
         default:
             break
@@ -211,7 +213,8 @@ final class CommandHandler {
         let handler: AnyObject = switch layoutType {
         case .dwindle:
             controller.layoutRefreshController.dwindleHandler
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             controller.layoutRefreshController.niriHandler
         }
         return handler as? T
@@ -467,7 +470,8 @@ final class CommandHandler {
         switch currentLayoutType() {
         case .dwindle:
             controller?.dwindleLayoutHandler.swapWindow(direction: direction)
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             moveWindowInNiri(direction: direction)
         }
     }
@@ -476,7 +480,8 @@ final class CommandHandler {
         switch currentLayoutType() {
         case .dwindle:
             controller?.dwindleLayoutHandler.toggleFullscreen()
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             controller?.niriLayoutHandler.toggleFullscreen()
         }
     }
@@ -679,7 +684,8 @@ final class CommandHandler {
         let currentLayout = controller.settings.layoutType(for: workspaceName)
 
         let newLayout: LayoutType = switch currentLayout {
-        case .niri, .defaultLayout: .dwindle
+        case .niri,
+             .defaultLayout: .dwindle
         case .dwindle: .niri
         }
 

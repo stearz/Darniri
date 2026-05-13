@@ -207,7 +207,12 @@ extension NiriLayoutEngine {
                 gap: gaps,
                 sizeKeyPath: sizeKeyPath
             )
-        let newActivePos = state.containerPosition(at: targetIdx, containers: containers, gap: gaps, sizeKeyPath: sizeKeyPath)
+        let newActivePos = state.containerPosition(
+            at: targetIdx,
+            containers: containers,
+            gap: gaps,
+            sizeKeyPath: sizeKeyPath
+        )
         let offsetDelta = oldActivePos - newActivePos
         state.viewOffsetPixels.offset(delta: Double(offsetDelta))
 

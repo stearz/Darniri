@@ -1,9 +1,8 @@
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
 @testable import OmniWMCtl
+import OmniWMIPC
+import Testing
 
 private enum CLIRuntimeTestError: Error, LocalizedError {
     case timedOut(

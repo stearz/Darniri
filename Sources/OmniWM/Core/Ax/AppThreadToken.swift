@@ -15,7 +15,9 @@ struct AppThreadToken: Sendable, Equatable {
     }
 
     @usableFromInline
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.pid == rhs.pid }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.pid == rhs.pid
+    }
 
     @inlinable
     func checkEquals(_ other: AppThreadToken?) {

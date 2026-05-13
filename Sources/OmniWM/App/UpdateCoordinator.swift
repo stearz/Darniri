@@ -75,7 +75,7 @@ struct ReleaseVersion: Comparable, Equatable {
 
     static func < (lhs: ReleaseVersion, rhs: ReleaseVersion) -> Bool {
         let count = max(lhs.components.count, rhs.components.count)
-        for index in 0..<count {
+        for index in 0 ..< count {
             let left = index < lhs.components.count ? lhs.components[index] : 0
             let right = index < rhs.components.count ? rhs.components[index] : 0
             if left != right {
@@ -123,7 +123,7 @@ struct GitHubReleaseService: GitHubReleaseFetching, Sendable {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UpdateCoordinatorError.invalidResponse
         }
-        guard (200...299).contains(httpResponse.statusCode) else {
+        guard (200 ... 299).contains(httpResponse.statusCode) else {
             throw UpdateCoordinatorError.badStatus(httpResponse.statusCode)
         }
 

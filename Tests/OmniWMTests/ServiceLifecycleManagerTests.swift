@@ -1,10 +1,9 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
+@testable import OmniWM
 import OmniWMIPC
 import Testing
-
-@testable import OmniWM
 
 private let lifecycleIPCCommandRouterSessionToken = "service-lifecycle-tests"
 
@@ -60,7 +59,7 @@ private func waitUntilServiceLifecycleTest(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         try? await Task.sleep(for: .milliseconds(1))
     }
 
@@ -282,7 +281,8 @@ private func waitUntilServiceLifecycleTest(
         controller.workspaceManager.applyMonitorConfigurationChange([oldLeft, oldRight])
 
         guard let ws1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: true),
-              let ws3 = controller.workspaceManager.workspaceId(for: "3", createIfMissing: true) else {
+              let ws3 = controller.workspaceManager.workspaceId(for: "3", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected test workspaces")
             return
         }
@@ -323,7 +323,8 @@ private func waitUntilServiceLifecycleTest(
         controller.workspaceManager.applyMonitorConfigurationChange([monitor])
 
         guard let ws1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -407,7 +408,8 @@ private func waitUntilServiceLifecycleTest(
         controller.workspaceManager.applyMonitorConfigurationChange([oldLeft, oldRight])
 
         guard let ws1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -449,7 +451,8 @@ private func waitUntilServiceLifecycleTest(
         controller.workspaceManager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = controller.workspaceManager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = controller.workspaceManager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }

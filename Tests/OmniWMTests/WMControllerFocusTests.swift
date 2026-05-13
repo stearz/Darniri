@@ -2,9 +2,8 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private enum FocusOperationEvent: Equatable {
     case activate(pid_t)
@@ -642,14 +641,16 @@ private func waitForFocusRefresh(on controller: WMController) async {
             object: controller,
             queue: nil
         ) { notification in
-            workspaceIdBox.value = notification.userInfo?[OmniWMFocusNotificationKey.newWorkspaceId] as? WorkspaceDescriptor.ID
+            workspaceIdBox.value = notification
+                .userInfo?[OmniWMFocusNotificationKey.newWorkspaceId] as? WorkspaceDescriptor.ID
         }
         let monitorObserver = center.addObserver(
             forName: .omniwmFocusedMonitorChanged,
             object: controller,
             queue: nil
         ) { notification in
-            monitorDisplayIdBox.value = notification.userInfo?[OmniWMFocusNotificationKey.newMonitorIndex] as? CGDirectDisplayID
+            monitorDisplayIdBox.value = notification
+                .userInfo?[OmniWMFocusNotificationKey.newMonitorIndex] as? CGDirectDisplayID
         }
 
         defer {
@@ -792,7 +793,8 @@ private func waitForFocusRefresh(on controller: WMController) async {
         #expect(fixture.controller.workspaceManager.pendingFocusedHandle == nil)
         #expect(fixture.controller.workspaceManager.focusedHandle == secondaryHandle)
         #expect(fixture.controller.workspaceManager.interactionMonitorId == fixture.secondaryMonitor.id)
-        #expect(fixture.controller.workspaceManager.lastFocusedHandle(in: fixture.secondaryWorkspaceId) == secondaryHandle)
+        #expect(fixture.controller.workspaceManager
+            .lastFocusedHandle(in: fixture.secondaryWorkspaceId) == secondaryHandle)
     }
 
     @Test @MainActor func managedActivationClearsStalePendingRequestWhenConfirmationDiffers() {
@@ -920,10 +922,14 @@ private func waitForFocusRefresh(on controller: WMController) async {
         #expect(focusInfo.value?[OmniWMFocusNotificationKey.newWindowToken] as? WindowToken == secondaryHandle.id)
         #expect(focusInfo.value?[OmniWMFocusNotificationKey.oldHandleId] as? WindowToken == primaryHandle.id)
         #expect(focusInfo.value?[OmniWMFocusNotificationKey.newHandleId] as? WindowToken == secondaryHandle.id)
-        #expect(workspaceInfo.value?[OmniWMFocusNotificationKey.oldWorkspaceId] as? WorkspaceDescriptor.ID == fixture.primaryWorkspaceId)
-        #expect(workspaceInfo.value?[OmniWMFocusNotificationKey.newWorkspaceId] as? WorkspaceDescriptor.ID == fixture.secondaryWorkspaceId)
-        #expect(monitorInfo.value?[OmniWMFocusNotificationKey.oldMonitorIndex] as? CGDirectDisplayID == fixture.primaryMonitor.displayId)
-        #expect(monitorInfo.value?[OmniWMFocusNotificationKey.newMonitorIndex] as? CGDirectDisplayID == fixture.secondaryMonitor.displayId)
+        #expect(workspaceInfo.value?[OmniWMFocusNotificationKey.oldWorkspaceId] as? WorkspaceDescriptor.ID == fixture
+            .primaryWorkspaceId)
+        #expect(workspaceInfo.value?[OmniWMFocusNotificationKey.newWorkspaceId] as? WorkspaceDescriptor.ID == fixture
+            .secondaryWorkspaceId)
+        #expect(monitorInfo.value?[OmniWMFocusNotificationKey.oldMonitorIndex] as? CGDirectDisplayID == fixture
+            .primaryMonitor.displayId)
+        #expect(monitorInfo.value?[OmniWMFocusNotificationKey.newMonitorIndex] as? CGDirectDisplayID == fixture
+            .secondaryMonitor.displayId)
     }
 
     @Test @MainActor func removingFocusedWindowRecoversPendingFocusToRemainingWindow() async {

@@ -1,8 +1,7 @@
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWMCtl
+import OmniWMIPC
+import Testing
 
 @Suite struct CLIRendererTests {
     @Test func responseExitCodesMatchWireContract() {
@@ -118,7 +117,7 @@ import OmniWMIPC
                 queries: IPCQueriesQueryResult(
                     queries: [
                         IPCAutomationManifest.queryDescriptors.first(where: { $0.name == .windows })!,
-                        IPCAutomationManifest.queryDescriptors.first(where: { $0.name == .ruleActions })!,
+                        IPCAutomationManifest.queryDescriptors.first(where: { $0.name == .ruleActions })!
                     ]
                 )
             )

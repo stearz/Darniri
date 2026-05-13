@@ -167,7 +167,9 @@ final class AppCLIManager {
     private func isUserWritableDirectory(_ directory: URL) -> Bool {
         if fileManager.fileExists(atPath: directory.path) {
             var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else {
                 return false
             }
             return fileManager.isWritableFile(atPath: directory.path)

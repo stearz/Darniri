@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 
 struct DwindleGapCalculator {
     static let sticksTolerance: CGFloat = 2.0

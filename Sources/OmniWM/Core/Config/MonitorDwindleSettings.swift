@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 
 struct MonitorDwindleSettings: MonitorSettingsType {
     let id: UUID

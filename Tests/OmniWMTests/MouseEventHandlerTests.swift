@@ -2,9 +2,8 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeMouseEventTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.mouse-event.test.\(UUID().uuidString)"
@@ -343,7 +342,10 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let required: CGEventFlags = [.maskAlternate, .maskShift]
 
         #expect(MouseEventHandler.mouseWheelModifiersMatch(required, required: required))
-        #expect(MouseEventHandler.mouseWheelModifiersMatch([.maskAlternate, .maskShift, .maskCommand], required: required) == false)
+        #expect(MouseEventHandler.mouseWheelModifiersMatch(
+            [.maskAlternate, .maskShift, .maskCommand],
+            required: required
+        ) == false)
         #expect(MouseEventHandler.mouseWheelModifiersMatch([.maskAlternate], required: required) == false)
     }
 
@@ -903,7 +905,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
     @Test @MainActor func gestureTouchAverageRejectsInvalidTouchPositions() {
         let touches: [MouseEventHandler.GestureTouchSample] = [
             .init(phase: .touching, normalizedPosition: CGPoint(x: 0.25, y: 0.5)),
-            .init(phase: .touching, normalizedPosition: nil),
+            .init(phase: .touching, normalizedPosition: nil)
         ]
 
         let average = MouseEventHandler.averageGestureTouchPosition(
@@ -966,7 +968,10 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
                 Comment(rawValue: label)
             )
             #expect(
-                abs(Double(actual.viewOffsetPixels.target()) - Double(baselineViewportState.viewOffsetPixels.target())) < 0.001,
+                abs(
+                    Double(actual.viewOffsetPixels.target()) - Double(baselineViewportState.viewOffsetPixels.target())
+                ) <
+                    0.001,
                 Comment(rawValue: label)
             )
             #expect(
@@ -1394,7 +1399,8 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
             return
         }
         let expectedSelectedNode = columns[expectedActiveColumnIndex].windowNodes[
-            columns[expectedActiveColumnIndex].activeTileIdx.clamped(to: 0 ... (columns[expectedActiveColumnIndex].windowNodes.count - 1))
+            columns[expectedActiveColumnIndex].activeTileIdx
+                .clamped(to: 0 ... (columns[expectedActiveColumnIndex].windowNodes.count - 1))
         ]
         _ = gesture
 
@@ -1406,7 +1412,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
                 touches: [
                     .init(phase: .touching, normalizedPosition: CGPoint(x: 0.62, y: 0.5)),
                     .init(phase: .ended, normalizedPosition: CGPoint(x: 0.65, y: 0.5)),
-                    .init(phase: .ended, normalizedPosition: CGPoint(x: 0.70, y: 0.5)),
+                    .init(phase: .ended, normalizedPosition: CGPoint(x: 0.70, y: 0.5))
                 ]
             )
         )
@@ -1426,7 +1432,7 @@ private func prepareMouseWheelScrollFixtureWithDefaultSensitivity() async -> (
         let controller = makeMouseEventTestController(
             workspaceConfigurations: [
                 WorkspaceConfiguration(name: "1", monitorAssignment: .main, layoutType: .niri),
-                WorkspaceConfiguration(name: "2", monitorAssignment: .main, layoutType: .dwindle),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main, layoutType: .dwindle)
             ]
         )
         controller.settings.scrollGestureEnabled = true

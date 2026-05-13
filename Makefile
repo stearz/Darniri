@@ -1,16 +1,32 @@
-.PHONY: format lint lint-fix no-zig-audit build test verify check
+.PHONY: format format-check lint lint-fix no-zig-audit build test verify check check-tool-versions check-swiftformat-version check-swiftlint-version
 
+SWIFTFORMAT_VERSION = 0.61.1
+SWIFTLINT_VERSION = 0.63.2
 SWIFT_ONLY_BASE = 6fde9b910a6dd531eeaf3892499729120ae75f49
 SWIFT_WITH_GHOSTTY = LIBRARY_PATH="$$(./Scripts/ghostty-preflight.sh print-library-dir)$${LIBRARY_PATH:+:$$LIBRARY_PATH}"
 
-format:
+check-swiftformat-version:
+	@actual="$$(swiftformat --version 2>/dev/null || true)"; if [ "$$actual" != "$(SWIFTFORMAT_VERSION)" ]; then echo "error: SwiftFormat $(SWIFTFORMAT_VERSION) required; found $${actual:-missing}" >&2; exit 1; fi
+
+check-swiftlint-version:
+	@actual="$$(swiftlint version 2>/dev/null || true)"; if [ "$$actual" != "$(SWIFTLINT_VERSION)" ]; then echo "error: SwiftLint $(SWIFTLINT_VERSION) required; found $${actual:-missing}" >&2; exit 1; fi
+
+check-tool-versions: check-swiftformat-version check-swiftlint-version
+
+format: check-swiftformat-version
 	swiftformat .
 
-lint:
+format-check: check-swiftformat-version
+	swiftformat --lint .
+
+lint: check-swiftlint-version
 	swiftlint lint
 
-lint-fix:
-	swiftlint lint --fix
+lint-fix: check-tool-versions
+	swiftformat .
+	swiftlint lint --fix || true
+	swiftformat .
+	swiftlint lint
 
 no-zig-audit:
 	./Scripts/audit-no-zig.sh --range "$(SWIFT_ONLY_BASE)..HEAD"
@@ -25,6 +41,6 @@ test:
 	./Scripts/ghostty-preflight.sh verify
 	$(SWIFT_WITH_GHOSTTY) swift test
 
-verify: lint no-zig-audit build test
+verify: format-check lint no-zig-audit build test
 
 check: verify

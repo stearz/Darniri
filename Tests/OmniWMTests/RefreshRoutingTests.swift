@@ -1,9 +1,8 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeRefreshTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.refresh-routing.test.\(UUID().uuidString)"
@@ -294,7 +293,7 @@ private func waitUntil(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         await Task.yield()
     }
 
@@ -802,7 +801,12 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             ]
         )
         let primary = makeRefreshTestMonitor(displayId: layoutPlanTestMainDisplayId(), name: "Primary", x: 0, y: 0)
-        let secondary = makeRefreshTestMonitor(displayId: layoutPlanTestSyntheticDisplayId(1), name: "Secondary", x: 1920, y: 0)
+        let secondary = makeRefreshTestMonitor(
+            displayId: layoutPlanTestSyntheticDisplayId(1),
+            name: "Secondary",
+            x: 1920,
+            y: 0
+        )
         controller.workspaceManager.applyMonitorConfigurationChange([primary, secondary])
         controller.settings.statusBarShowWorkspaceName = true
 
@@ -985,7 +989,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: controller,
             assignments: [
                 (workspaceOne, 352),
-                (workspaceTwo, 353),
+                (workspaceTwo, 353)
             ],
             focusedWindowId: 352,
             ensureWorkspaces: [workspaceTwo]
@@ -1031,7 +1035,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: fixture.controller,
             assignments: [
                 (fixture.primaryWorkspaceId, 350),
-                (fixture.secondaryWorkspaceId, 351),
+                (fixture.secondaryWorkspaceId, 351)
             ],
             focusedWindowId: 350,
             ensureWorkspaces: [fixture.secondaryWorkspaceId]
@@ -1040,7 +1044,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         fixture.controller.workspaceNavigationHandler.switchWorkspace(index: 1)
         await waitForRefreshWork(on: fixture.controller)
 
-        #expect(fixture.controller.niriLayoutHandler.scrollAnimationByDisplay[fixture.secondaryMonitor.displayId] == nil)
+        #expect(fixture.controller.niriLayoutHandler
+            .scrollAnimationByDisplay[fixture.secondaryMonitor.displayId] == nil)
     }
 
     @Test @MainActor func sameMonitorWorkspaceSwitchSkipsAnimationWhenTargetWasHidden() async {
@@ -1057,7 +1062,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: controller,
             assignments: [
                 (ws1, 352),
-                (ws2, 353),
+                (ws2, 353)
             ],
             focusedWindowId: 352,
             ensureWorkspaces: [ws2]
@@ -1170,7 +1175,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let handles = await prepareNiriState(
             on: controller,
             assignments: [
-                (workspaceOne, 415),
+                (workspaceOne, 415)
             ],
             focusedWindowId: 415,
             ensureWorkspaces: [workspaceTwo]
@@ -1273,7 +1278,10 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(relayoutEvents.map(\.0) == [.workspaceTransition])
         #expect(relayoutEvents.map(\.1) == [.immediateRelayout])
         #expect(fullRescanReasons.isEmpty)
-        #expect(controller.workspaceManager.lastFocusedToken(in: targetWorkspaceId) == WindowToken(pid: getpid(), windowId: 304))
+        #expect(controller.workspaceManager.lastFocusedToken(in: targetWorkspaceId) == WindowToken(
+            pid: getpid(),
+            windowId: 304
+        ))
         #expect(
             dwindleTokenSet(controller: controller, workspaceId: targetWorkspaceId)
                 == Set([WindowToken(pid: getpid(), windowId: 304)])
@@ -1336,7 +1344,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         sourceColumn.cachedWidth = 480
         sourceRoot.appendChild(sourceColumn)
         engine.roots[sourceWorkspaceId] = sourceRoot
-        engine.ensureMonitor(for: sourceMonitor.id, monitor: sourceMonitor).workspaceRoots[sourceWorkspaceId] = sourceRoot
+        engine.ensureMonitor(for: sourceMonitor.id, monitor: sourceMonitor)
+            .workspaceRoots[sourceWorkspaceId] = sourceRoot
 
         var windowNodes: [NiriWindow] = []
         for handle in handles {
@@ -1462,7 +1471,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             assignments: [
                 (workspaceId: targetWorkspaceId, windowId: 9301),
                 (workspaceId: targetWorkspaceId, windowId: 9303),
-                (workspaceId: sourceWorkspaceId, windowId: 9302),
+                (workspaceId: sourceWorkspaceId, windowId: 9302)
             ],
             focusedWindowId: 9301
         )
@@ -1513,7 +1522,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: controller,
             assignments: [
                 (workspaceId: targetWorkspaceId, windowId: 9401),
-                (workspaceId: sourceWorkspaceId, windowId: 9402),
+                (workspaceId: sourceWorkspaceId, windowId: 9402)
             ],
             focusedWindowId: 9401
         )
@@ -2199,7 +2208,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(niriColumnTokenSnapshot(controller: controller, workspaceId: workspaceId) == originalSnapshot)
     }
 
-    @Test @MainActor func nativeFullscreenMissingFocusedWindowFallbackKeepsNiriLifecyclePreservationAcrossFullRescans() async {
+    @Test @MainActor func nativeFullscreenMissingFocusedWindowFallbackKeepsNiriLifecyclePreservationAcrossFullRescans(
+    ) async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
         let visibleWindows = VisibleWindowsStore([
@@ -3170,8 +3180,18 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         var newToken: WindowToken?
 
         controller.enableNiriLayout(maxWindowsPerColumn: 1)
-        let primaryHandle = addWindow(on: controller, workspaceId: fixture.primaryWorkspaceId, pid: getpid(), windowId: 6_501)
-        let secondaryHandle = addWindow(on: controller, workspaceId: fixture.secondaryWorkspaceId, pid: getpid(), windowId: 6_502)
+        let primaryHandle = addWindow(
+            on: controller,
+            workspaceId: fixture.primaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_501
+        )
+        let secondaryHandle = addWindow(
+            on: controller,
+            workspaceId: fixture.secondaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_502
+        )
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 6_501), getpid(), 6_501),
             (makeRefreshTestWindow(windowId: 6_502), getpid(), 6_502)
@@ -3191,7 +3211,8 @@ private func syncNiriWorkspaceStatesForRefreshTests(
                     )
                     newToken = token
                     visibleWindows.value.append((makeRefreshTestWindow(windowId: newWindowId), getpid(), newWindowId))
-                    lateCreateWasQueuedDuringFullRescan = controller.layoutRefreshController.layoutState.activeRefresh?.kind == .fullRescan
+                    lateCreateWasQueuedDuringFullRescan = controller.layoutRefreshController.layoutState.activeRefresh?
+                        .kind == .fullRescan
                     controller.layoutRefreshController.requestRelayout(
                         reason: .axWindowCreated,
                         affectedWorkspaceIds: [builtWorkspaceId]
@@ -3227,8 +3248,13 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(relayoutEvents.map(\.1) == [.relayout])
         #expect(controller.workspaceManager.entry(for: newToken) != nil)
         #expect(niriTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId).contains(newToken))
-        #expect(niriTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId) == workspaceManagerTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId))
-        #expect(niriTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId).contains(primaryHandle.id))
+        #expect(niriTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId) ==
+            workspaceManagerTokenSet(
+                controller: controller,
+                workspaceId: fixture.primaryWorkspaceId
+            ))
+        #expect(niriTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId)
+            .contains(primaryHandle.id))
         #expect(controller.workspaceManager.entry(for: secondaryHandle.id) != nil)
     }
 
@@ -3243,10 +3269,30 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         configureWorkspaceLayouts(on: controller, layoutsByName: ["1": .dwindle, "2": .dwindle])
         controller.enableDwindleLayout()
 
-        let primaryFirst = addWindow(on: controller, workspaceId: fixture.primaryWorkspaceId, pid: getpid(), windowId: 6_601)
-        let primarySecond = addWindow(on: controller, workspaceId: fixture.primaryWorkspaceId, pid: getpid(), windowId: 6_602)
-        let secondaryFirst = addWindow(on: controller, workspaceId: fixture.secondaryWorkspaceId, pid: getpid(), windowId: 6_611)
-        let secondarySecond = addWindow(on: controller, workspaceId: fixture.secondaryWorkspaceId, pid: getpid(), windowId: 6_612)
+        let primaryFirst = addWindow(
+            on: controller,
+            workspaceId: fixture.primaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_601
+        )
+        let primarySecond = addWindow(
+            on: controller,
+            workspaceId: fixture.primaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_602
+        )
+        let secondaryFirst = addWindow(
+            on: controller,
+            workspaceId: fixture.secondaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_611
+        )
+        let secondarySecond = addWindow(
+            on: controller,
+            workspaceId: fixture.secondaryWorkspaceId,
+            pid: getpid(),
+            windowId: 6_612
+        )
         controller.axManager.currentWindowsAsyncOverride = {
             [
                 (makeRefreshTestWindow(windowId: 6_601), getpid(), 6_601),
@@ -3273,8 +3319,10 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         await waitUntil { fullRescanReasons == [.startup] }
         fullRescanGate.open()
         await waitUntil {
-            let primaryTokenCount = dwindleTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId).count
-            let secondaryTokenCount = dwindleTokenSet(controller: controller, workspaceId: fixture.secondaryWorkspaceId).count
+            let primaryTokenCount = dwindleTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId)
+                .count
+            let secondaryTokenCount = dwindleTokenSet(controller: controller, workspaceId: fixture.secondaryWorkspaceId)
+                .count
             let populatedCount = [
                 primaryTokenCount,
                 secondaryTokenCount
@@ -3319,8 +3367,16 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceManager.entry(for: removedToken) == nil)
         #expect(!dwindleTokenSet(controller: controller, workspaceId: builtWorkspaceId).contains(removedToken))
         #expect(dwindleTokenSet(controller: controller, workspaceId: builtWorkspaceId).contains(survivingToken))
-        #expect(dwindleTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId) == workspaceManagerTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId))
-        #expect(dwindleTokenSet(controller: controller, workspaceId: fixture.secondaryWorkspaceId) == workspaceManagerTokenSet(controller: controller, workspaceId: fixture.secondaryWorkspaceId))
+        #expect(dwindleTokenSet(controller: controller, workspaceId: fixture.primaryWorkspaceId) ==
+            workspaceManagerTokenSet(
+                controller: controller,
+                workspaceId: fixture.primaryWorkspaceId
+            ))
+        #expect(dwindleTokenSet(controller: controller, workspaceId: fixture.secondaryWorkspaceId) ==
+            workspaceManagerTokenSet(
+                controller: controller,
+                workspaceId: fixture.secondaryWorkspaceId
+            ))
     }
 
     @Test @MainActor func sameWorkspaceWindowRemovalPreservesMultiplePayloads() async {
@@ -3444,7 +3500,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: fixture.controller,
             assignments: [
                 (fixture.primaryWorkspaceId, 404),
-                (fixture.secondaryWorkspaceId, 405),
+                (fixture.secondaryWorkspaceId, 405)
             ],
             focusedWindowId: 404,
             ensureWorkspaces: [fixture.secondaryWorkspaceId]
@@ -3492,7 +3548,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             on: controller,
             assignments: [
                 (workspaceOne, 431),
-                (workspaceTwo, 432),
+                (workspaceTwo, 432)
             ],
             focusedWindowId: 431,
             ensureWorkspaces: [workspaceTwo]

@@ -10,7 +10,7 @@ enum ReconcileDebugDump {
             "non-managed-focus=\(snapshot.focusSession.isNonManagedFocusActive)",
             "app-fullscreen=\(snapshot.focusSession.isAppFullscreenActive)",
             "interaction-monitor=\(snapshot.interactionMonitorId.map(String.init(describing:)) ?? "nil")",
-            "previous-interaction-monitor=\(snapshot.previousInteractionMonitorId.map(String.init(describing:)) ?? "nil")",
+            "previous-interaction-monitor=\(snapshot.previousInteractionMonitorId.map(String.init(describing:)) ?? "nil")"
         ]
 
         for window in snapshot.windows {
@@ -32,7 +32,7 @@ enum ReconcileDebugDump {
             var parts = [
                 "#\(record.sequence)",
                 record.timestamp.ISO8601Format(),
-                "event=\(record.event.summary)",
+                "event=\(record.event.summary)"
             ]
             if record.normalizedEvent != record.event {
                 parts.append("normalized=\(record.normalizedEvent.summary)")
@@ -56,7 +56,7 @@ enum ReconcileDebugDump {
             "monitor=\(state.monitorId.map(String.init(describing:)) ?? "nil")",
             "visible=\(state.isVisible)",
             "focused=\(state.isFocused)",
-            "fullscreen=\(state.isNativeFullscreen)",
+            "fullscreen=\(state.isNativeFullscreen)"
         ]
         .joined(separator: ",")
     }

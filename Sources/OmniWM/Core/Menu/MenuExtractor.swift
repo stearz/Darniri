@@ -298,8 +298,8 @@ final class MenuExtractor: @unchecked Sendable {
     }
 }
 
-nonisolated(unsafe) private var kAXRootElementAssociatedKey: UInt8 = 0
-nonisolated(unsafe) private var kIsPopulatingAssociatedKey: UInt8 = 0
+private nonisolated(unsafe) var kAXRootElementAssociatedKey: UInt8 = 0
+private nonisolated(unsafe) var kIsPopulatingAssociatedKey: UInt8 = 0
 
 extension NSMenu {
     var axRootElement: AXUIElement? {

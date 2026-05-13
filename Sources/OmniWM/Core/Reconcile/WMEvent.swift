@@ -126,7 +126,12 @@ enum WMEvent: Equatable {
             to
         case let .managedFocusCancelled(token, _, _):
             token
-        case .topologyChanged, .activeSpaceChanged, .focusLeaseChanged, .nonManagedFocusChanged, .systemSleep, .systemWake:
+        case .topologyChanged,
+             .activeSpaceChanged,
+             .focusLeaseChanged,
+             .nonManagedFocusChanged,
+             .systemSleep,
+             .systemWake:
             nil
         }
     }

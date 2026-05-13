@@ -1,9 +1,8 @@
 import CoreGraphics
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
+import OmniWMIPC
+import Testing
 
 private let ipcQueryRouterSessionToken = "ipc-query-router-tests"
 private let ipcQueryRouterAuthorization = "ipc-query-router-secret"
@@ -81,7 +80,11 @@ private func prepareIPCQueryRouterNiriState(
 
         controller.appInfoCache.storeInfoForTests(pid: 7001, name: "Tiled App", bundleId: "com.example.tiled")
         controller.appInfoCache.storeInfoForTests(pid: 7002, name: "Floating App", bundleId: "com.example.floating")
-        controller.appInfoCache.storeInfoForTests(pid: 7003, name: "Hidden Floating App", bundleId: "com.example.hidden")
+        controller.appInfoCache.storeInfoForTests(
+            pid: 7003,
+            name: "Hidden Floating App",
+            bundleId: "com.example.hidden"
+        )
 
         _ = controller.workspaceManager.addWindow(
             makeLayoutPlanTestWindow(windowId: 1001),
@@ -133,7 +136,11 @@ private func prepareIPCQueryRouterNiriState(
 
         controller.appInfoCache.storeInfoForTests(pid: 7101, name: "Tiled App", bundleId: "com.example.tiled")
         controller.appInfoCache.storeInfoForTests(pid: 7102, name: "Floating App", bundleId: "com.example.floating")
-        controller.appInfoCache.storeInfoForTests(pid: 7103, name: "Floating Only App", bundleId: "com.example.floating-only")
+        controller.appInfoCache.storeInfoForTests(
+            pid: 7103,
+            name: "Floating Only App",
+            bundleId: "com.example.floating-only"
+        )
 
         _ = controller.workspaceManager.addWindow(
             makeLayoutPlanTestWindow(windowId: 1101),
@@ -168,10 +175,12 @@ private func prepareIPCQueryRouterNiriState(
         #expect(workspaceOne.windows.map(\.appName) == ["Tiled App", "Floating App"])
         #expect(workspaceTwo.windows.map(\.appName) == ["Floating Only App"])
         #expect(
-            IPCWindowOpaqueID.decode(workspaceOne.windows[0].id, expectingSessionToken: ipcQueryRouterSessionToken)?.pid == 7101
+            IPCWindowOpaqueID.decode(workspaceOne.windows[0].id, expectingSessionToken: ipcQueryRouterSessionToken)?
+                .pid == 7101
         )
         #expect(
-            IPCWindowOpaqueID.decode(workspaceOne.windows[1].id, expectingSessionToken: ipcQueryRouterSessionToken)?.pid == 7102
+            IPCWindowOpaqueID.decode(workspaceOne.windows[1].id, expectingSessionToken: ipcQueryRouterSessionToken)?
+                .pid == 7102
         )
     }
 
@@ -561,7 +570,7 @@ private func prepareIPCQueryRouterNiriState(
                 layout: .tile,
                 minWidth: 900,
                 minHeight: 700
-            ),
+            )
         ]
         controller.updateAppRules()
 

@@ -16,6 +16,9 @@ SIGNING_IDENTITY="Developer ID Application: Oliver Nikolic (VF8LDJRGFM)"
 NOTARIZE_PROFILE="OmniWM-Notarize"
 ENTITLEMENTS="$ROOT_DIR/OmniWM.entitlements"
 
+echo "Running release checks..."
+make -C "$ROOT_DIR" check
+
 "$ROOT_DIR/Scripts/ghostty-preflight.sh" verify
 
 echo "Building OmniWM universal binary ($CONFIG)..."

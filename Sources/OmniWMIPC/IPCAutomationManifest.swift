@@ -25,9 +25,18 @@ public enum IPCQuerySelectorName: String, Codable, CaseIterable, Equatable, Hash
 
     public var expectsValue: Bool {
         switch self {
-        case .window, .workspace, .display, .app, .bundleId:
+        case .window,
+             .workspace,
+             .display,
+             .app,
+             .bundleId:
             true
-        case .focused, .visible, .floating, .scratchpad, .current, .main:
+        case .focused,
+             .visible,
+             .floating,
+             .scratchpad,
+             .current,
+             .main:
             false
         }
     }
@@ -46,7 +55,9 @@ public enum IPCCommandArgumentKind: String, Codable, CaseIterable, Equatable, Se
         switch self {
         case .direction:
             "<left|right|up|down>"
-        case .workspaceNumber, .columnIndex, .windowIndex:
+        case .workspaceNumber,
+             .columnIndex,
+             .windowIndex:
             "<number>"
         case .layout:
             "<default|niri|dwindle>"
@@ -287,7 +298,7 @@ public enum IPCAutomationManifest {
         "is-focused",
         "is-visible",
         "is-scratchpad",
-        "hidden-reason",
+        "hidden-reason"
     ]
 
     public static let workspaceFieldCatalog: [String] = [
@@ -301,7 +312,7 @@ public enum IPCAutomationManifest {
         "is-visible",
         "is-current",
         "window-counts",
-        "focused-window-id",
+        "focused-window-id"
     ]
 
     public static let displayFieldCatalog: [String] = [
@@ -313,7 +324,7 @@ public enum IPCAutomationManifest {
         "visible-frame",
         "has-notch",
         "orientation",
-        "active-workspace",
+        "active-workspace"
     ]
 
     public static let queryDescriptors: [IPCQueryDescriptor] = [
@@ -349,7 +360,7 @@ public enum IPCAutomationManifest {
                 .init(name: .floating, summary: "Only include floating managed windows."),
                 .init(name: .scratchpad, summary: "Only include the scratchpad window."),
                 .init(name: .app, summary: "Filter by application display name."),
-                .init(name: .bundleId, summary: "Filter by application bundle identifier."),
+                .init(name: .bundleId, summary: "Filter by application bundle identifier.")
             ],
             fields: windowFieldCatalog
         ),
@@ -361,7 +372,7 @@ public enum IPCAutomationManifest {
                 .init(name: .display, summary: "Filter by active monitor name or display id."),
                 .init(name: .current, summary: "Only include the interaction monitor's active workspace."),
                 .init(name: .visible, summary: "Only include visible workspaces."),
-                .init(name: .focused, summary: "Only include the workspace containing the focused managed window."),
+                .init(name: .focused, summary: "Only include the workspace containing the focused managed window.")
             ],
             fields: workspaceFieldCatalog
         ),
@@ -371,7 +382,7 @@ public enum IPCAutomationManifest {
             selectors: [
                 .init(name: .display, summary: "Filter by display name or display id."),
                 .init(name: .main, summary: "Only include the main display."),
-                .init(name: .current, summary: "Only include the interaction display."),
+                .init(name: .current, summary: "Only include the interaction display.")
             ],
             fields: displayFieldCatalog
         ),
@@ -406,90 +417,444 @@ public enum IPCAutomationManifest {
         IPCQueryDescriptor(
             name: .reconcileDebug,
             summary: "Return the reconcile snapshot and recent trace for debugging."
-        ),
+        )
     ]
 
     public static let commandDescriptors: [IPCCommandDescriptor] = [
         command(["focus"], name: .focus, summary: "Focus a neighboring window.", arguments: [directionArgument]),
-        command(["focus", "previous"], name: .focusPrevious, summary: "Focus the previously focused window.", layoutCompatibility: .niri),
-        command(["focus", "down-or-left"], name: .focusDownOrLeft, summary: "Traverse backward through the active Niri workspace.", layoutCompatibility: .niri),
-        command(["focus", "up-or-right"], name: .focusUpOrRight, summary: "Traverse forward through the active Niri workspace.", layoutCompatibility: .niri),
-        command(["focus-window-in-column"], name: .focusWindowInColumn, summary: "Focus a window in the focused Niri column by one-based index.", arguments: [windowIndexArgument], layoutCompatibility: .niri),
-        command(["focus-window", "top"], name: .focusWindowTop, summary: "Focus the top window in the focused Niri column.", layoutCompatibility: .niri),
-        command(["focus-window", "bottom"], name: .focusWindowBottom, summary: "Focus the bottom window in the focused Niri column.", layoutCompatibility: .niri),
-        command(["focus-window", "down-or-top"], name: .focusWindowDownOrTop, summary: "Focus down in the focused Niri column, wrapping to the top.", layoutCompatibility: .niri),
-        command(["focus-window", "up-or-bottom"], name: .focusWindowUpOrBottom, summary: "Focus up in the focused Niri column, wrapping to the bottom.", layoutCompatibility: .niri),
-        command(["focus-window-or-workspace-down"], name: .focusWindowOrWorkspaceDown, summary: "Focus down in the focused Niri column, or switch to the workspace below at the column edge.", layoutCompatibility: .niri),
-        command(["focus-window-or-workspace-up"], name: .focusWindowOrWorkspaceUp, summary: "Focus up in the focused Niri column, or switch to the workspace above at the column edge.", layoutCompatibility: .niri),
-        command(["focus-column"], name: .focusColumn, summary: "Focus a Niri column by one-based index.", arguments: [columnIndexArgument], layoutCompatibility: .niri),
-        command(["focus-column", "first"], name: .focusColumnFirst, summary: "Focus the first Niri column.", layoutCompatibility: .niri),
-        command(["focus-column", "last"], name: .focusColumnLast, summary: "Focus the last Niri column.", layoutCompatibility: .niri),
-        command(["center-column"], name: .centerColumn, summary: "Center the focused Niri column without changing focus.", layoutCompatibility: .niri),
-        command(["center-visible-columns"], name: .centerVisibleColumns, summary: "Center the fully visible Niri columns around the active column.", layoutCompatibility: .niri),
-        command(["move"], name: .move, summary: "Move the focused window in the given direction.", arguments: [directionArgument]),
-        command(["move-window-down"], name: .moveWindowDown, summary: "Move the focused Niri window down within its column.", layoutCompatibility: .niri),
-        command(["move-window-up"], name: .moveWindowUp, summary: "Move the focused Niri window up within its column.", layoutCompatibility: .niri),
-        command(["move-window-down-or-to-workspace-down"], name: .moveWindowDownOrToWorkspaceDown, summary: "Move the focused Niri window down, or to the workspace below at the column edge.", layoutCompatibility: .niri),
-        command(["move-window-up-or-to-workspace-up"], name: .moveWindowUpOrToWorkspaceUp, summary: "Move the focused Niri window up, or to the workspace above at the column edge.", layoutCompatibility: .niri),
-        command(["consume-or-expel-window-left"], name: .consumeOrExpelWindowLeft, summary: "Consume the focused Niri window into the column to the left, or expel it left from its column.", layoutCompatibility: .niri),
-        command(["consume-or-expel-window-right"], name: .consumeOrExpelWindowRight, summary: "Consume the focused Niri window into the column to the right, or expel it right from its column.", layoutCompatibility: .niri),
-        command(["consume-window-into-column"], name: .consumeWindowIntoColumn, summary: "Consume the top window from the next Niri column into the focused column.", layoutCompatibility: .niri),
-        command(["expel-window-from-column"], name: .expelWindowFromColumn, summary: "Expel the bottom window from the focused Niri column into a new column to the right.", layoutCompatibility: .niri),
-        command(["switch-workspace"], name: .switchWorkspace, summary: "Switch to a workspace on the interaction monitor by workspace ID.", arguments: [workspaceNumberArgument]),
-        command(["switch-workspace", "next"], name: .switchWorkspaceNext, summary: "Switch to the next workspace on the current monitor."),
-        command(["switch-workspace", "prev"], name: .switchWorkspacePrevious, summary: "Switch to the previous workspace on the current monitor."),
-        command(["switch-workspace", "back-and-forth"], name: .switchWorkspaceBackAndForth, summary: "Switch to the previously active workspace on the current monitor."),
-        command(["switch-workspace", "anywhere"], name: .switchWorkspaceAnywhere, summary: "Focus a workspace by workspace ID across all monitors.", arguments: [workspaceNumberArgument]),
-        command(["move-to-workspace"], name: .moveToWorkspace, summary: "Move the focused window to a workspace by workspace ID.", arguments: [workspaceNumberArgument]),
-        command(["move-to-workspace", "up"], name: .moveToWorkspaceUp, summary: "Move the focused window to the adjacent workspace above."),
-        command(["move-to-workspace", "down"], name: .moveToWorkspaceDown, summary: "Move the focused window to the adjacent workspace below."),
-        command(["move-to-workspace", "on-monitor"], name: .moveToWorkspaceOnMonitor, summary: "Move the focused window to a workspace already assigned to the requested adjacent monitor.", arguments: [workspaceNumberArgument, directionArgument]),
-        command(["focus-monitor", "prev"], name: .focusMonitorPrevious, summary: "Move interaction focus to the previous monitor."),
-        command(["focus-monitor", "next"], name: .focusMonitorNext, summary: "Move interaction focus to the next monitor."),
-        command(["focus-monitor", "last"], name: .focusMonitorLast, summary: "Move interaction focus back to the previous monitor."),
-        command(["move-column"], name: .moveColumn, summary: "Move the focused Niri column in the given direction.", arguments: [directionArgument], layoutCompatibility: .niri),
-        command(["move-column-to-first"], name: .moveColumnToFirst, summary: "Move the focused Niri column to the first position.", layoutCompatibility: .niri),
-        command(["move-column-to-last"], name: .moveColumnToLast, summary: "Move the focused Niri column to the last position.", layoutCompatibility: .niri),
-        command(["move-column-to-index"], name: .moveColumnToIndex, summary: "Move the focused Niri column to a one-based index.", arguments: [columnIndexArgument], layoutCompatibility: .niri),
-        command(["move-column-to-workspace"], name: .moveColumnToWorkspace, summary: "Move the focused Niri column to a workspace by workspace ID.", arguments: [workspaceNumberArgument], layoutCompatibility: .niri),
-        command(["move-column-to-workspace", "up"], name: .moveColumnToWorkspaceUp, summary: "Move the focused Niri column to the adjacent workspace above.", layoutCompatibility: .niri),
-        command(["move-column-to-workspace", "down"], name: .moveColumnToWorkspaceDown, summary: "Move the focused Niri column to the adjacent workspace below.", layoutCompatibility: .niri),
-        command(["toggle-column-tabbed"], name: .toggleColumnTabbed, summary: "Toggle tabbed mode for the focused Niri column.", layoutCompatibility: .niri),
-        command(["cycle-column-width", "forward"], name: .cycleColumnWidthForward, summary: "Cycle Niri column width presets forward.", layoutCompatibility: .niri),
-        command(["cycle-column-width", "backward"], name: .cycleColumnWidthBackward, summary: "Cycle Niri column width presets backward.", layoutCompatibility: .niri),
-        command(["cycle-window-width", "forward"], name: .cycleWindowWidthForward, summary: "Cycle Niri window width presets forward.", layoutCompatibility: .niri),
-        command(["cycle-window-width", "backward"], name: .cycleWindowWidthBackward, summary: "Cycle Niri window width presets backward.", layoutCompatibility: .niri),
-        command(["cycle-window-height", "forward"], name: .cycleWindowHeightForward, summary: "Cycle Niri window height presets forward.", layoutCompatibility: .niri),
-        command(["cycle-window-height", "backward"], name: .cycleWindowHeightBackward, summary: "Cycle Niri window height presets backward.", layoutCompatibility: .niri),
-        command(["toggle-column-full-width"], name: .toggleColumnFullWidth, summary: "Toggle full-width mode for the focused Niri column.", layoutCompatibility: .niri),
-        command(["expand-column-to-available-width"], name: .expandColumnToAvailableWidth, summary: "Expand the focused Niri column into available visible space.", layoutCompatibility: .niri),
-        command(["reset-window-height"], name: .resetWindowHeight, summary: "Reset the focused Niri window height.", layoutCompatibility: .niri),
-        command(["set-column-width"], name: .setColumnWidth, summary: "Set or adjust the focused Niri column width.", arguments: [sizeChangeArgument], layoutCompatibility: .niri),
-        command(["set-window-width"], name: .setWindowWidth, summary: "Set or adjust the focused Niri window width.", arguments: [sizeChangeArgument], layoutCompatibility: .niri),
-        command(["set-window-height"], name: .setWindowHeight, summary: "Set or adjust the focused Niri window height.", arguments: [sizeChangeArgument], layoutCompatibility: .niri),
-        command(["swap-workspace-with-monitor"], name: .swapWorkspaceWithMonitor, summary: "Swap the active workspace with the active workspace on an adjacent monitor.", arguments: [directionArgument]),
+        command(
+            ["focus", "previous"],
+            name: .focusPrevious,
+            summary: "Focus the previously focused window.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus", "down-or-left"],
+            name: .focusDownOrLeft,
+            summary: "Traverse backward through the active Niri workspace.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus", "up-or-right"],
+            name: .focusUpOrRight,
+            summary: "Traverse forward through the active Niri workspace.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window-in-column"],
+            name: .focusWindowInColumn,
+            summary: "Focus a window in the focused Niri column by one-based index.",
+            arguments: [windowIndexArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window", "top"],
+            name: .focusWindowTop,
+            summary: "Focus the top window in the focused Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window", "bottom"],
+            name: .focusWindowBottom,
+            summary: "Focus the bottom window in the focused Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window", "down-or-top"],
+            name: .focusWindowDownOrTop,
+            summary: "Focus down in the focused Niri column, wrapping to the top.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window", "up-or-bottom"],
+            name: .focusWindowUpOrBottom,
+            summary: "Focus up in the focused Niri column, wrapping to the bottom.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window-or-workspace-down"],
+            name: .focusWindowOrWorkspaceDown,
+            summary: "Focus down in the focused Niri column, or switch to the workspace below at the column edge.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-window-or-workspace-up"],
+            name: .focusWindowOrWorkspaceUp,
+            summary: "Focus up in the focused Niri column, or switch to the workspace above at the column edge.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-column"],
+            name: .focusColumn,
+            summary: "Focus a Niri column by one-based index.",
+            arguments: [columnIndexArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-column", "first"],
+            name: .focusColumnFirst,
+            summary: "Focus the first Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["focus-column", "last"],
+            name: .focusColumnLast,
+            summary: "Focus the last Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["center-column"],
+            name: .centerColumn,
+            summary: "Center the focused Niri column without changing focus.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["center-visible-columns"],
+            name: .centerVisibleColumns,
+            summary: "Center the fully visible Niri columns around the active column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move"],
+            name: .move,
+            summary: "Move the focused window in the given direction.",
+            arguments: [directionArgument]
+        ),
+        command(
+            ["move-window-down"],
+            name: .moveWindowDown,
+            summary: "Move the focused Niri window down within its column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-window-up"],
+            name: .moveWindowUp,
+            summary: "Move the focused Niri window up within its column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-window-down-or-to-workspace-down"],
+            name: .moveWindowDownOrToWorkspaceDown,
+            summary: "Move the focused Niri window down, or to the workspace below at the column edge.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-window-up-or-to-workspace-up"],
+            name: .moveWindowUpOrToWorkspaceUp,
+            summary: "Move the focused Niri window up, or to the workspace above at the column edge.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["consume-or-expel-window-left"],
+            name: .consumeOrExpelWindowLeft,
+            summary: "Consume the focused Niri window into the column to the left, or expel it left from its column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["consume-or-expel-window-right"],
+            name: .consumeOrExpelWindowRight,
+            summary: "Consume the focused Niri window into the column to the right, or expel it right from its column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["consume-window-into-column"],
+            name: .consumeWindowIntoColumn,
+            summary: "Consume the top window from the next Niri column into the focused column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["expel-window-from-column"],
+            name: .expelWindowFromColumn,
+            summary: "Expel the bottom window from the focused Niri column into a new column to the right.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["switch-workspace"],
+            name: .switchWorkspace,
+            summary: "Switch to a workspace on the interaction monitor by workspace ID.",
+            arguments: [workspaceNumberArgument]
+        ),
+        command(
+            ["switch-workspace", "next"],
+            name: .switchWorkspaceNext,
+            summary: "Switch to the next workspace on the current monitor."
+        ),
+        command(
+            ["switch-workspace", "prev"],
+            name: .switchWorkspacePrevious,
+            summary: "Switch to the previous workspace on the current monitor."
+        ),
+        command(
+            ["switch-workspace", "back-and-forth"],
+            name: .switchWorkspaceBackAndForth,
+            summary: "Switch to the previously active workspace on the current monitor."
+        ),
+        command(
+            ["switch-workspace", "anywhere"],
+            name: .switchWorkspaceAnywhere,
+            summary: "Focus a workspace by workspace ID across all monitors.",
+            arguments: [workspaceNumberArgument]
+        ),
+        command(
+            ["move-to-workspace"],
+            name: .moveToWorkspace,
+            summary: "Move the focused window to a workspace by workspace ID.",
+            arguments: [workspaceNumberArgument]
+        ),
+        command(
+            ["move-to-workspace", "up"],
+            name: .moveToWorkspaceUp,
+            summary: "Move the focused window to the adjacent workspace above."
+        ),
+        command(
+            ["move-to-workspace", "down"],
+            name: .moveToWorkspaceDown,
+            summary: "Move the focused window to the adjacent workspace below."
+        ),
+        command(
+            ["move-to-workspace", "on-monitor"],
+            name: .moveToWorkspaceOnMonitor,
+            summary: "Move the focused window to a workspace already assigned to the requested adjacent monitor.",
+            arguments: [workspaceNumberArgument, directionArgument]
+        ),
+        command(
+            ["focus-monitor", "prev"],
+            name: .focusMonitorPrevious,
+            summary: "Move interaction focus to the previous monitor."
+        ),
+        command(
+            ["focus-monitor", "next"],
+            name: .focusMonitorNext,
+            summary: "Move interaction focus to the next monitor."
+        ),
+        command(
+            ["focus-monitor", "last"],
+            name: .focusMonitorLast,
+            summary: "Move interaction focus back to the previous monitor."
+        ),
+        command(
+            ["move-column"],
+            name: .moveColumn,
+            summary: "Move the focused Niri column in the given direction.",
+            arguments: [directionArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-first"],
+            name: .moveColumnToFirst,
+            summary: "Move the focused Niri column to the first position.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-last"],
+            name: .moveColumnToLast,
+            summary: "Move the focused Niri column to the last position.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-index"],
+            name: .moveColumnToIndex,
+            summary: "Move the focused Niri column to a one-based index.",
+            arguments: [columnIndexArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-workspace"],
+            name: .moveColumnToWorkspace,
+            summary: "Move the focused Niri column to a workspace by workspace ID.",
+            arguments: [workspaceNumberArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-workspace", "up"],
+            name: .moveColumnToWorkspaceUp,
+            summary: "Move the focused Niri column to the adjacent workspace above.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["move-column-to-workspace", "down"],
+            name: .moveColumnToWorkspaceDown,
+            summary: "Move the focused Niri column to the adjacent workspace below.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["toggle-column-tabbed"],
+            name: .toggleColumnTabbed,
+            summary: "Toggle tabbed mode for the focused Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-column-width", "forward"],
+            name: .cycleColumnWidthForward,
+            summary: "Cycle Niri column width presets forward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-column-width", "backward"],
+            name: .cycleColumnWidthBackward,
+            summary: "Cycle Niri column width presets backward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-window-width", "forward"],
+            name: .cycleWindowWidthForward,
+            summary: "Cycle Niri window width presets forward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-window-width", "backward"],
+            name: .cycleWindowWidthBackward,
+            summary: "Cycle Niri window width presets backward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-window-height", "forward"],
+            name: .cycleWindowHeightForward,
+            summary: "Cycle Niri window height presets forward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["cycle-window-height", "backward"],
+            name: .cycleWindowHeightBackward,
+            summary: "Cycle Niri window height presets backward.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["toggle-column-full-width"],
+            name: .toggleColumnFullWidth,
+            summary: "Toggle full-width mode for the focused Niri column.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["expand-column-to-available-width"],
+            name: .expandColumnToAvailableWidth,
+            summary: "Expand the focused Niri column into available visible space.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["reset-window-height"],
+            name: .resetWindowHeight,
+            summary: "Reset the focused Niri window height.",
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["set-column-width"],
+            name: .setColumnWidth,
+            summary: "Set or adjust the focused Niri column width.",
+            arguments: [sizeChangeArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["set-window-width"],
+            name: .setWindowWidth,
+            summary: "Set or adjust the focused Niri window width.",
+            arguments: [sizeChangeArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["set-window-height"],
+            name: .setWindowHeight,
+            summary: "Set or adjust the focused Niri window height.",
+            arguments: [sizeChangeArgument],
+            layoutCompatibility: .niri
+        ),
+        command(
+            ["swap-workspace-with-monitor"],
+            name: .swapWorkspaceWithMonitor,
+            summary: "Swap the active workspace with the active workspace on an adjacent monitor.",
+            arguments: [directionArgument]
+        ),
         command(["balance-sizes"], name: .balanceSizes, summary: "Balance layout sizes in the active workspace."),
-        command(["move-to-root"], name: .moveToRoot, summary: "Move the selected Dwindle window to the root split.", layoutCompatibility: .dwindle),
-        command(["toggle-split"], name: .toggleSplit, summary: "Toggle the active Dwindle split orientation.", layoutCompatibility: .dwindle),
-        command(["swap-split"], name: .swapSplit, summary: "Swap the active Dwindle split.", layoutCompatibility: .dwindle),
-        command(["resize"], name: .resize, summary: "Resize the selected Dwindle window.", arguments: [directionArgument, resizeOperationArgument], layoutCompatibility: .dwindle),
-        command(["preselect"], name: .preselect, summary: "Set the Dwindle preselection direction.", arguments: [directionArgument], layoutCompatibility: .dwindle),
-        command(["preselect", "clear"], name: .preselectClear, summary: "Clear the Dwindle preselection.", layoutCompatibility: .dwindle),
+        command(
+            ["move-to-root"],
+            name: .moveToRoot,
+            summary: "Move the selected Dwindle window to the root split.",
+            layoutCompatibility: .dwindle
+        ),
+        command(
+            ["toggle-split"],
+            name: .toggleSplit,
+            summary: "Toggle the active Dwindle split orientation.",
+            layoutCompatibility: .dwindle
+        ),
+        command(
+            ["swap-split"],
+            name: .swapSplit,
+            summary: "Swap the active Dwindle split.",
+            layoutCompatibility: .dwindle
+        ),
+        command(
+            ["resize"],
+            name: .resize,
+            summary: "Resize the selected Dwindle window.",
+            arguments: [directionArgument, resizeOperationArgument],
+            layoutCompatibility: .dwindle
+        ),
+        command(
+            ["preselect"],
+            name: .preselect,
+            summary: "Set the Dwindle preselection direction.",
+            arguments: [directionArgument],
+            layoutCompatibility: .dwindle
+        ),
+        command(
+            ["preselect", "clear"],
+            name: .preselectClear,
+            summary: "Clear the Dwindle preselection.",
+            layoutCompatibility: .dwindle
+        ),
         command(["open-command-palette"], name: .openCommandPalette, summary: "Toggle the command palette."),
-        command(["raise-all-floating-windows"], name: .raiseAllFloatingWindows, summary: "Raise all visible floating windows."),
-        command(["rescue-offscreen-windows"], name: .rescueOffscreenWindows, summary: "Clamp tracked floating windows back onto their visible monitors."),
-        command(["toggle-focused-window-floating"], name: .toggleFocusedWindowFloating, summary: "Toggle the focused managed window between tiled and floating."),
-        command(["scratchpad", "assign"], name: .scratchpadAssign, summary: "Assign the focused managed window to the scratchpad."),
+        command(
+            ["raise-all-floating-windows"],
+            name: .raiseAllFloatingWindows,
+            summary: "Raise all visible floating windows."
+        ),
+        command(
+            ["rescue-offscreen-windows"],
+            name: .rescueOffscreenWindows,
+            summary: "Clamp tracked floating windows back onto their visible monitors."
+        ),
+        command(
+            ["toggle-focused-window-floating"],
+            name: .toggleFocusedWindowFloating,
+            summary: "Toggle the focused managed window between tiled and floating."
+        ),
+        command(
+            ["scratchpad", "assign"],
+            name: .scratchpadAssign,
+            summary: "Assign the focused managed window to the scratchpad."
+        ),
         command(["scratchpad", "toggle"], name: .scratchpadToggle, summary: "Show or hide the scratchpad window."),
         command(["open-menu-anywhere"], name: .openMenuAnywhere, summary: "Open the menu surface anywhere."),
-        command(["toggle-workspace-bar"], name: .toggleWorkspaceBar, summary: "Toggle runtime workspace bar visibility."),
+        command(
+            ["toggle-workspace-bar"],
+            name: .toggleWorkspaceBar,
+            summary: "Toggle runtime workspace bar visibility."
+        ),
         command(["toggle-hidden-bar"], name: .toggleHiddenBar, summary: "Toggle the hidden bar surface."),
-        command(["toggle-quake-terminal"], name: .toggleQuakeTerminal, summary: "Toggle the configured Quake terminal."),
-        command(["toggle-workspace-layout"], name: .toggleWorkspaceLayout, summary: "Toggle the current workspace between Niri and Dwindle."),
-        command(["set-workspace-layout"], name: .setWorkspaceLayout, summary: "Set the current workspace layout explicitly.", arguments: [layoutArgument]),
+        command(
+            ["toggle-quake-terminal"],
+            name: .toggleQuakeTerminal,
+            summary: "Toggle the configured Quake terminal."
+        ),
+        command(
+            ["toggle-workspace-layout"],
+            name: .toggleWorkspaceLayout,
+            summary: "Toggle the current workspace between Niri and Dwindle."
+        ),
+        command(
+            ["set-workspace-layout"],
+            name: .setWorkspaceLayout,
+            summary: "Set the current workspace layout explicitly.",
+            arguments: [layoutArgument]
+        ),
         command(["toggle-fullscreen"], name: .toggleFullscreen, summary: "Toggle OmniWM-managed fullscreen."),
-        command(["toggle-native-fullscreen"], name: .toggleNativeFullscreen, summary: "Toggle native macOS fullscreen."),
-        command(["toggle-overview"], name: .toggleOverview, summary: "Toggle the overview surface."),
+        command(
+            ["toggle-native-fullscreen"],
+            name: .toggleNativeFullscreen,
+            summary: "Toggle native macOS fullscreen."
+        ),
+        command(["toggle-overview"], name: .toggleOverview, summary: "Toggle the overview surface.")
     ]
 
     public static let workspaceActionDescriptors: [IPCWorkspaceActionDescriptor] = [
@@ -498,7 +863,7 @@ public enum IPCAutomationManifest {
             name: .focusName,
             summary: "Focus a workspace by raw workspace ID or unambiguous configured display name.",
             arguments: ["name"]
-        ),
+        )
     ]
 
     public static let windowActionDescriptors: [IPCWindowActionDescriptor] = [
@@ -519,7 +884,7 @@ public enum IPCAutomationManifest {
             name: .summonRight,
             summary: "Summon a managed window to the right of the focused window.",
             arguments: ["opaque-id"]
-        ),
+        )
     ]
 
     public static let ruleDefinitionOptionDescriptors: [IPCRuleActionOptionDescriptor] = [
@@ -572,7 +937,7 @@ public enum IPCAutomationManifest {
             flag: "--min-height",
             summary: "Set the minimum floating height in points.",
             valuePlaceholder: "<points>"
-        ),
+        )
     ]
 
     public static let ruleActionDescriptors: [IPCRuleActionDescriptor] = [
@@ -623,9 +988,9 @@ public enum IPCAutomationManifest {
                     summary: "Reapply rules to all managed windows for a process id.",
                     valuePlaceholder: "<pid>",
                     exclusiveGroup: "target"
-                ),
+                )
             ]
-        ),
+        )
     ]
 
     public static let subscriptionDescriptors: [IPCSubscriptionDescriptor] = [
@@ -659,7 +1024,7 @@ public enum IPCAutomationManifest {
             channel: .layoutChanged,
             summary: "Workspace layout updates.",
             resultKind: .workspaces
-        ),
+        )
     ]
 
     public static func queryDescriptor(for name: IPCQueryName) -> IPCQueryDescriptor? {

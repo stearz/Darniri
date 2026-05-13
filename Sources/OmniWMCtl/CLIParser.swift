@@ -40,7 +40,10 @@ enum CLIParser {
         Set(IPCAutomationManifest.ruleDefinitionOptionDescriptors.map(\.flag))
     }
 
-    static func parse(arguments: [String], environment: [String: String] = ProcessInfo.processInfo.environment) throws -> ParsedCLICommand {
+    static func parse(
+        arguments: [String],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> ParsedCLICommand {
         let normalized = normalize(arguments: arguments)
         let filteredArguments = normalized.arguments
 
@@ -75,42 +78,60 @@ enum CLIParser {
             )
         case "command":
             return ParsedCLICommand(
-                invocation: .remote(try parseCommandRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseCommandRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: outputFormat,
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
         case "query":
             return ParsedCLICommand(
-                invocation: .remote(try parseQueryRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseQueryRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: normalized.outputFormat ?? .json,
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
         case "rule":
             return ParsedCLICommand(
-                invocation: .remote(try parseRuleRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseRuleRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: outputFormat,
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
         case "workspace":
             return ParsedCLICommand(
-                invocation: .remote(try parseWorkspaceRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseWorkspaceRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: outputFormat,
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
         case "window":
             return ParsedCLICommand(
-                invocation: .remote(try parseWindowRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseWindowRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: outputFormat,
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
         case "subscribe":
             return ParsedCLICommand(
-                invocation: .remote(try parseSubscribeRequest(id: requestId, arguments: Array(filteredArguments.dropFirst()))),
+                invocation: .remote(try parseSubscribeRequest(
+                    id: requestId,
+                    arguments: Array(filteredArguments.dropFirst())
+                )),
                 outputFormat: .json,
                 expectsEventStream: true,
                 watchConfiguration: nil
@@ -128,7 +149,9 @@ enum CLIParser {
                 expectsEventStream: false,
                 watchConfiguration: nil
             )
-        case "help", "--help", "-h":
+        case "help",
+             "--help",
+             "-h":
             return ParsedCLICommand(
                 invocation: .local(.help),
                 outputFormat: .text,
@@ -697,12 +720,12 @@ enum CLIParser {
             "  omniwmctl ping",
             "  omniwmctl version",
             "  omniwmctl help",
-            "  omniwmctl completion <zsh|bash|fish>",
+            "  omniwmctl completion <zsh|bash|fish>"
         ]
         lines += commandLines.map { "  omniwmctl \($0)" }
         lines += ruleLines.map { "  omniwmctl \($0)" }
         lines += [
-            "  omniwmctl query <\(queryNames)> [selectors...] [--fields <csv>] [--format <json|table|tsv|text>]",
+            "  omniwmctl query <\(queryNames)> [selectors...] [--fields <csv>] [--format <json|table|tsv|text>]"
         ]
         lines += workspaceLines.map { "  omniwmctl \($0)" }
         lines += windowLines.map { "  omniwmctl \($0)" }
@@ -715,12 +738,12 @@ enum CLIParser {
             "Formats:",
             "  --format json|table|tsv|text",
             "",
-            "Rule Options:",
+            "Rule Options:"
         ]
         lines += ruleOptionLines
         lines += [
             "",
-            "Query Selectors:",
+            "Query Selectors:"
         ]
 
         for descriptor in IPCAutomationManifest.queryDescriptors where !descriptor.selectors.isEmpty {

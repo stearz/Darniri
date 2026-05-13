@@ -109,7 +109,8 @@ extension NiriLayoutEngine {
                     workingFrame: workingFrame,
                     gaps: gaps
                 )
-            case .before, .after:
+            case .before,
+                 .after:
                 return insertWindowByMove(
                     sourceWindowId: move.windowId,
                     targetWindowId: targetNodeId,
@@ -122,7 +123,8 @@ extension NiriLayoutEngine {
                 )
             }
 
-        case .columnGap, .workspaceEdge:
+        case .columnGap,
+             .workspaceEdge:
             return false
         }
     }

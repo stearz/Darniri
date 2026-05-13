@@ -130,5 +130,7 @@ class KeyRecorderNSView: NSView {
         return handleKeyEvent(event)
     }
 
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool {
+        true
+    }
 }

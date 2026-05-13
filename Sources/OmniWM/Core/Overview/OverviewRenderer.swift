@@ -3,7 +3,6 @@ import CoreGraphics
 import Foundation
 
 enum OverviewRenderer {
-
     private enum Colors {
         static let background = CGColor(red: 0.05, green: 0.05, blue: 0.08, alpha: 1.0)
         static let windowBackground = CGColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
@@ -230,7 +229,12 @@ enum OverviewRenderer {
 
         context.saveGState()
 
-        let path = CGPath(roundedRect: frame, cornerWidth: Metrics.windowCornerRadius, cornerHeight: Metrics.windowCornerRadius, transform: nil)
+        let path = CGPath(
+            roundedRect: frame,
+            cornerWidth: Metrics.windowCornerRadius,
+            cornerHeight: Metrics.windowCornerRadius,
+            transform: nil
+        )
         context.addPath(path)
         context.setFillColor(Colors.windowBackground.copy(alpha: alpha)!)
         context.fillPath()
@@ -242,7 +246,12 @@ enum OverviewRenderer {
                 in: thumbnailRect
             )
             context.saveGState()
-            let clipPath = CGPath(roundedRect: thumbnailRect, cornerWidth: Metrics.windowCornerRadius - 1, cornerHeight: Metrics.windowCornerRadius - 1, transform: nil)
+            let clipPath = CGPath(
+                roundedRect: thumbnailRect,
+                cornerWidth: Metrics.windowCornerRadius - 1,
+                cornerHeight: Metrics.windowCornerRadius - 1,
+                transform: nil
+            )
             context.addPath(clipPath)
             context.clip()
             context.draw(thumbnail, in: drawRect)
@@ -285,13 +294,29 @@ enum OverviewRenderer {
         let infoPath = CGMutablePath()
         infoPath.move(to: CGPoint(x: infoRect.minX + Metrics.windowCornerRadius, y: infoRect.minY))
         infoPath.addLine(to: CGPoint(x: infoRect.maxX - Metrics.windowCornerRadius, y: infoRect.minY))
-        infoPath.addArc(center: CGPoint(x: infoRect.maxX - Metrics.windowCornerRadius, y: infoRect.minY + Metrics.windowCornerRadius),
-                        radius: Metrics.windowCornerRadius, startAngle: -.pi / 2, endAngle: 0, clockwise: false)
+        infoPath.addArc(
+            center: CGPoint(
+                x: infoRect.maxX - Metrics.windowCornerRadius,
+                y: infoRect.minY + Metrics.windowCornerRadius
+            ),
+            radius: Metrics.windowCornerRadius,
+            startAngle: -.pi / 2,
+            endAngle: 0,
+            clockwise: false
+        )
         infoPath.addLine(to: CGPoint(x: infoRect.maxX, y: infoRect.maxY))
         infoPath.addLine(to: CGPoint(x: infoRect.minX, y: infoRect.maxY))
         infoPath.addLine(to: CGPoint(x: infoRect.minX, y: infoRect.minY + Metrics.windowCornerRadius))
-        infoPath.addArc(center: CGPoint(x: infoRect.minX + Metrics.windowCornerRadius, y: infoRect.minY + Metrics.windowCornerRadius),
-                        radius: Metrics.windowCornerRadius, startAngle: .pi, endAngle: -.pi / 2, clockwise: false)
+        infoPath.addArc(
+            center: CGPoint(
+                x: infoRect.minX + Metrics.windowCornerRadius,
+                y: infoRect.minY + Metrics.windowCornerRadius
+            ),
+            radius: Metrics.windowCornerRadius,
+            startAngle: .pi,
+            endAngle: -.pi / 2,
+            clockwise: false
+        )
         infoPath.closeSubpath()
 
         context.addPath(infoPath)
@@ -388,7 +413,12 @@ enum OverviewRenderer {
         searchQuery: String,
         alpha: CGFloat
     ) {
-        let path = CGPath(roundedRect: frame, cornerWidth: Metrics.searchBarCornerRadius, cornerHeight: Metrics.searchBarCornerRadius, transform: nil)
+        let path = CGPath(
+            roundedRect: frame,
+            cornerWidth: Metrics.searchBarCornerRadius,
+            cornerHeight: Metrics.searchBarCornerRadius,
+            transform: nil
+        )
 
         context.addPath(path)
         context.setFillColor(Colors.searchBarBackground.copy(alpha: alpha)!)

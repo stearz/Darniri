@@ -1,7 +1,6 @@
 import CoreGraphics
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeMonitorTabTestMonitor(
     displayId: CGDirectDisplayID,

@@ -82,6 +82,7 @@ final class WorkspaceManager {
     private(set) var monitors: [Monitor] = Monitor.current() {
         didSet { rebuildMonitorIndexes() }
     }
+
     private var _monitorsById: [Monitor.ID: Monitor] = [:]
     private var _monitorsByName: [String: [Monitor]] = [:]
     private let settings: SettingsStore
@@ -791,7 +792,8 @@ final class WorkspaceManager {
         if let normalizedMonitorId {
             changed = updateInteractionMonitor(normalizedMonitorId, preservePrevious: true, notify: false) || changed
         }
-        let appFullscreen = sessionState.focus.isNonManagedFocusActive ? false : sessionState.focus.isAppFullscreenActive
+        let appFullscreen = sessionState.focus.isNonManagedFocusActive ? false : sessionState.focus
+            .isAppFullscreenActive
         changed = applyFocusReconcileEvent(
             .managedFocusConfirmed(
                 token: token,
@@ -1301,7 +1303,7 @@ final class WorkspaceManager {
             in: workspaceId,
             mode: .tiling
         ),
-           sessionState.focus.pendingManagedFocus.workspaceId == workspaceId
+            sessionState.focus.pendingManagedFocus.workspaceId == workspaceId
         {
             return pendingToken
         }
@@ -2389,7 +2391,8 @@ final class WorkspaceManager {
                     source: .workspaceManager
                 )
             )
-        case .standard, .macosHiddenApp:
+        case .standard,
+             .macosHiddenApp:
             recordReconcileEvent(
                 .nativeFullscreenTransition(
                     token: token,
@@ -2704,13 +2707,15 @@ final class WorkspaceManager {
         switch mode {
         case .directional:
             switch direction {
-            case .left, .right:
+            case .left,
+                 .right:
                 return MonitorSelectionRank(
                     primary: abs(delta.dx),
                     secondary: abs(delta.dy),
                     distance: candidate.frame.center.distanceSquared(to: current.frame.center)
                 )
-            case .up, .down:
+            case .up,
+                 .down:
                 return MonitorSelectionRank(
                     primary: abs(delta.dy),
                     secondary: abs(delta.dx),
@@ -2806,12 +2811,12 @@ final class WorkspaceManager {
                 return lhsKey < rhsKey
             }
             .compactMap { monitorId, workspaceId in
-            guard let monitor = monitor(byId: monitorId) else { return nil }
-            return WorkspaceRestoreSnapshot(
-                monitor: MonitorRestoreKey(monitor: monitor),
-                workspaceId: workspaceId
-            )
-        }
+                guard let monitor = monitor(byId: monitorId) else { return nil }
+                return WorkspaceRestoreSnapshot(
+                    monitor: MonitorRestoreKey(monitor: monitor),
+                    workspaceId: workspaceId
+                )
+            }
     }
 
     private func captureDisconnectedVisibleWorkspaceMigrations(

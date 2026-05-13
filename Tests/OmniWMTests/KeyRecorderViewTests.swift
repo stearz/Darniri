@@ -1,8 +1,7 @@
 import AppKit
 import Carbon
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @MainActor
 private func makeKeyRecorderEvent(

@@ -13,6 +13,11 @@ struct GlassButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == GlassButtonStyle {
-    static var glass: GlassButtonStyle { GlassButtonStyle() }
-    static var glassProminent: GlassButtonStyle { GlassButtonStyle(isProminent: true) }
+    static var glass: GlassButtonStyle {
+        GlassButtonStyle()
+    }
+
+    static var glassProminent: GlassButtonStyle {
+        GlassButtonStyle(isProminent: true)
+    }
 }

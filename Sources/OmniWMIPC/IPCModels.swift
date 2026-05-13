@@ -1863,7 +1863,8 @@ public struct IPCRequest: Codable, Equatable, Sendable {
         authorizationToken = try container.decodeIfPresent(String.self, forKey: .authorizationToken)
 
         switch kind {
-        case .ping, .version:
+        case .ping,
+             .version:
             payload = .none(try container.decodeIfPresent(IPCNoPayload.self, forKey: .payload) ?? .init())
         case .command:
             payload = .command(try container.decode(IPCCommandRequest.self, forKey: .payload))
@@ -2910,7 +2911,8 @@ public enum IPCWindowOpaqueID {
         switch validate(value, expectingSessionToken: sessionToken) {
         case let .valid(pid, windowId):
             return (pid, windowId)
-        case .stale, .invalid:
+        case .stale,
+             .invalid:
             return nil
         }
     }

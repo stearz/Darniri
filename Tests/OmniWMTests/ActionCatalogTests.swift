@@ -1,6 +1,5 @@
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct ActionCatalogTests {
     @Test func defaultBindingsMirrorActionCatalog() {

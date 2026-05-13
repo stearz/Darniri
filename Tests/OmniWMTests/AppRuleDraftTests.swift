@@ -1,6 +1,5 @@
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeDecisionSnapshot(
     bundleId: String? = "com.example.app",

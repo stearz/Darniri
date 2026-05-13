@@ -1,9 +1,8 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeWorkspaceManagerTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.workspace-manager.test.\(UUID().uuidString)"
@@ -444,7 +443,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([oldLeft, oldRight])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -623,7 +623,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([main, secondary, third])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -693,7 +694,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -722,7 +724,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -752,7 +755,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -789,7 +793,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -871,14 +876,24 @@ private func workspaceConfigurations(
             return
         }
 
-        let token1 = manager.addWindow(makeWorkspaceManagerTestWindow(windowId: 2191), pid: getpid(), windowId: 2191, to: workspaceId)
+        let token1 = manager.addWindow(
+            makeWorkspaceManagerTestWindow(windowId: 2191),
+            pid: getpid(),
+            windowId: 2191,
+            to: workspaceId
+        )
         guard let handle1 = manager.handle(for: token1) else {
             Issue.record("Missing initial bridge handle")
             return
         }
         _ = manager.setManagedFocus(token1, in: workspaceId, onMonitor: monitor.id)
 
-        let token2 = manager.addWindow(makeWorkspaceManagerTestWindow(windowId: 2191), pid: getpid(), windowId: 2191, to: workspaceId)
+        let token2 = manager.addWindow(
+            makeWorkspaceManagerTestWindow(windowId: 2191),
+            pid: getpid(),
+            windowId: 2191,
+            to: workspaceId
+        )
         guard let handle2 = manager.handle(for: token2) else {
             Issue.record("Missing refreshed bridge handle")
             return
@@ -1211,8 +1226,18 @@ private func workspaceConfigurations(
             return
         }
 
-        let survivor = addWorkspaceManagerTestHandle(manager: manager, windowId: 2201, pid: 2201, workspaceId: workspaceId)
-        let removed = addWorkspaceManagerTestHandle(manager: manager, windowId: 2202, pid: 2202, workspaceId: workspaceId)
+        let survivor = addWorkspaceManagerTestHandle(
+            manager: manager,
+            windowId: 2201,
+            pid: 2201,
+            workspaceId: workspaceId
+        )
+        let removed = addWorkspaceManagerTestHandle(
+            manager: manager,
+            windowId: 2202,
+            pid: 2202,
+            workspaceId: workspaceId
+        )
 
         _ = manager.setManagedFocus(removed, in: workspaceId, onMonitor: monitor.id)
         _ = manager.removeWindow(pid: 2202, windowId: 2202)
@@ -1240,8 +1265,18 @@ private func workspaceConfigurations(
             return
         }
 
-        let survivor = addWorkspaceManagerTestHandle(manager: manager, windowId: 2301, pid: 2301, workspaceId: workspaceId)
-        let removed = addWorkspaceManagerTestHandle(manager: manager, windowId: 2302, pid: 2302, workspaceId: workspaceId)
+        let survivor = addWorkspaceManagerTestHandle(
+            manager: manager,
+            windowId: 2301,
+            pid: 2301,
+            workspaceId: workspaceId
+        )
+        let removed = addWorkspaceManagerTestHandle(
+            manager: manager,
+            windowId: 2302,
+            pid: 2302,
+            workspaceId: workspaceId
+        )
 
         _ = manager.setManagedFocus(removed, in: workspaceId, onMonitor: monitor.id)
         _ = manager.beginManagedFocusRequest(removed, in: workspaceId, onMonitor: monitor.id)
@@ -1285,7 +1320,12 @@ private func workspaceConfigurations(
             return
         }
 
-        let suspended = addWorkspaceManagerTestHandle(manager: manager, windowId: 2311, pid: 2311, workspaceId: workspaceId)
+        let suspended = addWorkspaceManagerTestHandle(
+            manager: manager,
+            windowId: 2311,
+            pid: 2311,
+            workspaceId: workspaceId
+        )
         manager.setLayoutReason(.nativeFullscreen, for: suspended)
 
         manager.removeMissing(keys: [], requiredConsecutiveMisses: 2)
@@ -1316,8 +1356,18 @@ private func workspaceConfigurations(
         }
 
         let pid: pid_t = 4601
-        let token1 = manager.addWindow(makeWorkspaceManagerTestWindow(windowId: 2321), pid: pid, windowId: 2321, to: ws1)
-        let token2 = manager.addWindow(makeWorkspaceManagerTestWindow(windowId: 2322), pid: pid, windowId: 2322, to: ws2)
+        let token1 = manager.addWindow(
+            makeWorkspaceManagerTestWindow(windowId: 2321),
+            pid: pid,
+            windowId: 2321,
+            to: ws1
+        )
+        let token2 = manager.addWindow(
+            makeWorkspaceManagerTestWindow(windowId: 2322),
+            pid: pid,
+            windowId: 2322,
+            to: ws2
+        )
 
         _ = manager.requestNativeFullscreenEnter(token1, in: ws1)
         _ = manager.markNativeFullscreenSuspended(token1)
@@ -1411,7 +1461,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -1444,7 +1495,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -1481,7 +1533,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -1510,7 +1563,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([monitor])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }
@@ -1539,7 +1593,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([oldLeft, oldRight])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws3 = manager.workspaceId(for: "3", createIfMissing: true) else {
+              let ws3 = manager.workspaceId(for: "3", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -1576,7 +1631,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([oldLeft, oldRight])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -1677,7 +1733,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let ws1 = manager.workspaceId(for: "1", createIfMissing: true),
-              let ws2 = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let ws2 = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create expected workspaces")
             return
         }
@@ -1824,7 +1881,8 @@ private func workspaceConfigurations(
         manager.applyMonitorConfigurationChange([left, right])
 
         guard let sourceWorkspaceId = manager.workspaceId(for: "1", createIfMissing: true),
-              let targetWorkspaceId = manager.workspaceId(for: "2", createIfMissing: true) else {
+              let targetWorkspaceId = manager.workspaceId(for: "2", createIfMissing: true)
+        else {
             Issue.record("Failed to create workspaces")
             return
         }

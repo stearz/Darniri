@@ -99,8 +99,14 @@ private struct WorkspaceBarContentView: View {
 
     @Environment(\.colorScheme) var colorScheme: ColorScheme
 
-    private var itemHeight: CGFloat { max(16, snapshot.barHeight - 4) }
-    private var iconSize: CGFloat { max(12, itemHeight - 6) }
+    private var itemHeight: CGFloat {
+        max(16, snapshot.barHeight - 4)
+    }
+
+    private var iconSize: CGFloat {
+        max(12, itemHeight - 6)
+    }
+
     private let workspaceSpacing: CGFloat = 8
     private let windowSpacing: CGFloat = 2
     private let cornerRadius: CGFloat = 6

@@ -1,9 +1,8 @@
 import AppKit
 import Carbon
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private final class OverviewSessionRecorder {
     var activatedOmniWMCount = 0

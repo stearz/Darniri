@@ -406,7 +406,9 @@ struct AppRuleAddSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: "arrow.down.doc")
-                                Text("Use current size: \(Int(appInfo.windowSize.width)) x \(Int(appInfo.windowSize.height)) px")
+                                Text(
+                                    "Use current size: \(Int(appInfo.windowSize.width)) x \(Int(appInfo.windowSize.height)) px"
+                                )
                             }
                         }
                         .buttonStyle(.bordered)

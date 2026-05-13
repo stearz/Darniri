@@ -1,9 +1,8 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeAXWindowRef(windowId: Int) -> AXWindowRef {
     AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: windowId)
@@ -189,7 +188,7 @@ private func makeOverviewWindowItem(
         let workspaceId = WorkspaceDescriptor.ID()
         let pid: pid_t = 77
 
-        for windowId in 402...404 {
+        for windowId in 402 ... 404 {
             let request = coordinator.beginManagedRequest(
                 token: WindowToken(pid: pid, windowId: windowId),
                 workspaceId: workspaceId
@@ -292,5 +291,4 @@ private func makeOverviewWindowItem(
         #expect(layout.allWindows.first(where: { $0.handle == h2 })?.overviewFrame == frame)
         #expect(layout.allWindows.first(where: { $0.handle == h1 })?.overviewFrame == .zero)
     }
-
 }

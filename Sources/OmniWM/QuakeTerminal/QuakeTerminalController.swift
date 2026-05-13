@@ -28,8 +28,13 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         return tabs[activeTabIndex]
     }
 
-    private var surface: ghostty_surface_t? { activeTab?.focusedSurface }
-    private var surfaceView: GhosttySurfaceView? { activeTab?.focusedSurfaceView }
+    private var surface: ghostty_surface_t? {
+        activeTab?.focusedSurface
+    }
+
+    private var surfaceView: GhosttySurfaceView? {
+        activeTab?.focusedSurfaceView
+    }
 
     private(set) var visible: Bool = false
     private var restoreTarget: QuakeTerminalRestoreTarget?
@@ -115,7 +120,7 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         runtimeConfig.write_clipboard_cb = { userdata, location, content, len, confirm in
             guard let userdata, let content, len > 0 else { return }
             var plainText: String?
-            for i in 0..<len {
+            for i in 0 ..< len {
                 guard let mimePtr = content[i].mime,
                       let dataPtr = content[i].data else { continue }
                 let mime = String(cString: mimePtr)
@@ -280,8 +285,12 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         bar.delegate = self
         bar.isHidden = true
         bar.autoresizingMask = [.width]
-        bar.frame = NSRect(x: 0, y: container.bounds.height - QuakeTerminalTabBar.barHeight,
-                           width: container.bounds.width, height: QuakeTerminalTabBar.barHeight)
+        bar.frame = NSRect(
+            x: 0,
+            y: container.bounds.height - QuakeTerminalTabBar.barHeight,
+            width: container.bounds.width,
+            height: QuakeTerminalTabBar.barHeight
+        )
         container.addSubview(bar)
         self.tabBar = bar
     }
@@ -539,7 +548,8 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
 
         if settings.quakeTerminalUseCustomFrame,
            let customFrame = settings.quakeTerminalCustomFrame,
-           screen.visibleFrame.intersects(customFrame) {
+           screen.visibleFrame.intersects(customFrame)
+        {
             window.setFrame(customFrame, display: false)
             window.level = .popUpMenu
             window.makeKeyAndOrderFront(nil)
@@ -761,7 +771,8 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         case .mouseCursor:
             let mouseLocation = NSEvent.mouseLocation
             if let monitor = mouseLocation.monitorApproximation(in: monitors),
-               let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId }) {
+               let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId })
+            {
                 return screen
             }
 
@@ -778,7 +789,10 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
     }
 
     private func screenOfFocusedWindow(monitors: [Monitor]) -> NSScreen? {
-        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+        guard let windowList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
             return nil
         }
 
@@ -803,7 +817,8 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
             let flippedCenter = CGPoint(x: windowCenter.x, y: NSScreen.screens.first!.frame.height - windowCenter.y)
 
             if let monitor = flippedCenter.monitorApproximation(in: monitors),
-               let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId }) {
+               let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId })
+            {
                 return screen
             }
         }
@@ -885,10 +900,13 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
             if surfaceView?.isInteracting != true && !settings.quakeTerminalUseCustomFrame {
                 let position = settings.quakeTerminalPosition
                 switch position {
-                case .top, .bottom, .center:
+                case .top,
+                     .bottom,
+                     .center:
                     let newOrigin = position.centeredOrigin(for: window, on: screen)
                     window.setFrameOrigin(newOrigin)
-                case .left, .right:
+                case .left,
+                     .right:
                     let newOrigin = position.verticallyCenteredOrigin(for: window, on: screen)
                     window.setFrameOrigin(newOrigin)
                 }

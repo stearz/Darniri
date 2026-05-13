@@ -21,8 +21,13 @@ struct OverridableToggle: View {
     let onChange: (Bool) -> Void
     let onReset: () -> Void
 
-    private var effectiveValue: Bool { value ?? globalValue }
-    private var isOverridden: Bool { value != nil }
+    private var effectiveValue: Bool {
+        value ?? globalValue
+    }
+
+    private var isOverridden: Bool {
+        value != nil
+    }
 
     var body: some View {
         HStack {
@@ -60,8 +65,13 @@ struct OverridablePicker<T: Hashable & Identifiable>: View {
     let onChange: (T) -> Void
     let onReset: () -> Void
 
-    private var effectiveValue: T { value ?? globalValue }
-    private var isOverridden: Bool { value != nil }
+    private var effectiveValue: T {
+        value ?? globalValue
+    }
+
+    private var isOverridden: Bool {
+        value != nil
+    }
 
     var body: some View {
         HStack {
@@ -103,8 +113,13 @@ struct OverridableSlider: View {
     let onChange: (Double) -> Void
     let onReset: () -> Void
 
-    private var effectiveValue: Double { value ?? globalValue }
-    private var isOverridden: Bool { value != nil }
+    private var effectiveValue: Double {
+        value ?? globalValue
+    }
+
+    private var isOverridden: Bool {
+        value != nil
+    }
 
     var body: some View {
         HStack {
@@ -146,8 +161,13 @@ struct OverridableStepper: View {
     let onChange: (Double) -> Void
     let onReset: () -> Void
 
-    private var effectiveValue: Double { value ?? globalValue }
-    private var isOverridden: Bool { value != nil }
+    private var effectiveValue: Double {
+        value ?? globalValue
+    }
+
+    private var isOverridden: Bool {
+        value != nil
+    }
 
     var body: some View {
         HStack {

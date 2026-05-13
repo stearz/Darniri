@@ -1,8 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private enum ScratchpadFocusOperationEvent: Equatable {
     case activate(pid_t)

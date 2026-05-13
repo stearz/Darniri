@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeStatusBarMenuTestDirectory() -> URL {
     let directory = FileManager.default.temporaryDirectory
@@ -170,7 +169,8 @@ private func makeStatusBarMenuTestDirectory() -> URL {
         controller.settings.statusBarShowWorkspaceName = true
         controller.settings.statusBarShowAppNames = true
 
-        guard let secondaryWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false) else {
+        guard let secondaryWorkspaceId = controller.workspaceManager.workspaceId(for: "2", createIfMissing: false)
+        else {
             Issue.record("Missing secondary workspace for status bar monitor test")
             return
         }

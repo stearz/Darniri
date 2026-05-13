@@ -102,7 +102,7 @@ enum KeySymbolMapper {
         UInt32(kVK_ANSI_KeypadDivide): descriptor("KP/", "Keypad Divide"),
         UInt32(kVK_ANSI_KeypadEnter): descriptor("KPEnter", "Keypad Enter"),
         UInt32(kVK_ANSI_KeypadMinus): descriptor("KP-", "Keypad Minus"),
-        UInt32(kVK_ANSI_KeypadEquals): descriptor("KP=", "Keypad Equals"),
+        UInt32(kVK_ANSI_KeypadEquals): descriptor("KP=", "Keypad Equals")
     ]
 
     static func modifierSymbols(_ modifiers: UInt32) -> String {
@@ -149,7 +149,7 @@ enum KeySymbolMapper {
         "Control": UInt32(controlKey),
         "Option": UInt32(optionKey),
         "Shift": UInt32(shiftKey),
-        "Command": UInt32(cmdKey),
+        "Command": UInt32(cmdKey)
     ]
 
     static func fromHumanReadable(_ string: String) -> KeyBinding? {

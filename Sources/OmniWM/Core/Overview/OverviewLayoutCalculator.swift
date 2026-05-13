@@ -679,14 +679,14 @@ struct OverviewLayoutCalculator {
         case .left:
             let leftWindows = visibleWindows.filter {
                 $0.overviewFrame.midX < currentWindow.overviewFrame.midX &&
-                abs($0.overviewFrame.midY - currentWindow.overviewFrame.midY) < currentWindow.overviewFrame.height
+                    abs($0.overviewFrame.midY - currentWindow.overviewFrame.midY) < currentWindow.overviewFrame.height
             }.sorted { $0.overviewFrame.midX > $1.overviewFrame.midX }
             return leftWindows.first?.handle ?? findWrappedPrevious(in: visibleWindows, from: currentIndex)
 
         case .right:
             let rightWindows = visibleWindows.filter {
                 $0.overviewFrame.midX > currentWindow.overviewFrame.midX &&
-                abs($0.overviewFrame.midY - currentWindow.overviewFrame.midY) < currentWindow.overviewFrame.height
+                    abs($0.overviewFrame.midY - currentWindow.overviewFrame.midY) < currentWindow.overviewFrame.height
             }.sorted { $0.overviewFrame.midX < $1.overviewFrame.midX }
             return rightWindows.first?.handle ?? findWrappedNext(in: visibleWindows, from: currentIndex)
 

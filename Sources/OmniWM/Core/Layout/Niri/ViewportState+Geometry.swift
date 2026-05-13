@@ -78,7 +78,12 @@ extension ViewportState {
         totalSpan(containers: columns, gap: gap, sizeKeyPath: \.cachedWidth)
     }
 
-    func containerPosition(at index: Int, containers: [NiriContainer], gap: CGFloat, sizeKeyPath: KeyPath<NiriContainer, CGFloat>) -> CGFloat {
+    func containerPosition(
+        at index: Int,
+        containers: [NiriContainer],
+        gap: CGFloat,
+        sizeKeyPath: KeyPath<NiriContainer, CGFloat>
+    ) -> CGFloat {
         var pos: CGFloat = 0
         for i in 0 ..< index {
             guard i < containers.count else { break }
@@ -179,7 +184,12 @@ extension ViewportState {
             orientation: orientation,
             scale: scale
         )
-        let targetPos = containerPosition(at: containerIndex, containers: containers, gap: gap, sizeKeyPath: sizeKeyPath)
+        let targetPos = containerPosition(
+            at: containerIndex,
+            containers: containers,
+            gap: gap,
+            sizeKeyPath: sizeKeyPath
+        )
         let targetSize = containers[containerIndex][keyPath: sizeKeyPath]
         let mode = containers[containerIndex].effectiveSizingMode
 
@@ -315,7 +325,12 @@ extension ViewportState {
             scale: scale
         )
         let effectiveCenterMode = (containers.count == 1 && alwaysCenterSingleColumn) ? .always : centerMode
-        let targetPos = containerPosition(at: containerIndex, containers: containers, gap: gap, sizeKeyPath: sizeKeyPath)
+        let targetPos = containerPosition(
+            at: containerIndex,
+            containers: containers,
+            gap: gap,
+            sizeKeyPath: sizeKeyPath
+        )
         let targetSize = containers[containerIndex][keyPath: sizeKeyPath]
         let targetMode = containers[containerIndex].effectiveSizingMode
 
@@ -342,7 +357,12 @@ extension ViewportState {
                 } else {
                     max(containerIndex - 1, 0)
                 }
-                let sourcePos = containerPosition(at: sourceIdx, containers: containers, gap: gap, sizeKeyPath: sizeKeyPath)
+                let sourcePos = containerPosition(
+                    at: sourceIdx,
+                    containers: containers,
+                    gap: gap,
+                    sizeKeyPath: sizeKeyPath
+                )
                 let sourceSize = containers[sourceIdx][keyPath: sizeKeyPath]
                 let pairSpan = if sourcePos < targetPos {
                     targetPos - sourcePos + targetSize

@@ -1,10 +1,9 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
+@testable import OmniWM
 import QuartzCore
 import Testing
-
-@testable import OmniWM
 
 private func hasDwindleAnimationDirective(
     _ directives: [AnimationDirective],
@@ -666,7 +665,8 @@ private func configureWorkspacesAsDwindle(
             on: controller,
             workspaceIds: [fixture.primaryWorkspaceId, fixture.secondaryWorkspaceId]
         )
-        guard controller.workspaceManager.monitor(for: fixture.secondaryWorkspaceId)?.id == fixture.secondaryMonitor.id else {
+        guard controller.workspaceManager.monitor(for: fixture.secondaryWorkspaceId)?.id == fixture.secondaryMonitor.id
+        else {
             Issue.record("Expected the secondary workspace to remain assigned to the visible secondary monitor")
             return
         }

@@ -235,7 +235,7 @@ struct RestorePlanner {
         plan.previousInteractionMonitorId = reconciled.previousInteractionMonitorId
         plan.notes = [
             "visible_assignments=\(plan.visibleAssignments.count)",
-            "disconnected_cache=\(plan.disconnectedVisibleWorkspaceCache.count)",
+            "disconnected_cache=\(plan.disconnectedVisibleWorkspaceCache.count)"
         ]
 
         return plan
@@ -259,7 +259,8 @@ struct RestorePlanner {
             monitors: input.monitors
         )
 
-        let targetMode: TrackedWindowMode = persistedEntry.restoreIntent.restoreToFloating ? .floating : input.metadata.mode
+        let targetMode: TrackedWindowMode = persistedEntry.restoreIntent.restoreToFloating ? .floating : input.metadata
+            .mode
         let floatingFrame = persistedEntry.restoreIntent.restoreToFloating
             ? resolvedPersistedFloatingFrame(
                 for: persistedEntry.restoreIntent,

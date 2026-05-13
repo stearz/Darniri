@@ -1,8 +1,7 @@
 import Foundation
+@testable import OmniWM
 import OmniWMIPC
 import Testing
-
-@testable import OmniWM
 
 @Suite struct SettingsTOMLCodecTests {
     @Test func roundTripsDefaults() throws {
@@ -211,8 +210,14 @@ import Testing
             .replacingOccurrences(of: "position = \"belowMenuBar\"", with: "position = \"futurePosition\"")
             .replacingOccurrences(of: "windowLevel = \"status\"", with: "windowLevel = \"futureLevel\"")
             .replacingOccurrences(of: "centerFocusedColumn = \"always\"", with: "centerFocusedColumn = \"futureFocus\"")
-            .replacingOccurrences(of: "singleWindowAspectRatio = \"16:9\"", with: "singleWindowAspectRatio = \"futureNiriRatio\"")
-            .replacingOccurrences(of: "singleWindowAspectRatio = \"21:9\"", with: "singleWindowAspectRatio = \"futureDwindleRatio\"")
+            .replacingOccurrences(
+                of: "singleWindowAspectRatio = \"16:9\"",
+                with: "singleWindowAspectRatio = \"futureNiriRatio\""
+            )
+            .replacingOccurrences(
+                of: "singleWindowAspectRatio = \"21:9\"",
+                with: "singleWindowAspectRatio = \"futureDwindleRatio\""
+            )
 
         let decoded = try SettingsTOMLCodec.decode(Data(edited.utf8))
 

@@ -148,7 +148,7 @@ enum NiriAxisSolver {
         let maxMaxConstraint = windows.compactMap {
             sanitizedMaximum($0.hasMaxConstraint ? $0.maxConstraint : nil)
         }
-            .min()
+        .min()
         if let maxC = maxMaxConstraint {
             sharedValue = min(sharedValue, max(maxC, maxMinConstraint))
         }

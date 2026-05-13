@@ -12,9 +12,11 @@ extension NiriLayoutEngine {
         gaps: CGFloat
     ) -> Bool {
         switch direction {
-        case .down, .up:
+        case .down,
+             .up:
             moveWindowVertical(node, direction: direction)
-        case .left, .right:
+        case .left,
+             .right:
             consumeOrExpelWindow(
                 node,
                 direction: direction,

@@ -6,7 +6,9 @@ final class OverviewWindow: NSPanel {
     private let overlayView: OverviewView
     private let monitor: Monitor
 
-    var monitorId: Monitor.ID { monitor.id }
+    var monitorId: Monitor.ID {
+        monitor.id
+    }
 
     var onWindowSelected: ((Monitor.ID, WindowHandle) -> Void)?
     var onWindowClosed: ((Monitor.ID, WindowHandle) -> Void)?
@@ -83,8 +85,13 @@ final class OverviewWindow: NSPanel {
         }
     }
 
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
 
     func show(asKeyWindow: Bool) {
         setFrame(monitor.frame, display: false)
@@ -166,11 +173,17 @@ final class OverviewView: NSView {
         addTrackingArea(trackingArea!)
     }
 
-    override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
 
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool {
+        true
+    }
 
-    override func becomeFirstResponder() -> Bool { true }
+    override func becomeFirstResponder() -> Bool {
+        true
+    }
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)

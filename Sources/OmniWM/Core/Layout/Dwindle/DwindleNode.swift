@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 import QuartzCore
 
 typealias DwindleNodeId = UUID
@@ -19,15 +19,19 @@ enum DwindleOrientation: Equatable, Codable {
 extension Direction {
     var dwindleOrientation: DwindleOrientation {
         switch self {
-        case .left, .right: .horizontal
-        case .up, .down: .vertical
+        case .left,
+             .right: .horizontal
+        case .up,
+             .down: .vertical
         }
     }
 
     var isPositive: Bool {
         switch self {
-        case .right, .up: true
-        case .left, .down: false
+        case .right,
+             .up: true
+        case .left,
+             .down: false
         }
     }
 }
@@ -86,8 +90,13 @@ final class DwindleNode {
         return nil
     }
 
-    func firstChild() -> DwindleNode? { children.first }
-    func secondChild() -> DwindleNode? { children.count > 1 ? children[1] : nil }
+    func firstChild() -> DwindleNode? {
+        children.first
+    }
+
+    func secondChild() -> DwindleNode? {
+        children.count > 1 ? children[1] : nil
+    }
 
     func detach() {
         parent?.children.removeAll { $0.id == self.id }

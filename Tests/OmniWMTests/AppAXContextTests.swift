@@ -1,9 +1,8 @@
 import AppKit
 import ApplicationServices
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private final class LockedArray<Element>: @unchecked Sendable {
     private let lock = NSLock()
@@ -88,7 +87,8 @@ private func waitForSemaphore(
             return
         }
 
-        guard let expectedContext = await AppAXContext.makeForTests(processIdentifier: targetApp.processIdentifier) else {
+        guard let expectedContext = await AppAXContext.makeForTests(processIdentifier: targetApp.processIdentifier)
+        else {
             Issue.record("Failed to create AppAXContext test fixture")
             return
         }
@@ -111,7 +111,7 @@ private func waitForSemaphore(
         }
 
         let contexts = try await withThrowingTaskGroup(of: AppAXContext?.self) { group in
-            for _ in 0..<8 {
+            for _ in 0 ..< 8 {
                 group.addTask {
                     try await AppAXContext.getOrCreate(app)
                 }
@@ -163,8 +163,16 @@ private func waitForSemaphore(
                 await awaitFrameBatchResults(
                     from: context,
                     frames: [
-                        (windowId: firstWindow.windowId, frame: CGRect(x: 40, y: 40, width: 500, height: 320), currentFrameHint: nil),
-                        (windowId: secondWindow.windowId, frame: CGRect(x: 560, y: 40, width: 500, height: 320), currentFrameHint: nil)
+                        (
+                            windowId: firstWindow.windowId,
+                            frame: CGRect(x: 40, y: 40, width: 500, height: 320),
+                            currentFrameHint: nil
+                        ),
+                        (
+                            windowId: secondWindow.windowId,
+                            frame: CGRect(x: 560, y: 40, width: 500, height: 320),
+                            currentFrameHint: nil
+                        )
                     ]
                 )
             }
@@ -218,7 +226,11 @@ private func waitForSemaphore(
             let results = await awaitFrameBatchResults(
                 from: context,
                 frames: [
-                    (windowId: refreshedWindow.windowId, frame: CGRect(x: 88, y: 96, width: 720, height: 480), currentFrameHint: nil)
+                    (
+                        windowId: refreshedWindow.windowId,
+                        frame: CGRect(x: 88, y: 96, width: 720, height: 480),
+                        currentFrameHint: nil
+                    )
                 ]
             )
 

@@ -234,7 +234,8 @@ final class IPCServer: IPCServerLifecycle {
 
         let error = POSIXErrorCode(rawValue: errno) ?? .EIO
         switch error {
-        case .ECONNREFUSED, .ENOENT:
+        case .ECONNREFUSED,
+             .ENOENT:
             return false
         default:
             throw POSIXError(error)

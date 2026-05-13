@@ -1,8 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private final class WarpEffectRecorder: @unchecked Sendable {
     var warpedPoints: [CGPoint] = []
@@ -120,7 +119,7 @@ private func waitUntilMouseWarpDrain(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         await waitForMainRunLoopTurn()
     }
 

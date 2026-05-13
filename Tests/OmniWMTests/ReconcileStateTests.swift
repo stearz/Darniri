@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeReconcilePersistedRestoreCatalog(
     workspaceName: String,
@@ -222,7 +221,8 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
         )
 
         #expect(engine.evaluate(.focusFollowsMouse).allowsFocusChange == false)
-        #expect(engine.evaluate(.managedAppActivation(source: .workspaceDidActivateApplication)).allowsFocusChange == false)
+        #expect(engine.evaluate(.managedAppActivation(source: .workspaceDidActivateApplication))
+            .allowsFocusChange == false)
         #expect(engine.evaluate(.managedAppActivation(source: .focusedWindowChanged)).allowsFocusChange)
 
         engine.endLease(owner: .nativeMenu)
@@ -255,7 +255,8 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
 
         #expect(engine.activeLease?.owner == .nativeMenu)
         #expect(engine.evaluate(.focusFollowsMouse).allowsFocusChange == false)
-        #expect(engine.evaluate(.managedAppActivation(source: .workspaceDidActivateApplication)).allowsFocusChange == false)
+        #expect(engine.evaluate(.managedAppActivation(source: .workspaceDidActivateApplication))
+            .allowsFocusChange == false)
         #expect(engine.evaluate(.managedAppActivation(source: .focusedWindowChanged)).allowsFocusChange)
 
         engine.endLease(owner: .nativeMenu)
@@ -292,7 +293,12 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
             mode: .floating
         )
         controller.workspaceManager.updateFloatingGeometry(
-            frame: CGRect(x: monitor.visibleFrame.minX - 3000, y: monitor.visibleFrame.minY - 2000, width: 320, height: 200),
+            frame: CGRect(
+                x: monitor.visibleFrame.minX - 3000,
+                y: monitor.visibleFrame.minY - 2000,
+                width: 320,
+                height: 200
+            ),
             for: token,
             referenceMonitor: monitor
         )
@@ -304,7 +310,8 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
 
         #expect(rescued == 1)
         #expect(monitor.visibleFrame.contains(appliedFrame))
-        #expect(controller.workspaceManager.resolvedFloatingFrame(for: token, preferredMonitor: monitor) == appliedFrame)
+        #expect(controller.workspaceManager
+            .resolvedFloatingFrame(for: token, preferredMonitor: monitor) == appliedFrame)
         #expect(raiseCount == 1)
         #expect(controller.rescueOffscreenWindows() == 0)
         #expect(raiseCount == 1)
@@ -314,7 +321,7 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
         let controller = makeLayoutPlanTestController(
             workspaceConfigurations: [
                 WorkspaceConfiguration(name: "1", monitorAssignment: .main),
-                WorkspaceConfiguration(name: "2", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main)
             ]
         )
         let workspace1 = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
@@ -333,7 +340,12 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
             mode: .floating
         )
         controller.workspaceManager.updateFloatingGeometry(
-            frame: CGRect(x: monitor.visibleFrame.maxX + 2200, y: monitor.visibleFrame.maxY + 1600, width: 320, height: 200),
+            frame: CGRect(
+                x: monitor.visibleFrame.maxX + 2200,
+                y: monitor.visibleFrame.maxY + 1600,
+                width: 320,
+                height: 200
+            ),
             for: token,
             referenceMonitor: monitor
         )
@@ -456,7 +468,12 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
         #expect(manager.replacementCorrelation(for: token) == nil)
         #expect(manager.consumedBootPersistedWindowRestoreKeysForTests() == Set(catalog.entries.map(\.key)))
         #expect(traces.count == traceCountBeforeEnrichment + 1)
-        if case let .managedReplacementMetadataChanged(recordedToken, recordedWorkspaceId, recordedMonitorId, source) = enrichmentTxn.event {
+        if case let .managedReplacementMetadataChanged(
+            recordedToken,
+            recordedWorkspaceId,
+            recordedMonitorId,
+            source
+        ) = enrichmentTxn.event {
             #expect(recordedToken == token)
             #expect(recordedWorkspaceId == workspace1)
             #expect(recordedMonitorId == monitor.id)

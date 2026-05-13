@@ -300,16 +300,20 @@ final class IPCCommandRouter {
     }
 
     private func focusMonitor(previous: Bool) -> ExternalCommandResult {
-        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         _ = controller.commandHandler.performCommand(previous ? .focusMonitorPrevious : .focusMonitorNext)
-        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         return currentMonitorId == previousMonitorId ? .notFound : .executed
     }
 
     private func focusLastMonitor() -> ExternalCommandResult {
-        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         _ = controller.commandHandler.performCommand(.focusMonitorLast)
-        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         return currentMonitorId == previousMonitorId ? .notFound : .executed
     }
 
@@ -417,11 +421,14 @@ final class IPCCommandRouter {
         }
 
         let previousWorkspaceId = controller.activeWorkspace()?.id
-        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let previousMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         controller.workspaceNavigationHandler.focusWorkspaceAnywhere(rawWorkspaceID: rawWorkspaceID)
         let currentWorkspaceId = controller.activeWorkspace()?.id
-        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
-        return currentWorkspaceId == previousWorkspaceId && currentMonitorId == previousMonitorId ? .notFound : .executed
+        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
+        return currentWorkspaceId == previousWorkspaceId && currentMonitorId == previousMonitorId ? .notFound :
+            .executed
     }
 
     private func moveFocusedWindow(to target: WorkspaceTarget) -> ExternalCommandResult {
@@ -442,7 +449,10 @@ final class IPCCommandRouter {
         return controller.workspaceManager.workspace(for: token) == previousWorkspaceId ? .notFound : .executed
     }
 
-    private func moveFocusedWindow(to target: WorkspaceTarget, onMonitor monitorDirection: Direction) -> ExternalCommandResult {
+    private func moveFocusedWindow(
+        to target: WorkspaceTarget,
+        onMonitor monitorDirection: Direction
+    ) -> ExternalCommandResult {
         if let guardResult = validateControllerState() {
             return guardResult
         }
@@ -474,7 +484,8 @@ final class IPCCommandRouter {
             return .success(rawWorkspaceID)
         case .failure(.notFound):
             return .failure(.notFound)
-        case .failure(.invalidTarget), .failure(.ambiguousDisplayName):
+        case .failure(.invalidTarget),
+             .failure(.ambiguousDisplayName):
             return .failure(.invalidArguments)
         }
     }

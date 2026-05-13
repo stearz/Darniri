@@ -11,63 +11,63 @@ struct WorkspaceBarSettingsTab: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader("Configuration Scope")
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Configure settings for:", selection: $selectedMonitor) {
-                        Text("Global Defaults").tag(nil as Monitor.ID?)
-                        if !connectedMonitors.isEmpty {
-                            Divider()
-                            ForEach(connectedMonitors, id: \.id) { monitor in
-                                HStack {
-                                    Text(monitor.name)
-                                    if monitor.isMain {
-                                        Text("(Main)")
-                                            .foregroundColor(.secondary)
-                                    }
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Configure settings for:", selection: $selectedMonitor) {
+                    Text("Global Defaults").tag(nil as Monitor.ID?)
+                    if !connectedMonitors.isEmpty {
+                        Divider()
+                        ForEach(connectedMonitors, id: \.id) { monitor in
+                            HStack {
+                                Text(monitor.name)
+                                if monitor.isMain {
+                                    Text("(Main)")
+                                        .foregroundColor(.secondary)
                                 }
-                                .tag(monitor.id as Monitor.ID?)
                             }
-                        }
-                    }
-
-                    if let monitorId = selectedMonitor,
-                       let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-                    {
-                        HStack {
-                            if settings.barSettings(for: monitor) != nil {
-                                Text("Has custom overrides")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("Using global defaults")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Button("Reset to Global") {
-                                settings.removeBarSettings(for: monitor)
-                                controller.updateWorkspaceBarSettings()
-                            }
-                            .disabled(settings.barSettings(for: monitor) == nil)
+                            .tag(monitor.id as Monitor.ID?)
                         }
                     }
                 }
-
-                Divider()
 
                 if let monitorId = selectedMonitor,
                    let monitor = connectedMonitors.first(where: { $0.id == monitorId })
                 {
-                    MonitorBarSettingsSection(
-                        settings: settings,
-                        controller: controller,
-                        monitor: monitor
-                    )
-                } else {
-                    GlobalBarSettingsSection(
-                        settings: settings,
-                        controller: controller
-                    )
+                    HStack {
+                        if settings.barSettings(for: monitor) != nil {
+                            Text("Has custom overrides")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Using global defaults")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button("Reset to Global") {
+                            settings.removeBarSettings(for: monitor)
+                            controller.updateWorkspaceBarSettings()
+                        }
+                        .disabled(settings.barSettings(for: monitor) == nil)
+                    }
                 }
+            }
+
+            Divider()
+
+            if let monitorId = selectedMonitor,
+               let monitor = connectedMonitors.first(where: { $0.id == monitorId })
+            {
+                MonitorBarSettingsSection(
+                    settings: settings,
+                    controller: controller,
+                    monitor: monitor
+                )
+            } else {
+                GlobalBarSettingsSection(
+                    settings: settings,
+                    controller: controller
+                )
+            }
         }
         .onAppear {
             connectedMonitors = Monitor.current()
@@ -114,7 +114,9 @@ private struct GlobalBarSettingsSection: View {
                         .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
                             controller.updateWorkspaceBarSettings()
                         }
-                        .help("Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height.")
+                        .help(
+                            "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
+                        )
 
                     Toggle("Notch-Aware Positioning", isOn: $settings.workspaceBarNotchAware)
                         .onChange(of: settings.workspaceBarNotchAware) { _, _ in
@@ -244,7 +246,6 @@ private struct GlobalBarSettingsSection: View {
             }
         }
     }
-
 }
 
 private struct MonitorBarSettingsSection: View {
@@ -322,7 +323,9 @@ private struct MonitorBarSettingsSection: View {
                     onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
                     onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
                 )
-                .help("Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height.")
+                .help(
+                    "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
+                )
 
                 OverridableToggle(
                     label: "Notch-Aware Positioning",

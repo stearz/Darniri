@@ -179,7 +179,8 @@ enum AXWindowService {
     }
 
     nonisolated(unsafe) static var axWindowRefProviderForTests: ((UInt32, pid_t) -> AXWindowRef?)?
-    nonisolated(unsafe) static var setFrameResultProviderForTests: ((AXWindowRef, CGRect, CGRect?) -> AXFrameWriteResult)?
+    nonisolated(unsafe) static var setFrameResultProviderForTests: ((AXWindowRef, CGRect, CGRect?)
+        -> AXFrameWriteResult)?
     @MainActor static var fastFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
     @MainActor static var titleLookupProviderForTests: ((UInt32) -> String?)?
     @MainActor static var timeSourceForTests: (() -> TimeInterval)?
@@ -189,7 +190,7 @@ enum AXWindowService {
     // windows that drop out of the AX windows list while off-screen). Survives
     // AppAXContext reconciliation because we hold the CFType ref directly.
     private static let pinnedElementsLock = NSLock()
-    nonisolated(unsafe) private static var pinnedElements: [UInt32: AXUIElement] = [:]
+    private nonisolated(unsafe) static var pinnedElements: [UInt32: AXUIElement] = [:]
 
     static func pinAXElement(_ element: AXUIElement, for windowId: UInt32) {
         pinnedElementsLock.lock()
@@ -291,7 +292,7 @@ enum AXWindowService {
     static func frame(_ window: AXWindowRef) throws(AXErrorWrapper) -> CGRect {
         let attributes = [
             kAXPositionAttribute as CFString,
-            kAXSizeAttribute as CFString,
+            kAXSizeAttribute as CFString
         ] as CFArray
         var valuesPtr: CFArray?
         let result = AXUIElementCopyMultipleAttributeValues(
@@ -371,9 +372,17 @@ enum AXWindowService {
         switch writeOrder {
         case .sizeThenPosition:
             sizeError = AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue)
-            positionError = AXUIElementSetAttributeValue(window.element, kAXPositionAttribute as CFString, positionValue)
+            positionError = AXUIElementSetAttributeValue(
+                window.element,
+                kAXPositionAttribute as CFString,
+                positionValue
+            )
         case .positionThenSize:
-            positionError = AXUIElementSetAttributeValue(window.element, kAXPositionAttribute as CFString, positionValue)
+            positionError = AXUIElementSetAttributeValue(
+                window.element,
+                kAXPositionAttribute as CFString,
+                positionValue
+            )
             sizeError = AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue)
         }
 

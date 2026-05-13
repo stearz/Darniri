@@ -23,7 +23,8 @@ enum MonitorSettingsStore {
 
     static func update<T: MonitorSettingsType>(_ item: T, in settings: inout [T]) {
         if let displayId = item.monitorDisplayId,
-           let index = settings.firstIndex(where: { $0.monitorDisplayId == displayId }) {
+           let index = settings.firstIndex(where: { $0.monitorDisplayId == displayId })
+        {
             settings[index] = item
             return
         }
@@ -36,7 +37,9 @@ enum MonitorSettingsStore {
         }
 
         if item.monitorDisplayId != nil,
-           let index = settings.firstIndex(where: { $0.monitorDisplayId == nil && $0.monitorName == item.monitorName }) {
+           let index = settings
+           .firstIndex(where: { $0.monitorDisplayId == nil && $0.monitorName == item.monitorName })
+        {
             settings[index] = item
             return
         }

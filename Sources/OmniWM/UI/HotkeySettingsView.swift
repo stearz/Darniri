@@ -6,7 +6,11 @@ enum HotkeyCaptureResult {
 }
 
 @MainActor enum HotkeyBindingEditor {
-    static func capture(_ newBinding: KeyBinding, for actionId: String, settings: SettingsStore) -> HotkeyCaptureResult {
+    static func capture(
+        _ newBinding: KeyBinding,
+        for actionId: String,
+        settings: SettingsStore
+    ) -> HotkeyCaptureResult {
         let conflicts = settings.findConflicts(for: newBinding, excluding: actionId)
         guard conflicts.isEmpty else {
             return .conflict(
@@ -162,7 +166,7 @@ struct ConflictAlert: Identifiable {
             targetActionId,
             String(newBinding.keyCode),
             String(newBinding.modifiers),
-            conflictingCommands.joined(separator: "|"),
+            conflictingCommands.joined(separator: "|")
         ].joined(separator: ":")
     }
 
@@ -236,7 +240,8 @@ struct HotkeyBindingRow: View {
                             .fontWeight(.medium)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
-                            .background(binding.command.layoutCompatibility == .niri ? Color.blue.opacity(0.2) : Color.purple.opacity(0.2))
+                            .background(binding.command.layoutCompatibility == .niri ? Color.blue.opacity(0.2) : Color
+                                .purple.opacity(0.2))
                             .foregroundColor(binding.command.layoutCompatibility == .niri ? .blue : .purple)
                             .cornerRadius(4)
                     }

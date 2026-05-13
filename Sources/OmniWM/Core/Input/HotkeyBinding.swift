@@ -39,7 +39,8 @@ extension KeyBinding: Codable {
     init(from decoder: Decoder) throws {
         if let container = try? decoder.singleValueContainer(),
            let string = try? container.decode(String.self),
-           let binding = KeySymbolMapper.fromHumanReadable(string) {
+           let binding = KeySymbolMapper.fromHumanReadable(string)
+        {
             self = binding
             return
         }

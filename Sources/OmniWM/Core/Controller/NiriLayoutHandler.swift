@@ -270,7 +270,8 @@ enum NiriWindowMoveResult {
             removalSeed: removalSeed,
             gap: CGFloat(controller.workspaceManager.gaps),
             outerGaps: controller.workspaceManager.outerGaps,
-            displayRefreshRate: controller.layoutRefreshController.layoutState.refreshRateByDisplay[monitor.displayId] ?? 60.0,
+            displayRefreshRate: controller.layoutRefreshController.layoutState
+                .refreshRateByDisplay[monitor.displayId] ?? 60.0,
             isActiveWorkspace: refreshInput.isActiveWorkspace,
             isInteractionWorkspace: interactionWorkspaceId == wsId
         )
@@ -499,7 +500,8 @@ enum NiriWindowMoveResult {
         if let finalSelectionId = removal.removalResult.finalSelectionId {
             state.selectedNodeId = finalSelectionId
         } else if let selectedId = state.selectedNodeId,
-                  pass.engine.findNode(by: selectedId) == nil {
+                  pass.engine.findNode(by: selectedId) == nil
+        {
             state.selectedNodeId = pass.engine.validateSelection(selectedId, in: pass.wsId)
         }
 
@@ -601,7 +603,8 @@ enum NiriWindowMoveResult {
                     )
                 }
             } else if let newCol = pass.engine.column(of: newNode),
-                      let newColIdx = pass.engine.columnIndex(of: newCol, in: pass.wsId) {
+                      let newColIdx = pass.engine.columnIndex(of: newCol, in: pass.wsId)
+            {
                 if newCol.cachedWidth <= 0 {
                     newCol.resolveAndCacheWidth(workingAreaWidth: pass.insetFrame.width, gaps: pass.gap)
                 }
@@ -954,14 +957,24 @@ enum NiriWindowMoveResult {
             {
                 activateNode(
                     lastNode, in: wsId, state: &state,
-                    options: .init(activateWindow: false, ensureVisible: false, layoutRefresh: false, startAnimation: false)
+                    options: .init(
+                        activateWindow: false,
+                        ensureVisible: false,
+                        layoutRefresh: false,
+                        startAnimation: false
+                    )
                 )
             } else if let firstToken = controller.workspaceManager.tiledEntries(in: wsId).first?.token,
                       let firstNode = engine.findNode(for: firstToken)
             {
                 activateNode(
                     firstNode, in: wsId, state: &state,
-                    options: .init(activateWindow: false, ensureVisible: false, layoutRefresh: false, startAnimation: false)
+                    options: .init(
+                        activateWindow: false,
+                        ensureVisible: false,
+                        layoutRefresh: false,
+                        startAnimation: false
+                    )
                 )
             }
             _ = controller.workspaceManager.applySessionPatch(
@@ -1533,13 +1546,22 @@ enum NiriWindowMoveResult {
             return node.prevSibling() == nil ? .atColumnEdge : .blocked
         case .up:
             return node.nextSibling() == nil ? .atColumnEdge : .blocked
-        case .left, .right:
+        case .left,
+             .right:
             return .blocked
         }
     }
 
     func withNiriWorkspaceContext(
-        perform: (NiriLayoutEngine, WorkspaceDescriptor.ID, MotionSnapshot, inout ViewportState, Monitor, CGRect, CGFloat) -> Void
+        perform: (
+            NiriLayoutEngine,
+            WorkspaceDescriptor.ID,
+            MotionSnapshot,
+            inout ViewportState,
+            Monitor,
+            CGRect,
+            CGFloat
+        ) -> Void
     ) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }
@@ -1555,7 +1577,15 @@ enum NiriWindowMoveResult {
 
     func withNiriWorkspaceContext(
         for workspaceId: WorkspaceDescriptor.ID,
-        perform: (NiriLayoutEngine, WorkspaceDescriptor.ID, MotionSnapshot, inout ViewportState, Monitor, CGRect, CGFloat) -> Void
+        perform: (
+            NiriLayoutEngine,
+            WorkspaceDescriptor.ID,
+            MotionSnapshot,
+            inout ViewportState,
+            Monitor,
+            CGRect,
+            CGFloat
+        ) -> Void
     ) {
         guard let controller else { return }
         guard let engine = controller.niriEngine else { return }

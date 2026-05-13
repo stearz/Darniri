@@ -37,7 +37,14 @@ final class SkyLight {
     private typealias ReenableUpdateFunc = @convention(c) (Int32) -> Void
     private typealias MoveWindowFunc = @convention(c) (Int32, UInt32, UnsafePointer<CGPoint>) -> CGError
     private typealias GetWindowBoundsFunc = @convention(c) (Int32, UInt32, UnsafeMutablePointer<CGRect>) -> CGError
-    private typealias NewWindowFunc = @convention(c) (Int32, Int32, Float, Float, CFTypeRef, UnsafeMutablePointer<UInt32>) -> CGError
+    private typealias NewWindowFunc = @convention(c) (
+        Int32,
+        Int32,
+        Float,
+        Float,
+        CFTypeRef,
+        UnsafeMutablePointer<UInt32>
+    ) -> CGError
     private typealias ReleaseWindowFunc = @convention(c) (Int32, UInt32) -> CGError
     private typealias WindowContextCreateFunc = @convention(c) (Int32, UInt32, CFDictionary?) -> CGContext?
     private typealias SetWindowShapeFunc = @convention(c) (Int32, UInt32, Float, Float, CFTypeRef) -> CGError
@@ -45,7 +52,8 @@ final class SkyLight {
     private typealias SetWindowOpacityFunc = @convention(c) (Int32, UInt32, Int32) -> CGError
     private typealias SetWindowTagsFunc = @convention(c) (Int32, UInt32, UnsafePointer<UInt64>, Int32) -> CGError
     private typealias FlushWindowContentRegionFunc = @convention(c) (Int32, UInt32, CFTypeRef?) -> CGError
-    private typealias NewRegionWithRectFunc = @convention(c) (UnsafePointer<CGRect>, UnsafeMutablePointer<CFTypeRef?>) -> CGError
+    private typealias NewRegionWithRectFunc = @convention(c) (UnsafePointer<CGRect>, UnsafeMutablePointer<CFTypeRef?>)
+        -> CGError
     private typealias TransactionSetWindowLevelFunc = @convention(c) (CFTypeRef, UInt32, Int32) -> CGError
 
     typealias ConnectionNotifyCallback = @convention(c) (
@@ -192,24 +200,48 @@ final class SkyLight {
         self.disableUpdate = disableUpdate
         self.reenableUpdate = reenableUpdate
 
-        windowIteratorGetCornerRadii = resolveOptional("SLSWindowIteratorGetCornerRadii", as: WindowIteratorGetCornerRadiiFunc.self)
+        windowIteratorGetCornerRadii = resolveOptional(
+            "SLSWindowIteratorGetCornerRadii",
+            as: WindowIteratorGetCornerRadiiFunc.self
+        )
 
-        transactionMoveWindowWithGroup = resolveOptional("SLSTransactionMoveWindowWithGroup", as: TransactionMoveWindowWithGroupFunc.self)
+        transactionMoveWindowWithGroup = resolveOptional(
+            "SLSTransactionMoveWindowWithGroup",
+            as: TransactionMoveWindowWithGroupFunc.self
+        )
         moveWindow = resolveOptional("SLSMoveWindow", as: MoveWindowFunc.self)
         getWindowBounds = resolveOptional("SLSGetWindowBounds", as: GetWindowBoundsFunc.self)
 
         windowIteratorGetBounds = resolveOptional("SLSWindowIteratorGetBounds", as: WindowIteratorGetBoundsFunc.self)
-        windowIteratorGetWindowID = resolveOptional("SLSWindowIteratorGetWindowID", as: WindowIteratorGetWindowIDFunc.self)
+        windowIteratorGetWindowID = resolveOptional(
+            "SLSWindowIteratorGetWindowID",
+            as: WindowIteratorGetWindowIDFunc.self
+        )
         windowIteratorGetPID = resolveOptional("SLSWindowIteratorGetPID", as: WindowIteratorGetPIDFunc.self)
         windowIteratorGetLevel = resolveOptional("SLSWindowIteratorGetLevel", as: WindowIteratorGetLevelFunc.self)
         windowIteratorGetTags = resolveOptional("SLSWindowIteratorGetTags", as: WindowIteratorGetTagsFunc.self)
-        windowIteratorGetAttributes = resolveOptional("SLSWindowIteratorGetAttributes", as: WindowIteratorGetAttributesFunc.self)
-        windowIteratorGetParentID = resolveOptional("SLSWindowIteratorGetParentID", as: WindowIteratorGetParentIDFunc.self)
+        windowIteratorGetAttributes = resolveOptional(
+            "SLSWindowIteratorGetAttributes",
+            as: WindowIteratorGetAttributesFunc.self
+        )
+        windowIteratorGetParentID = resolveOptional(
+            "SLSWindowIteratorGetParentID",
+            as: WindowIteratorGetParentIDFunc.self
+        )
 
-        registerConnectionNotifyProc = resolveOptional("SLSRegisterConnectionNotifyProc", as: RegisterConnectionNotifyProcFunc.self)
-        unregisterConnectionNotifyProc = resolveOptional("SLSUnregisterConnectionNotifyProc", as: UnregisterConnectionNotifyProcFunc.self)
+        registerConnectionNotifyProc = resolveOptional(
+            "SLSRegisterConnectionNotifyProc",
+            as: RegisterConnectionNotifyProcFunc.self
+        )
+        unregisterConnectionNotifyProc = resolveOptional(
+            "SLSUnregisterConnectionNotifyProc",
+            as: UnregisterConnectionNotifyProcFunc.self
+        )
             ?? resolveOptional("SLSRemoveConnectionNotifyProc", as: UnregisterConnectionNotifyProcFunc.self)
-        requestNotificationsForWindows = resolveOptional("SLSRequestNotificationsForWindows", as: RequestNotificationsForWindowsFunc.self)
+        requestNotificationsForWindows = resolveOptional(
+            "SLSRequestNotificationsForWindows",
+            as: RequestNotificationsForWindowsFunc.self
+        )
         registerNotifyProc = resolveOptional("SLSRegisterNotifyProc", as: RegisterNotifyProcFunc.self)
         unregisterNotifyProcFunc = resolveOptional("SLSUnregisterNotifyProc", as: UnregisterNotifyProcFunc.self)
             ?? resolveOptional("SLSRemoveNotifyProc", as: UnregisterNotifyProcFunc.self)
@@ -223,7 +255,10 @@ final class SkyLight {
         setWindowTags = resolveOptional("SLSSetWindowTags", as: SetWindowTagsFunc.self)
         flushWindowContentRegion = resolveOptional("SLSFlushWindowContentRegion", as: FlushWindowContentRegionFunc.self)
         newRegionWithRect = resolveOptional("CGSNewRegionWithRect", as: NewRegionWithRectFunc.self)
-        transactionSetWindowLevel = resolveOptional("SLSTransactionSetWindowLevel", as: TransactionSetWindowLevelFunc.self)
+        transactionSetWindowLevel = resolveOptional(
+            "SLSTransactionSetWindowLevel",
+            as: TransactionSetWindowLevelFunc.self
+        )
     }
 
     func getMainConnectionID() -> Int32 {
@@ -547,7 +582,6 @@ final class SkyLight {
         _ = setWindowOpacity?(cid, wid, opaque ? 1 : 0)
     }
 
-
     func setWindowTags(_ wid: UInt32, tags: UInt64) {
         guard let setWindowTags else { return }
         let cid = getMainConnectionID()
@@ -579,7 +613,13 @@ final class SkyLight {
         _ = moveWindow(wid, to: origin)
     }
 
-    func transactionMoveAndOrder(_ wid: UInt32, origin: CGPoint, level: Int32, relativeTo targetWid: UInt32, order: SkyLightWindowOrder) {
+    func transactionMoveAndOrder(
+        _ wid: UInt32,
+        origin: CGPoint,
+        level: Int32,
+        relativeTo targetWid: UInt32,
+        order: SkyLightWindowOrder
+    ) {
         let cid = getMainConnectionID()
         guard let transaction = transactionCreate(cid) else { return }
         defer { cfRelease(transaction) }

@@ -5,7 +5,7 @@ import OmniWMIPC
 
 @MainActor @Observable
 final class SettingsStore {
-    nonisolated private static let defaultExport = SettingsExport.defaults()
+    private nonisolated static let defaultExport = SettingsExport.defaults()
 
     private let persistence: SettingsFilePersistence
     private let runtimeState: RuntimeStateStore
@@ -377,7 +377,8 @@ final class SettingsStore {
             guard let x = quakeTerminalCustomFrameX,
                   let y = quakeTerminalCustomFrameY,
                   let width = quakeTerminalCustomFrameWidth,
-                  let height = quakeTerminalCustomFrameHeight else {
+                  let height = quakeTerminalCustomFrameHeight
+            else {
                 return nil
             }
             return NSRect(x: x, y: y, width: width, height: height)
@@ -763,7 +764,7 @@ final class SettingsStore {
             let currentCount = currentCounts[name, default: 0]
             let persistedCount = persistedCounts[name, default: 0]
             guard persistedCount < currentCount else { continue }
-            for _ in 0..<(currentCount - persistedCount) {
+            for _ in 0 ..< (currentCount - persistedCount) {
                 persisted.append(name)
             }
             persistedCounts[name] = currentCount
@@ -826,7 +827,8 @@ final class SettingsStore {
         monitors: [Monitor]
     ) -> CGDirectDisplayID? {
         if let displayId,
-           monitors.contains(where: { $0.displayId == displayId }) {
+           monitors.contains(where: { $0.displayId == displayId })
+        {
             return displayId
         }
 
@@ -991,7 +993,8 @@ final class SettingsStore {
             useGlobalGaps: useGlobalGaps,
             innerGap: useGlobalGaps ? CGFloat(gapSize) : CGFloat(override?.innerGap ?? gapSize),
             outerGapTop: useGlobalGaps ? CGFloat(outerGapTop) : CGFloat(override?.outerGapTop ?? outerGapTop),
-            outerGapBottom: useGlobalGaps ? CGFloat(outerGapBottom) : CGFloat(override?.outerGapBottom ?? outerGapBottom),
+            outerGapBottom: useGlobalGaps ? CGFloat(outerGapBottom) :
+                CGFloat(override?.outerGapBottom ?? outerGapBottom),
             outerGapLeft: useGlobalGaps ? CGFloat(outerGapLeft) : CGFloat(override?.outerGapLeft ?? outerGapLeft),
             outerGapRight: useGlobalGaps ? CGFloat(outerGapRight) : CGFloat(override?.outerGapRight ?? outerGapRight)
         )

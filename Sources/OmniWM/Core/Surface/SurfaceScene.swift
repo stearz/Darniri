@@ -132,8 +132,8 @@ final class SurfaceScene {
             capturePolicy: capturePolicy,
             suppressesManagedFocusRecovery: suppressesManagedFocusRecovery
         )
-            .map(\.id)
-            .sorted()
+        .map(\.id)
+        .sorted()
     }
 
     func visibleWindows(
@@ -175,7 +175,8 @@ final class SurfaceScene {
         visibleNodes.filter { node in
             guard kind.map({ $0 == node.policy.kind }) ?? true else { return false }
             guard capturePolicy.map({ $0 == node.policy.capturePolicy }) ?? true else { return false }
-            guard suppressesManagedFocusRecovery.map({ $0 == node.policy.suppressesManagedFocusRecovery }) ?? true else {
+            guard suppressesManagedFocusRecovery.map({ $0 == node.policy.suppressesManagedFocusRecovery }) ?? true
+            else {
                 return false
             }
             return true

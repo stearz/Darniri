@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-
 @testable import OmniWM
 
 private actor AXFrameProviderIsolationForTests {

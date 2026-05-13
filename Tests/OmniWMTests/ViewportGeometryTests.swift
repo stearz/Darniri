@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeViewportGestureContainers(
     widths: [CGFloat],
@@ -587,7 +586,7 @@ private func makeViewportGestureContainers(
 
         let scenarios: [Scenario] = [
             .init(label: "empty columns", columns: []),
-            .init(label: "zero-width column", columns: makeViewportGestureContainers(widths: [0])),
+            .init(label: "zero-width column", columns: makeViewportGestureContainers(widths: [0]))
         ]
 
         for scenario in scenarios {

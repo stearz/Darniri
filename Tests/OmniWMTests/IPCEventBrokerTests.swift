@@ -1,7 +1,6 @@
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
+import OmniWMIPC
+import Testing
 
 @Suite struct IPCEventBrokerTests {
     @Test func slowSubscribersKeepOnlyNewestBufferedEvent() async throws {

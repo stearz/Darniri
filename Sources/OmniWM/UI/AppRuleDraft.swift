@@ -6,7 +6,9 @@ enum TitleMatcherMode: String, CaseIterable, Identifiable {
     case substring
     case regex
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {

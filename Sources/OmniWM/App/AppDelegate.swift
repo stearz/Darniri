@@ -10,9 +10,10 @@ final class AppBootstrapState {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    nonisolated(unsafe) static weak var sharedBootstrap: AppBootstrapState?
+    nonisolated(unsafe) weak static var sharedBootstrap: AppBootstrapState?
     static var ipcServerFactoryForTests: ((WMController) -> IPCServerLifecycle)?
-    static var updateCoordinatorFactoryForTests: ((SettingsStore, WMController, RuntimeStateStore) -> any AppUpdateCoordinating)?
+    static var updateCoordinatorFactoryForTests: ((SettingsStore, WMController, RuntimeStateStore)
+        -> any AppUpdateCoordinating)?
 
     private var statusBarController: StatusBarController?
     private var ipcServer: IPCServerLifecycle?

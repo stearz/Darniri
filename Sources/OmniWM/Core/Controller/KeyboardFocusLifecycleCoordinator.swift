@@ -6,8 +6,13 @@ struct KeyboardFocusTarget {
     let workspaceId: WorkspaceDescriptor.ID?
     let isManaged: Bool
 
-    var pid: pid_t { token.pid }
-    var windowId: Int { token.windowId }
+    var pid: pid_t {
+        token.pid
+    }
+
+    var windowId: Int {
+        token.windowId
+    }
 }
 
 extension KeyboardFocusTarget: Equatable {

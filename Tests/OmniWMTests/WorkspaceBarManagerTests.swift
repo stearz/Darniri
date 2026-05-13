@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private final class RecordingPanelStore: @unchecked Sendable {
     var panels: [WorkspaceBarPanel] = []
@@ -71,7 +70,7 @@ private func makeRecordingPanelFactory(
 
     @Test @MainActor func widthChangingContentRefreshRemeasuresOnceAndUpdatesFrame() throws {
         let monitor = makeLayoutPlanTestMonitor(displayId: 78, width: 3200)
-        let workspaceConfigurations = (1...9).map {
+        let workspaceConfigurations = (1 ... 9).map {
             WorkspaceConfiguration(
                 name: "\($0)",
                 displayName: "Workspace \($0)",
@@ -85,8 +84,11 @@ private func makeRecordingPanelFactory(
         controller.settings.workspaceBarHideEmptyWorkspaces = true
         controller.workspaceManager.applySettings()
 
-        for index in 1...4 {
-            let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "\(index)", createIfMissing: true))
+        for index in 1 ... 4 {
+            let workspaceId = try #require(controller.workspaceManager.workspaceId(
+                for: "\(index)",
+                createIfMissing: true
+            ))
             addLayoutPlanTestWindow(
                 on: controller,
                 workspaceId: workspaceId,
@@ -111,8 +113,11 @@ private func makeRecordingPanelFactory(
         let panel = try #require(panelStore.panels.first)
         let initialFrame = try #require(manager.lastAppliedFrameForTests(on: monitor.id))
 
-        for index in 5...9 {
-            let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "\(index)", createIfMissing: true))
+        for index in 5 ... 9 {
+            let workspaceId = try #require(controller.workspaceManager.workspaceId(
+                for: "\(index)",
+                createIfMissing: true
+            ))
             addLayoutPlanTestWindow(
                 on: controller,
                 workspaceId: workspaceId,
@@ -129,7 +134,7 @@ private func makeRecordingPanelFactory(
 
     @Test @MainActor func enablingFloatingWindowsRemeasuresWhenFloatingOnlyWorkspaceBecomesVisible() throws {
         let monitor = makeLayoutPlanTestMonitor(displayId: 781, width: 3200)
-        let workspaceConfigurations = (1...9).map {
+        let workspaceConfigurations = (1 ... 9).map {
             WorkspaceConfiguration(
                 name: "\($0)",
                 displayName: "Workspace \($0)",
@@ -157,8 +162,9 @@ private func makeRecordingPanelFactory(
             to: workspace1,
             mode: .tiling
         )
-        for index in 2...9 {
-            guard let workspaceId = controller.workspaceManager.workspaceId(for: "\(index)", createIfMissing: false) else {
+        for index in 2 ... 9 {
+            guard let workspaceId = controller.workspaceManager.workspaceId(for: "\(index)", createIfMissing: false)
+            else {
                 Issue.record("Missing floating workspace fixture \(index)")
                 return
             }

@@ -260,7 +260,7 @@ final class WindowActionHandler {
         if let focusedToken = controller.focusedOrFrontmostWindowTokenForAutomation(
             preferFrontmostWhenNonManagedFocusActive: true
         ),
-           candidateWindowIds.contains(focusedToken.windowId)
+            candidateWindowIds.contains(focusedToken.windowId)
         {
             return focusedToken.windowId
         }
@@ -355,7 +355,8 @@ final class WindowActionHandler {
                 targetWorkspaceId: targetWorkspaceId,
                 focusedToken: anchorToken
             )
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             return summonWindowRightInNiri(
                 token: token,
                 sourceWorkspaceId: targetEntry.workspaceId,
@@ -409,9 +410,10 @@ final class WindowActionHandler {
                 rememberedFocusToken: token
             )
         )
-        controller.layoutRefreshController.commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
-            controller?.focusWindow(token)
-        }
+        controller.layoutRefreshController
+            .commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
+                controller?.focusWindow(token)
+            }
         return true
     }
 
@@ -553,11 +555,12 @@ final class WindowActionHandler {
         guard let result = controller.workspaceManager.focusWorkspace(named: name) else { return false }
 
         let focusedToken = controller.resolveAndSetWorkspaceFocusToken(for: result.workspace.id)
-        controller.layoutRefreshController.commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
-            if let focusedToken {
-                controller?.focusWindow(focusedToken)
+        controller.layoutRefreshController
+            .commitWorkspaceTransition(reason: .workspaceTransition) { [weak controller] in
+                if let focusedToken {
+                    controller?.focusWindow(focusedToken)
+                }
             }
-        }
         return true
     }
 

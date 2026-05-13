@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeAppCLIManagerTestDirectory() -> URL {
     let directory = FileManager.default.temporaryDirectory
@@ -60,7 +59,8 @@ private func makeCLIManager(
         #expect(result == .installed(linkURL: expectedLinkURL, directoryOnPath: true))
         #expect(FileManager.default.fileExists(atPath: expectedLinkURL.path))
         #expect(manager.exposureStatus() == .appManaged(linkURL: expectedLinkURL, directoryOnPath: true))
-        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: expectedLinkURL.path) == manager.bundledCLIURL.path)
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: expectedLinkURL.path) == manager.bundledCLIURL
+            .path)
     }
 
     @Test func installCLIFallsBackToLocalBinWhenNoUserPathDirectoryExists() throws {

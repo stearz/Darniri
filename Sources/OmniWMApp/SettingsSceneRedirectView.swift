@@ -1,8 +1,7 @@
 import AppKit
 import Observation
-import SwiftUI
-
 @testable import OmniWM
+import SwiftUI
 
 struct SettingsSceneRedirectView: View {
     @Bindable var bootstrap: AppBootstrapState

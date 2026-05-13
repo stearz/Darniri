@@ -10,9 +10,17 @@ struct WindowToken: Hashable, Sendable {
 final class WindowHandle: Hashable {
     var id: WindowToken
 
-    var token: WindowToken { id }
-    var pid: pid_t { id.pid }
-    var windowId: Int { id.windowId }
+    var token: WindowToken {
+        id
+    }
+
+    var pid: pid_t {
+        id.pid
+    }
+
+    var windowId: Int {
+        id.windowId
+    }
 
     init(id: WindowToken) {
         self.id = id

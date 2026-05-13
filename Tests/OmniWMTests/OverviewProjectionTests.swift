@@ -1,8 +1,7 @@
 import ApplicationServices
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeOverviewProjectionWindow(
     model: WindowModel,
@@ -49,7 +48,8 @@ private func makeNiriOverviewSnapshot(
     preferredHeights: [[CGFloat]] = []
 ) -> NiriOverviewWorkspaceSnapshot {
     let resolvedWeights = widthWeights.isEmpty ? Array(repeating: 1.0, count: columns.count) : widthWeights
-    let resolvedPreferredWidths = preferredWidths.isEmpty ? Array(repeating: nil, count: columns.count) : preferredWidths
+    let resolvedPreferredWidths = preferredWidths
+        .isEmpty ? Array(repeating: nil, count: columns.count) : preferredWidths
 
     return NiriOverviewWorkspaceSnapshot(
         workspaceId: workspaceId,
@@ -166,8 +166,10 @@ private func makeNiriOverviewLayout(
 
         #expect(originLayout.allWindows.count == 2)
         #expect(offsetLayout.allWindows.count == 2)
-        #expect(originLayout.allWindows.allSatisfy { frameIsWithinViewport($0.overviewFrame, viewport: originViewport) })
-        #expect(offsetLayout.allWindows.allSatisfy { frameIsWithinViewport($0.overviewFrame, viewport: offsetViewport) })
+        #expect(originLayout.allWindows
+            .allSatisfy { frameIsWithinViewport($0.overviewFrame, viewport: originViewport) })
+        #expect(offsetLayout.allWindows
+            .allSatisfy { frameIsWithinViewport($0.overviewFrame, viewport: offsetViewport) })
         #expect(offsetLayout.allWindows.contains { $0.originalFrame.minX < 0 })
         #expect(offsetLayout.allWindows.contains { $0.originalFrame.minX > 0 })
     }
@@ -435,7 +437,8 @@ private func makeNiriOverviewLayout(
             ]
         )
 
-        guard let zone = layout.niriColumnDropZonesByWorkspace[workspaceId]?.first(where: { $0.insertIndex == 1 }) else {
+        guard let zone = layout.niriColumnDropZonesByWorkspace[workspaceId]?.first(where: { $0.insertIndex == 1 })
+        else {
             Issue.record("Expected between-column drop zone")
             return
         }

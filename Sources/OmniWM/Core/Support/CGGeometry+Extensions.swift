@@ -8,13 +8,15 @@ extension CGPoint {
 }
 
 extension CGRect {
-    var center: CGPoint { CGPoint(x: midX, y: midY) }
+    var center: CGPoint {
+        CGPoint(x: midX, y: midY)
+    }
 
     func approximatelyEqual(to other: CGRect, tolerance: CGFloat = 10) -> Bool {
         abs(origin.x - other.origin.x) < tolerance &&
-        abs(origin.y - other.origin.y) < tolerance &&
-        abs(width - other.width) < tolerance &&
-        abs(height - other.height) < tolerance
+            abs(origin.y - other.origin.y) < tolerance &&
+            abs(width - other.width) < tolerance &&
+            abs(height - other.height) < tolerance
     }
 }
 
@@ -62,9 +64,9 @@ enum ScreenCoordinateSpace {
         }
     }
 
-    nonisolated(unsafe) private static var cachedTransforms: [ScreenTransform]?
-    nonisolated(unsafe) private static var cachedGlobalFrame: CGRect?
-    nonisolated(unsafe) private static var screenConfigurationToken: Int = 0
+    private nonisolated(unsafe) static var cachedTransforms: [ScreenTransform]?
+    private nonisolated(unsafe) static var cachedGlobalFrame: CGRect?
+    private nonisolated(unsafe) static var screenConfigurationToken: Int = 0
 
     private static func currentToken() -> Int {
         var hasher = Hasher()

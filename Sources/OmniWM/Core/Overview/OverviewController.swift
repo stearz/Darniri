@@ -10,15 +10,18 @@ struct OverviewEnvironment {
     var activateApplication: (pid_t) -> Void = { pid in
         NSRunningApplication(processIdentifier: pid)?.activate(options: [])
     }
+
     var addLocalEventMonitor: (
         NSEvent.EventTypeMask,
         @escaping (NSEvent) -> NSEvent?
     ) -> Any? = { mask, handler in
         NSEvent.addLocalMonitorForEvents(matching: mask, handler: handler)
     }
+
     var removeEventMonitor: (Any) -> Void = { monitor in
         NSEvent.removeMonitor(monitor)
     }
+
     var notificationCenter: NotificationCenter = .default
     var selectionDismissDelayNanoseconds: UInt64 = 50_000_000
 }
@@ -41,7 +44,8 @@ final class OverviewController {
             switch self {
             case .cancel:
                 true
-            case .selection, .externalDeactivation:
+            case .selection,
+                 .externalDeactivation:
                 false
             }
         }
@@ -86,7 +90,9 @@ final class OverviewController {
 
     var onActivateWindow: ((WindowHandle, WorkspaceDescriptor.ID) -> Void)?
     var onCloseWindow: ((WindowHandle) -> Void)?
-    var isOpen: Bool { state.isOpen }
+    var isOpen: Bool {
+        state.isOpen
+    }
 
     init(
         wmController: WMController,
@@ -108,7 +114,8 @@ final class OverviewController {
             open()
         case .open:
             dismiss(reason: .cancel, animated: true)
-        case .opening, .closing:
+        case .opening,
+             .closing:
             break
         }
     }
@@ -169,7 +176,8 @@ final class OverviewController {
                 pendingFocusTargetWindow = nil
             }
             return
-        case .opening, .open:
+        case .opening,
+             .open:
             break
         }
 
@@ -476,9 +484,10 @@ final class OverviewController {
     private func thumbnailCaptureRequests() -> [OverviewThumbnailCaptureRequest] {
         guard let wmController else { return [] }
 
-        let scaleByMonitorId = wmController.workspaceManager.monitors.reduce(into: [Monitor.ID: CGFloat]()) { scales, monitor in
-            scales[monitor.id] = monitorBackingScaleFactor(for: monitor.displayId)
-        }
+        let scaleByMonitorId = wmController.workspaceManager.monitors
+            .reduce(into: [Monitor.ID: CGFloat]()) { scales, monitor in
+                scales[monitor.id] = monitorBackingScaleFactor(for: monitor.displayId)
+            }
 
         var projections: [OverviewThumbnailProjection] = []
         projections.reserveCapacity(layoutsByMonitor.values.reduce(0) { partialResult, layout in
@@ -1045,5 +1054,4 @@ private extension OverviewController {
             return .swap
         }
     }
-
 }

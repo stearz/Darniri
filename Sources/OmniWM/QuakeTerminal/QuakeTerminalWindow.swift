@@ -1,8 +1,13 @@
 import Cocoa
 
 final class QuakeTerminalWindow: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        true
+    }
 
     var initialFrame: NSRect?
     var isAnimating: Bool = false
@@ -55,7 +60,7 @@ final class QuakeTerminalWindow: NSPanel {
             case 2: // Cmd+D
                 tabController?.splitActivePane(direction: .horizontal)
                 return true
-            case 18...25: // Cmd+1 through Cmd+8 (keycodes 18-25)
+            case 18 ... 25: // Cmd+1 through Cmd+8 (keycodes 18-25)
                 tabController?.selectTab(at: Int(keyCode) - 18)
                 return true
             case 26: // Cmd+9

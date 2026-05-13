@@ -34,7 +34,7 @@ final class FocusPolicyEngine {
     private static let effectiveLeasePriority: [FocusPolicyLeaseOwner] = [
         .nativeMenu,
         .nativeAppSwitch,
-        .ruleCreatedFloatingWindow,
+        .ruleCreatedFloatingWindow
     ]
 
     private let nowProvider: () -> Date
@@ -44,6 +44,7 @@ final class FocusPolicyEngine {
         pruneExpiredLeasesIfNeeded()
         return activeLeaseStorage
     }
+
     var onLeaseChanged: ((FocusPolicyLease?) -> Void)?
 
     init(nowProvider: @escaping () -> Date = Date.init) {

@@ -68,7 +68,8 @@ extension Monitor {
             return displayId == mainDisplayId
         }
         if let screen = NSScreen.screens.first(where: { $0.frame.origin == .zero }),
-           let displayId = screen.displayId {
+           let displayId = screen.displayId
+        {
             return self.displayId == displayId
         }
         return frame.minX == 0 && frame.minY == 0

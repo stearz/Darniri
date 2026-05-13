@@ -2,9 +2,8 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeAXEventTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.ax-event.test.\(UUID().uuidString)"
@@ -235,7 +234,7 @@ private func waitUntilAXEventTest(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         try? await Task.sleep(for: .milliseconds(1))
     }
 
@@ -556,7 +555,10 @@ private func waitUntilAXEventTest(
             let trace = createFocusTraceEvents(on: controller)
             #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 817)?.mode == .tiling)
             #expect(relayoutReasons == [.axWindowCreated])
-            #expect(controller.layoutRefreshController.debugCounters.executedByReason[.windowRuleReevaluation, default: 0] == 0)
+            #expect(controller.layoutRefreshController.debugCounters.executedByReason[
+                .windowRuleReevaluation,
+                default: 0
+            ] == 0)
             #expect(axWindowRefLookupCount >= 2)
             #expect(trace.contains { event in
                 if case .createSeen(windowId: 817) = event.kind {
@@ -2263,7 +2265,8 @@ private func waitUntilAXEventTest(
         )
         controller.axEventHandler.windowInfoProvider = { windowId in
             switch windowId {
-            case 811, 812:
+            case 811,
+                 812:
                 WindowServerInfo(id: windowId, pid: getpid(), level: 0, frame: .zero)
             default:
                 nil
@@ -3330,7 +3333,8 @@ private func waitUntilAXEventTest(
             )
         )
         guard let oldEntry = controller.workspaceManager.entry(for: oldToken),
-              let siblingEntry = controller.workspaceManager.entry(for: siblingToken) else {
+              let siblingEntry = controller.workspaceManager.entry(for: siblingToken)
+        else {
             Issue.record("Missing original Ghostty entries")
             return
         }
@@ -3420,7 +3424,8 @@ private func waitUntilAXEventTest(
             ]
         )
         guard let workspaceId = controller.activeWorkspace()?.id,
-              let monitor = controller.workspaceManager.monitors.first else {
+              let monitor = controller.workspaceManager.monitors.first
+        else {
             Issue.record("Missing Dwindle workspace setup")
             return
         }
@@ -3546,14 +3551,16 @@ private func waitUntilAXEventTest(
 
         let replacementToken = WindowToken(pid: getpid(), windowId: 864)
         guard let replacementEntry = controller.workspaceManager.entry(for: replacementToken),
-              let replacementLeaf = engine.findNode(for: replacementToken) else {
+              let replacementLeaf = engine.findNode(for: replacementToken)
+        else {
             Issue.record("Missing replacement Dwindle Ghostty state")
             return
         }
 
         let updatedFrames = engine.calculateLayout(for: workspaceId, screen: monitor.frame)
         guard let updatedGhosttyFrame = updatedFrames[replacementToken],
-              let updatedRightFrame = updatedFrames[rightToken] else {
+              let updatedRightFrame = updatedFrames[rightToken]
+        else {
             Issue.record("Missing updated Dwindle layout frames")
             return
         }
@@ -3571,7 +3578,8 @@ private func waitUntilAXEventTest(
     @Test @MainActor func structuralReplacementLateCreateWithinGraceKeepsNiriNodeAndRightColumnStable() async {
         let controller = makeAXEventTestController(trackedBundleId: currentTestBundleId())
         guard let workspaceId = controller.activeWorkspace()?.id,
-              let monitor = controller.workspaceManager.monitors.first else {
+              let monitor = controller.workspaceManager.monitors.first
+        else {
             Issue.record("Missing Niri workspace setup")
             return
         }
@@ -3723,7 +3731,8 @@ private func waitUntilAXEventTest(
             gaps: (horizontal: gap, vertical: gap)
         )
         guard let updatedGhosttyFrame = updatedFrames[replacementToken],
-              let updatedRightFrame = updatedFrames[rightToken] else {
+              let updatedRightFrame = updatedFrames[rightToken]
+        else {
             Issue.record("Missing updated Niri layout frames")
             return
         }
@@ -3747,7 +3756,8 @@ private func waitUntilAXEventTest(
             ]
         )
         guard let workspaceId = controller.activeWorkspace()?.id,
-              let monitor = controller.workspaceManager.monitors.first else {
+              let monitor = controller.workspaceManager.monitors.first
+        else {
             Issue.record("Missing Dwindle workspace setup")
             return
         }
@@ -3888,14 +3898,16 @@ private func waitUntilAXEventTest(
 
         guard let replacementEntry = controller.workspaceManager.entry(for: replacementToken),
               let replacementLeaf = engine.findNode(for: replacementToken),
-              let updatedRightLeaf = engine.findNode(for: rightToken) else {
+              let updatedRightLeaf = engine.findNode(for: rightToken)
+        else {
             Issue.record("Missing replacement Dwindle Ghostty state")
             return
         }
 
         let updatedFrames = engine.calculateLayout(for: workspaceId, screen: monitor.frame)
         guard let updatedGhosttyFrame = updatedFrames[replacementToken],
-              let updatedRightFrame = updatedFrames[rightToken] else {
+              let updatedRightFrame = updatedFrames[rightToken]
+        else {
             Issue.record("Missing updated Dwindle layout frames")
             return
         }
@@ -3937,7 +3949,8 @@ private func waitUntilAXEventTest(
             to: workspaceId
         )
         guard let oldEntry = controller.workspaceManager.entry(for: oldToken),
-              let siblingEntry = controller.workspaceManager.entry(for: siblingToken) else {
+              let siblingEntry = controller.workspaceManager.entry(for: siblingToken)
+        else {
             Issue.record("Missing original Ghostty entries")
             return
         }
@@ -4188,7 +4201,9 @@ private func waitUntilAXEventTest(
 
         controller.axEventHandler.windowInfoProvider = { windowId in
             switch windowId {
-            case 848, 849, 850:
+            case 848,
+                 849,
+                 850:
                 makeBrowserInfo(id: windowId)
             default:
                 nil
@@ -4620,7 +4635,8 @@ private func waitUntilAXEventTest(
         #expect(relayoutReasons == [.axWindowCreated])
     }
 
-    @Test @MainActor func newSiblingWindowFollowsMovedAppWorkspaceWhileAutomaticReevaluationPreservesMovedWindow() async {
+    @Test @MainActor func newSiblingWindowFollowsMovedAppWorkspaceWhileAutomaticReevaluationPreservesMovedWindow(
+    ) async {
         let bundleId = "com.example.rule-workspace"
         let controller = makeAXEventTestController(
             trackedBundleId: bundleId,
@@ -4784,7 +4800,10 @@ private func waitUntilAXEventTest(
             ]
         )
         let primaryWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
-        let secondaryWorkspaceId = try #require(controller.workspaceManager.workspaceId(for: "6", createIfMissing: false))
+        let secondaryWorkspaceId = try #require(controller.workspaceManager.workspaceId(
+            for: "6",
+            createIfMissing: false
+        ))
         #expect(controller.workspaceManager.setActiveWorkspace(primaryWorkspaceId, on: primaryMonitor.id))
         #expect(controller.workspaceManager.setActiveWorkspace(secondaryWorkspaceId, on: secondaryMonitor.id))
         installSynchronousFrameApplySuccessOverride(on: controller)
@@ -4830,8 +4849,10 @@ private func waitUntilAXEventTest(
         #expect(entry.workspaceId == secondaryWorkspaceId)
         #expect(entry.mode == .floating)
         #expect(appliedFrame == expectedFrame)
-        #expect(controller.workspaceManager.resolvedFloatingFrame(for: entry.token, preferredMonitor: secondaryMonitor) == expectedFrame)
-        #expect(controller.workspaceManager.consumedBootPersistedWindowRestoreKeysForTests().contains(catalog.entries[0].key))
+        #expect(controller.workspaceManager
+            .resolvedFloatingFrame(for: entry.token, preferredMonitor: secondaryMonitor) == expectedFrame)
+        #expect(controller.workspaceManager.consumedBootPersistedWindowRestoreKeysForTests()
+            .contains(catalog.entries[0].key))
     }
 
     @Test @MainActor func activeFloatingCreateRetriesFrameApplyAfterContextUnavailable() async {
@@ -5600,5 +5621,4 @@ private func waitUntilAXEventTest(
         )
         #expect(lastAppliedBorderWindowId(on: controller) == 903)
     }
-
 }

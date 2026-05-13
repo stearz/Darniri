@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 import QuartzCore
 
 final class DwindleLayoutEngine {
@@ -206,7 +206,8 @@ final class DwindleLayoutEngine {
     ) -> (orientation: DwindleOrientation, newFirst: Bool) {
         guard settings.smartSplit,
               let targetRect,
-              let activeFrame = activeWindowFrame else {
+              let activeFrame = activeWindowFrame
+        else {
             return (aspectOrientation(for: targetRect), false)
         }
 
@@ -403,7 +404,8 @@ final class DwindleLayoutEngine {
         if windowCount == 1 {
             let leaf = root.descendToFirstLeaf()
             if case let .leaf(handle, fullscreen) = leaf.kind,
-               let handle {
+               let handle
+            {
                 let rect: CGRect
                 if fullscreen {
                     rect = screen
@@ -818,7 +820,8 @@ final class DwindleLayoutEngine {
 
     func moveFocus(direction: Direction, in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         guard let current = selectedNode(in: workspaceId),
-              let currentHandle = current.windowToken else {
+              let currentHandle = current.windowToken
+        else {
             if let root = roots[workspaceId] {
                 let firstLeaf = root.descendToFirstLeaf()
                 selectedNodeId[workspaceId] = firstLeaf.id
@@ -847,7 +850,8 @@ final class DwindleLayoutEngine {
               let ch = currentHandle,
               let neighborHandle = findGeometricNeighbor(from: ch, direction: direction, in: workspaceId),
               let neighbor = findNode(for: neighborHandle),
-              case let .leaf(nh, neighborFullscreen) = neighbor.kind else {
+              case let .leaf(nh, neighborFullscreen) = neighbor.kind
+        else {
             return false
         }
 
@@ -881,7 +885,8 @@ final class DwindleLayoutEngine {
     func toggleOrientation(in workspaceId: WorkspaceDescriptor.ID) {
         guard let selected = selectedNode(in: workspaceId),
               let parent = selected.parent,
-              case let .split(orientation, ratio) = parent.kind else {
+              case let .split(orientation, ratio) = parent.kind
+        else {
             return
         }
 
@@ -890,7 +895,8 @@ final class DwindleLayoutEngine {
 
     func toggleFullscreen(in workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         guard let selected = selectedNode(in: workspaceId),
-              case let .leaf(handle, fullscreen) = selected.kind else {
+              case let .leaf(handle, fullscreen) = selected.kind
+        else {
             return nil
         }
 
@@ -987,7 +993,8 @@ final class DwindleLayoutEngine {
         }
 
         if stable, root.children.count == 2,
-           let newFirst = root.firstChild() {
+           let newFirst = root.firstChild()
+        {
             newFirst.detach()
             root.appendChild(newFirst)
         }
@@ -1107,9 +1114,9 @@ final class DwindleLayoutEngine {
                   let node = tokenToNode[handle] else { continue }
 
             let changed = abs(oldFrame.origin.x - newFrame.origin.x) > 0.5 ||
-                          abs(oldFrame.origin.y - newFrame.origin.y) > 0.5 ||
-                          abs(oldFrame.width - newFrame.width) > 0.5 ||
-                          abs(oldFrame.height - newFrame.height) > 0.5
+                abs(oldFrame.origin.y - newFrame.origin.y) > 0.5 ||
+                abs(oldFrame.width - newFrame.width) > 0.5 ||
+                abs(oldFrame.height - newFrame.height) > 0.5
 
             if changed {
                 node.animateFrom(
@@ -1136,7 +1143,7 @@ final class DwindleLayoutEngine {
             let sizeOffset = node.renderSizeOffset(at: time)
 
             let hasAnimation = abs(posOffset.x) > 0.1 || abs(posOffset.y) > 0.1 ||
-                              abs(sizeOffset.width) > 0.1 || abs(sizeOffset.height) > 0.1
+                abs(sizeOffset.width) > 0.1 || abs(sizeOffset.height) > 0.1
 
             if hasAnimation {
                 result[handle] = CGRect(

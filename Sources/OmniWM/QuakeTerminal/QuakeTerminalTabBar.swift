@@ -25,7 +25,9 @@ final class QuakeTerminalTabBar: NSView {
     private let closeButtonSize: CGFloat = 14
     private let tabPadding: CGFloat = 8
 
-    override var isFlipped: Bool { true }
+    override var isFlipped: Bool {
+        true
+    }
 
     func update(titles: [String], selectedIndex: Int) {
         self.tabTitles = titles
@@ -40,7 +42,7 @@ final class QuakeTerminalTabBar: NSView {
 
         let tabWidth = calculateTabWidth()
 
-        for i in 0..<tabTitles.count {
+        for i in 0 ..< tabTitles.count {
             let tabRect = NSRect(x: CGFloat(i) * tabWidth, y: 0, width: tabWidth, height: bounds.height)
             drawTab(at: i, in: tabRect)
         }

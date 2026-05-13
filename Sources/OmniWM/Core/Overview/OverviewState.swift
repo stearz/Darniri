@@ -9,7 +9,9 @@ enum OverviewState {
 
     var isOpen: Bool {
         switch self {
-        case .open, .opening, .closing:
+        case .open,
+             .opening,
+             .closing:
             return true
         case .closed:
             return false
@@ -18,9 +20,11 @@ enum OverviewState {
 
     var isAnimating: Bool {
         switch self {
-        case .opening, .closing:
+        case .opening,
+             .closing:
             return true
-        case .open, .closed:
+        case .open,
+             .closed:
             return false
         }
     }
@@ -82,6 +86,7 @@ struct OverviewLayout {
     var workspaceSections: [OverviewWorkspaceSection] {
         didSet { rebuildWindowIndex() }
     }
+
     var searchBarFrame: CGRect
     var totalContentHeight: CGFloat
     var scrollOffset: CGFloat

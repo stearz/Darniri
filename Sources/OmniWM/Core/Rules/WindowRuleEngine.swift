@@ -64,7 +64,8 @@ struct WindowDecision: Equatable, Sendable {
             .tiling
         case .floating:
             .floating
-        case .unmanaged, .undecided:
+        case .unmanaged,
+             .undecided:
             nil
         }
     }
@@ -182,7 +183,6 @@ struct WindowDecisionDebugSnapshot: Equatable, Sendable {
         ]
         return lines.joined(separator: "\n")
     }
-
 }
 
 @MainActor
@@ -419,7 +419,8 @@ final class WindowRuleEngine {
         let disposition: WindowDecisionDisposition = switch compiled.rule.effectiveLayoutAction {
         case .float:
             .floating
-        case .tile, .auto:
+        case .tile,
+             .auto:
             .managed
         }
 

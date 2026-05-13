@@ -22,7 +22,11 @@ enum QuakeTerminalPosition: String, Codable, CaseIterable, Sendable {
         window.alphaValue = 0
         window.setFrame(.init(
             origin: initialOrigin(for: window, on: screen),
-            size: closedFrame?.size ?? configuredFrameSize(on: screen, widthPercent: widthPercent, heightPercent: heightPercent)
+            size: closedFrame?.size ?? configuredFrameSize(
+                on: screen,
+                widthPercent: widthPercent,
+                heightPercent: heightPercent
+            )
         ), display: false)
     }
 
@@ -37,19 +41,25 @@ enum QuakeTerminalPosition: String, Codable, CaseIterable, Sendable {
         window.alphaValue = 1
         window.setFrame(.init(
             origin: finalOrigin(for: window, on: screen),
-            size: closedFrame?.size ?? configuredFrameSize(on: screen, widthPercent: widthPercent, heightPercent: heightPercent)
+            size: closedFrame?.size ?? configuredFrameSize(
+                on: screen,
+                widthPercent: widthPercent,
+                heightPercent: heightPercent
+            )
         ), display: true)
     }
 
     func configuredFrameSize(on screen: NSScreen, widthPercent: Double, heightPercent: Double) -> NSSize {
         let visibleFrame = screen.visibleFrame
         switch self {
-        case .top, .bottom:
+        case .top,
+             .bottom:
             return NSSize(
                 width: visibleFrame.width * widthPercent / 100.0,
                 height: visibleFrame.height * heightPercent / 100.0
             )
-        case .left, .right:
+        case .left,
+             .right:
             return NSSize(
                 width: visibleFrame.width * widthPercent / 100.0,
                 height: visibleFrame.height * heightPercent / 100.0
@@ -130,7 +140,8 @@ enum QuakeTerminalPosition: String, Codable, CaseIterable, Sendable {
     func centeredOrigin(for window: NSWindow, on screen: NSScreen) -> CGPoint {
         let visibleFrame = screen.visibleFrame
         switch self {
-        case .top, .bottom:
+        case .top,
+             .bottom:
             return CGPoint(
                 x: round(visibleFrame.origin.x + (visibleFrame.width - window.frame.width) / 2),
                 y: window.frame.origin.y
@@ -140,7 +151,8 @@ enum QuakeTerminalPosition: String, Codable, CaseIterable, Sendable {
                 x: round(visibleFrame.origin.x + (visibleFrame.width - window.frame.width) / 2),
                 y: round(visibleFrame.origin.y + (visibleFrame.height - window.frame.height) / 2)
             )
-        case .left, .right:
+        case .left,
+             .right:
             return window.frame.origin
         }
     }
@@ -149,12 +161,15 @@ enum QuakeTerminalPosition: String, Codable, CaseIterable, Sendable {
     func verticallyCenteredOrigin(for window: NSWindow, on screen: NSScreen) -> CGPoint {
         let visibleFrame = screen.visibleFrame
         switch self {
-        case .left, .right:
+        case .left,
+             .right:
             return CGPoint(
                 x: window.frame.origin.x,
                 y: round(visibleFrame.origin.y + (visibleFrame.height - window.frame.height) / 2)
             )
-        case .top, .bottom, .center:
+        case .top,
+             .bottom,
+             .center:
             return window.frame.origin
         }
     }

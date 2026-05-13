@@ -1,7 +1,6 @@
 import CoreGraphics
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct OverviewRendererTests {
     @Test func aspectFitRectCentersContentWithoutStretching() {

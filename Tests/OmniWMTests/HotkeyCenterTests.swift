@@ -1,6 +1,5 @@
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct HotkeyCenterTests {
     @Test func duplicateBindingsAcrossCommandsFailClosedWithDuplicateReason() {
@@ -10,13 +9,13 @@ import Testing
             for: [
                 HotkeyBinding(id: "move.left", command: .move(.left), binding: shared),
                 HotkeyBinding(id: "move.right", command: .move(.right), binding: shared),
-                HotkeyBinding(id: "focus.left", command: .focus(.left), binding: unique),
+                HotkeyBinding(id: "focus.left", command: .focus(.left), binding: unique)
             ]
         )
 
         #expect(plan.failures == [
             .move(.left): .duplicateBinding,
-            .move(.right): .duplicateBinding,
+            .move(.right): .duplicateBinding
         ])
         #expect(plan.registrations == [
             HotkeyPlannedRegistration(binding: unique, command: .focus(.left))
@@ -28,7 +27,7 @@ import Testing
         let plan = HotkeyCenter.registrationPlan(
             for: [
                 HotkeyBinding(id: "move.left", command: .move(.left), binding: .unassigned),
-                HotkeyBinding(id: "move.right", command: .move(.right), binding: unique),
+                HotkeyBinding(id: "move.right", command: .move(.right), binding: unique)
             ]
         )
 

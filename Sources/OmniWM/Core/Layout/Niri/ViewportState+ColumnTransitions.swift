@@ -123,7 +123,12 @@ extension ViewportState {
         guard !containers.isEmpty, containerIndex >= 0, containerIndex < containers.count else { return }
 
         let stationaryOffset = stationary()
-        let activePos = containerPosition(at: activeColumnIndex, containers: containers, gap: gap, sizeKeyPath: sizeKeyPath)
+        let activePos = containerPosition(
+            at: activeColumnIndex,
+            containers: containers,
+            gap: gap,
+            sizeKeyPath: sizeKeyPath
+        )
         let stationaryViewStart = activePos + stationaryOffset
         let pixelEpsilon: CGFloat = 1.0 / max(scale, 1.0)
 

@@ -90,7 +90,8 @@ extension NiriLayoutEngine {
             insertedTileIndex: insertedIndex,
             sourceBecameEmpty: sourceColumn.children.isEmpty,
             sourceColumnIndexBeforeCleanup: sourceColumnIndexBeforeCleanup,
-            targetColumnIndexAfterInsert: columnIndex(of: targetColumn, in: workspaceId) ?? sourceColumnIndexBeforeCleanup
+            targetColumnIndexAfterInsert: columnIndex(of: targetColumn, in: workspaceId) ??
+                sourceColumnIndexBeforeCleanup
         )
     }
 

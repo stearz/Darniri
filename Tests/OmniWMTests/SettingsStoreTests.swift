@@ -1,12 +1,11 @@
 import AppKit
-import CoreGraphics
 import ApplicationServices
 import Carbon
+import CoreGraphics
 import Darwin
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.test.\(UUID().uuidString)"
@@ -115,7 +114,6 @@ private func atomicallyReplaceSettingsDataForTests(
 }
 
 struct MonitorSettingsStoreTests {
-
     @Test func getReturnsNilForUnknownMonitor() {
         let settings = [MonitorNiriSettings(monitorName: "Monitor A")]
         let result = MonitorSettingsStore.get(for: "Monitor B", in: settings)
@@ -125,7 +123,7 @@ struct MonitorSettingsStoreTests {
     @Test func updateReplacesExistingAtSameIndex() {
         var settings = [
             MonitorNiriSettings(monitorName: "A", maxVisibleColumns: 2),
-            MonitorNiriSettings(monitorName: "B", maxVisibleColumns: 3),
+            MonitorNiriSettings(monitorName: "B", maxVisibleColumns: 3)
         ]
         let updated = MonitorNiriSettings(monitorName: "A", maxVisibleColumns: 5)
         MonitorSettingsStore.update(updated, in: &settings)
@@ -148,7 +146,7 @@ struct MonitorSettingsStoreTests {
         var settings = [
             MonitorNiriSettings(monitorName: "A"),
             MonitorNiriSettings(monitorName: "A"),
-            MonitorNiriSettings(monitorName: "B"),
+            MonitorNiriSettings(monitorName: "B")
         ]
         MonitorSettingsStore.remove(for: "A", from: &settings)
         #expect(settings.count == 1)
@@ -159,7 +157,7 @@ struct MonitorSettingsStoreTests {
         let monitor = makeSettingsTestMonitor(displayId: 42, name: "Studio Display")
         let settings = [
             MonitorNiriSettings(monitorName: "Studio Display", maxVisibleColumns: 1),
-            MonitorNiriSettings(monitorName: "Studio Display", monitorDisplayId: 42, maxVisibleColumns: 3),
+            MonitorNiriSettings(monitorName: "Studio Display", monitorDisplayId: 42, maxVisibleColumns: 3)
         ]
 
         let result = MonitorSettingsStore.get(for: monitor, in: settings)
@@ -169,7 +167,7 @@ struct MonitorSettingsStoreTests {
     @Test func monitorLookupFallsBackToLegacyNameWhenDisplayIdMissing() {
         let monitor = makeSettingsTestMonitor(displayId: 99, name: "Legacy")
         let settings = [
-            MonitorNiriSettings(monitorName: "Legacy", maxVisibleColumns: 2),
+            MonitorNiriSettings(monitorName: "Legacy", maxVisibleColumns: 2)
         ]
 
         let result = MonitorSettingsStore.get(for: monitor, in: settings)
@@ -230,7 +228,6 @@ struct MonitorSettingsStoreTests {
 }
 
 struct SettingsExportTests {
-
     @Test func defaultsReflectPromotedBuiltInValues() {
         let defaults = SettingsExport.defaults()
 
@@ -510,7 +507,8 @@ struct HotkeySurfaceTests {
         #expect(CommandPaletteController.menuModeAvailable(hasMenuFocusTarget: false) == false)
         #expect(CommandPaletteController.availableMenuStatusText(for: "Safari") == "Searching menus in Safari")
         #expect(CommandPaletteController.availableMenuStatusText(for: nil) == "Searching menus in Current App")
-        #expect(CommandPaletteController.unavailableMenuStatusText == "Open the palette while another app is frontmost to search its menus.")
+        #expect(CommandPaletteController
+            .unavailableMenuStatusText == "Open the palette while another app is frontmost to search its menus.")
     }
 }
 
@@ -722,7 +720,8 @@ struct HotkeySurfaceTests {
 
         settings.applyExport(export, monitors: [currentMonitor])
 
-        #expect(settings.workspaceConfigurations.first?.monitorAssignment == .specificDisplay(OutputId(from: currentMonitor)))
+        #expect(settings.workspaceConfigurations.first?
+            .monitorAssignment == .specificDisplay(OutputId(from: currentMonitor)))
     }
 }
 
@@ -838,7 +837,7 @@ struct SettingsSectionTests {
             "borders",
             "bar",
             "hotkeys",
-            "quakeTerminal",
+            "quakeTerminal"
         ])
     }
 }
@@ -958,10 +957,11 @@ struct SettingsSectionTests {
         }
 
         let originalData = try Data(contentsOf: settings.settingsFileURL)
-        let originalModificationDate = try #require(settings.settingsFileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+        let originalModificationDate = try #require(settings.settingsFileURL
+            .resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
 
         let export = try SettingsTOMLCodec.decode(originalData)
-        let sameDigitGapCandidates = Array(10...99).map(Double.init) + Array(0...9).map(Double.init)
+        let sameDigitGapCandidates = Array(10 ... 99).map(Double.init) + Array(0 ... 9).map(Double.init)
         var replacementExport: SettingsExport?
         var replacementData: Data?
         for gapSize in sameDigitGapCandidates where gapSize != export.gapSize {

@@ -1,5 +1,5 @@
-import SwiftUI
 import OmniWMIPC
+import SwiftUI
 
 @MainActor
 enum WorkspaceConfigurationDeletePolicy {
@@ -114,7 +114,8 @@ struct WorkspacesSettingsTab: View {
         .sheet(isPresented: $isAddingNew) {
             WorkspaceEditSheet(
                 configuration: WorkspaceConfiguration(
-                    name: WorkspaceConfigurationAddPolicy.nextAvailableWorkspaceName(in: settings.workspaceConfigurations),
+                    name: WorkspaceConfigurationAddPolicy
+                        .nextAvailableWorkspaceName(in: settings.workspaceConfigurations),
                     monitorAssignment: .main
                 ),
                 isNew: true,
@@ -304,9 +305,11 @@ struct WorkspaceEditSheet: View {
                     }
                 }
 
-                Text("Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Text(
+                    "Main follows the current main display. Secondary follows the first non-main display. Specific Display pins this workspace to the selected monitor when available."
+                )
+                .font(.caption)
+                .foregroundColor(.secondary)
 
                 Picker("Layout", selection: $configuration.layoutType) {
                     ForEach(LayoutType.allCases) { layout in

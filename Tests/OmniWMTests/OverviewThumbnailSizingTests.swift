@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct OverviewThumbnailSizingTests {
     @Test func usesProjectedCardSizeForCaptureRequests() {

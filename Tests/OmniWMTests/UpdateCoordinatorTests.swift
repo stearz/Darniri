@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeTestRelease(
     tagName: String = "v0.5.0",

@@ -75,6 +75,7 @@ struct CommandPaletteEnvironment {
     var navigateToWindow: (WMController, WindowHandle) -> Void = { controller, handle in
         controller.navigateToCommandPaletteWindow(handle)
     }
+
     var summonWindowRight: (WMController, WindowHandle, WindowToken, WorkspaceDescriptor.ID) -> Void = {
         controller,
         handle,
@@ -86,12 +87,14 @@ struct CommandPaletteEnvironment {
             anchorWorkspaceId: anchorWorkspaceId
         )
     }
+
     var scheduleMenuAction: (@escaping () -> Void) -> Void = { action in
         let box = CommandPaletteActionBox(action)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             box.action()
         }
     }
+
     var performMenuAction: (AXUIElement) -> Void = { element in
         AXUIElementPerformAction(element, "AXPress" as CFString)
     }
@@ -615,7 +618,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         modifierFlags: NSEvent.ModifierFlags
     ) -> CommandPaletteSelectionTrigger? {
         switch keyCode {
-        case 36, 76:
+        case 36,
+             76:
             return modifierFlags == .shift ? .summonRight : .primary
         default:
             return nil
@@ -627,7 +631,7 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         guard !selectionList.isEmpty else { return }
 
         let currentIndex: Int = if let selectedItemID,
-                                    let idx = selectionList.firstIndex(of: selectedItemID)
+                                   let idx = selectionList.firstIndex(of: selectedItemID)
         {
             idx
         } else {

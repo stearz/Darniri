@@ -118,18 +118,34 @@ final class AXEventHandler: CGSEventDelegate {
         let ruleEffects: ManagedWindowRuleEffects
         let replacementMetadata: ManagedReplacementMetadata
 
-        var bundleId: String? { replacementMetadata.bundleId }
-        var workspaceId: WorkspaceDescriptor.ID { replacementMetadata.workspaceId }
-        var mode: TrackedWindowMode { replacementMetadata.mode }
+        var bundleId: String? {
+            replacementMetadata.bundleId
+        }
+
+        var workspaceId: WorkspaceDescriptor.ID {
+            replacementMetadata.workspaceId
+        }
+
+        var mode: TrackedWindowMode {
+            replacementMetadata.mode
+        }
     }
 
     private struct PreparedDestroy {
         let token: WindowToken
         let replacementMetadata: ManagedReplacementMetadata
 
-        var bundleId: String? { replacementMetadata.bundleId }
-        var workspaceId: WorkspaceDescriptor.ID { replacementMetadata.workspaceId }
-        var mode: TrackedWindowMode { replacementMetadata.mode }
+        var bundleId: String? {
+            replacementMetadata.bundleId
+        }
+
+        var workspaceId: WorkspaceDescriptor.ID {
+            replacementMetadata.workspaceId
+        }
+
+        var mode: TrackedWindowMode {
+            replacementMetadata.mode
+        }
     }
 
     private struct ManagedReplacementKey: Hashable {
@@ -180,7 +196,8 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         var orderedEvents: [PendingManagedReplacementEvent] {
-            let events = creates.map(PendingManagedReplacementEvent.create) + destroys.map(PendingManagedReplacementEvent.destroy)
+            let events = creates.map(PendingManagedReplacementEvent.create) + destroys
+                .map(PendingManagedReplacementEvent.destroy)
             return events.sorted { $0.sequence < $1.sequence }
         }
 
@@ -442,7 +459,10 @@ final class AXEventHandler: CGSEventDelegate {
         managedReplacementTrace.append(event)
 
         if Self.managedReplacementTraceLoggingEnabled {
-            fputs("[ManagedReplacement] pid=\(key.pid) workspace=\(key.workspaceId.uuidString) kind=\(String(describing: kind))\n", stderr)
+            fputs(
+                "[ManagedReplacement] pid=\(key.pid) workspace=\(key.workspaceId.uuidString) kind=\(String(describing: kind))\n",
+                stderr
+            )
         }
     }
 
@@ -777,8 +797,8 @@ final class AXEventHandler: CGSEventDelegate {
            controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == wsId,
            layoutType != .dwindle
         {
-           let shouldAnimate = if let engine = controller.niriEngine,
-                                    let windowNode = engine.findNode(for: token)
+            let shouldAnimate = if let engine = controller.niriEngine,
+                                   let windowNode = engine.findNode(for: token)
             {
                 !windowNode.isHiddenInTabbedMode
             } else {
@@ -991,7 +1011,8 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         switch requestDisposition {
-        case let .matchesActiveRequest(request), let .conflictsWithPendingRequest(request):
+        case let .matchesActiveRequest(request),
+             let .conflictsWithPendingRequest(request):
             if shouldHonorObservedFocusOverPendingRequest(
                 source: source,
                 origin: origin
@@ -1197,7 +1218,8 @@ final class AXEventHandler: CGSEventDelegate {
             }
             return true
         }
-        guard rekeyManagedWindowIdentity(from: record.currentToken, to: token, windowId: windowId, axRef: axRef) != nil else {
+        guard rekeyManagedWindowIdentity(from: record.currentToken, to: token, windowId: windowId, axRef: axRef) != nil
+        else {
             return false
         }
 
@@ -1376,7 +1398,8 @@ final class AXEventHandler: CGSEventDelegate {
     ) -> PreparedCreate? {
         guard let controller else { return nil }
         let ownedWindow = controller.isOwnedWindow(windowNumber: Int(windowId))
-        guard let token = windowInfo.map({ WindowToken(pid: pid_t($0.pid), windowId: Int(windowId)) }) else { return nil }
+        guard let token = windowInfo.map({ WindowToken(pid: pid_t($0.pid), windowId: Int(windowId)) })
+        else { return nil }
         if controller.workspaceManager.entry(for: token) != nil { return nil }
 
         if !ownedWindow {
@@ -2092,7 +2115,8 @@ final class AXEventHandler: CGSEventDelegate {
         guard let controller else { return }
 
         switch requestDisposition {
-        case let .matchesActiveRequest(request), let .conflictsWithPendingRequest(request):
+        case let .matchesActiveRequest(request),
+             let .conflictsWithPendingRequest(request):
             if shouldHonorObservedFocusOverPendingRequest(
                 source: source,
                 origin: origin
@@ -2167,7 +2191,8 @@ final class AXEventHandler: CGSEventDelegate {
         switch source {
         case .focusedWindowChanged:
             return true
-        case .workspaceDidActivateApplication, .cgsFrontAppChanged:
+        case .workspaceDidActivateApplication,
+             .cgsFrontAppChanged:
             return origin == .external
         }
     }
@@ -2431,6 +2456,7 @@ final class AXEventHandler: CGSEventDelegate {
         if let bundleIdProvider {
             return bundleIdProvider(pid)
         }
-        return controller.appInfoCache.bundleId(for: pid) ?? NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        return controller.appInfoCache.bundleId(for: pid) ?? NSRunningApplication(processIdentifier: pid)?
+            .bundleIdentifier
     }
 }

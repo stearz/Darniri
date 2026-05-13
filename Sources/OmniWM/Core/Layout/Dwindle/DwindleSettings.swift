@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 
 struct DwindleSettings {
     var defaultSplitRatio: CGFloat = 1.0

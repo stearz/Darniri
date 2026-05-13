@@ -1,11 +1,10 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct WorkspacesSettingsTabTests {
     @Test func addPolicyProposesWorkspace10AfterNineSlotsAreUsed() {
-        let configurations = (1...9).map { WorkspaceConfiguration(name: String($0)) }
+        let configurations = (1 ... 9).map { WorkspaceConfiguration(name: String($0)) }
 
         #expect(
             WorkspaceConfigurationAddPolicy.nextAvailableWorkspaceName(in: configurations) == "10"

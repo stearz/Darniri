@@ -8,7 +8,9 @@ enum WorkspaceBarWindowLevel: String, CaseIterable, Identifiable {
     case popup
     case screensaver
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -35,7 +37,9 @@ enum WorkspaceBarPosition: String, CaseIterable, Identifiable {
     case overlappingMenuBar
     case belowMenuBar
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -80,9 +84,11 @@ final class WorkspaceBarManager {
     var screenProvider: @MainActor (CGDirectDisplayID) -> NSScreen? = { displayId in
         NSScreen.screens.first(where: { $0.displayId == displayId })
     }
+
     var panelFactory: @MainActor @Sendable () -> WorkspaceBarPanel = {
         WorkspaceBarManager.defaultPanel()
     }
+
     var frameApplier: @MainActor @Sendable (WorkspaceBarPanel, NSRect) -> Void = { panel, frame in
         panel.setFrame(frame, display: true)
     }
@@ -256,7 +262,8 @@ final class WorkspaceBarManager {
         let nextScreenDisplayId = screen?.displayId
 
         if let currentScreenDisplayId = instance.screenDisplayId,
-           nextScreenDisplayId != currentScreenDisplayId {
+           nextScreenDisplayId != currentScreenDisplayId
+        {
             return false
         }
 
@@ -409,7 +416,10 @@ final class WorkspaceBarManager {
         return panel
     }
 
-    nonisolated static func effectivePosition(for monitor: Monitor, resolved: ResolvedBarSettings) -> WorkspaceBarPosition {
+    nonisolated static func effectivePosition(
+        for monitor: Monitor,
+        resolved: ResolvedBarSettings
+    ) -> WorkspaceBarPosition {
         WorkspaceBarGeometry.effectivePosition(for: monitor, resolved: resolved)
     }
 

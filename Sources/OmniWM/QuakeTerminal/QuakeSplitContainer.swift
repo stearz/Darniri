@@ -14,7 +14,9 @@ final class QuakeSplitContainer: NSView {
 
     var onFocusChanged: ((GhosttySurfaceView) -> Void)?
 
-    override var isFlipped: Bool { false }
+    override var isFlipped: Bool {
+        false
+    }
 
     init(initialView: GhosttySurfaceView) {
         self.root = .leaf(initialView)
@@ -181,9 +183,13 @@ private final class SplitDividerView: NSView {
     private let visibleDividerLayer = CALayer()
     private var dragStart: NSPoint?
 
-    override var isFlipped: Bool { false }
+    override var isFlipped: Bool {
+        false
+    }
 
-    var address: SplitNode.SplitAddress { info.address }
+    var address: SplitNode.SplitAddress {
+        info.address
+    }
 
     init(info: SplitNode.DividerInfo, container: QuakeSplitContainer) {
         self.info = info

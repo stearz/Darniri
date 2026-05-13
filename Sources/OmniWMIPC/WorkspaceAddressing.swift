@@ -57,7 +57,6 @@ public enum WorkspaceTarget: Equatable, Sendable {
         guard let rawID = WorkspaceIDPolicy.rawID(from: workspaceNumber) else { return nil }
         self = .rawID(rawID)
     }
-
 }
 
 extension WorkspaceTarget: Codable {

@@ -1,9 +1,8 @@
 import ApplicationServices
 import Foundation
+@testable import OmniWM
 import QuartzCore
 import Testing
-
-@testable import OmniWM
 
 func makeTestHandle(pid: pid_t = 1) -> WindowHandle {
     WindowHandle(
@@ -1789,7 +1788,7 @@ private func makeCenteredCrossMonitorFixture(
                     isConstraintFixed: false,
                     hasFixedValue: false,
                     fixedValue: nil
-                ),
+                )
             ],
             availableSpace: 1200,
             gapSize: 0
@@ -1821,7 +1820,7 @@ private func makeCenteredCrossMonitorFixture(
                     isConstraintFixed: false,
                     hasFixedValue: false,
                     fixedValue: nil
-                ),
+                )
             ],
             availableSpace: 50,
             gapSize: 0
@@ -2413,7 +2412,7 @@ private func makeCenteredCrossMonitorFixture(
                 initialViewStartIndex: 3,
                 targetIndex: 2,
                 expectedViewStartIndex: 2
-            ),
+            )
         ]
 
         for scenario in scenarios {
@@ -3151,7 +3150,11 @@ private func makeCenteredCrossMonitorFixture(
         let existingBottomWindowId = 822
         let existingTopWindowId = 823
 
-        let consumedToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: consumedWindowId)
+        let consumedToken = addLayoutPlanTestWindow(
+            on: controller,
+            workspaceId: workspaceId,
+            windowId: consumedWindowId
+        )
         let existingBottomToken = addLayoutPlanTestWindow(
             on: controller,
             workspaceId: workspaceId,
@@ -3233,7 +3236,8 @@ private func makeCenteredCrossMonitorFixture(
         await waitForLayoutPlanRefreshWork(on: fixture.controller)
 
         #expect(fixture.controller.workspaceManager.preferredFocusToken(in: fixture.workspaceId) == fixture.topToken)
-        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId).selectedNodeId == fixture.topWindow.id)
+        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+            .selectedNodeId == fixture.topWindow.id)
         #expect(fixture.column.activeTileIdx == 2)
         #expect(fixture.column.activeVisualTileIdx == 0)
         #expect(!fixture.topWindow.isHiddenInTabbedMode)
@@ -3243,7 +3247,8 @@ private func makeCenteredCrossMonitorFixture(
         await waitForLayoutPlanRefreshWork(on: fixture.controller)
 
         #expect(fixture.controller.workspaceManager.preferredFocusToken(in: fixture.workspaceId) == fixture.middleToken)
-        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId).selectedNodeId == fixture.middleWindow.id)
+        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+            .selectedNodeId == fixture.middleWindow.id)
         #expect(fixture.column.activeTileIdx == 1)
         #expect(fixture.column.activeVisualTileIdx == 1)
         #expect(!fixture.middleWindow.isHiddenInTabbedMode)
@@ -3256,13 +3261,15 @@ private func makeCenteredCrossMonitorFixture(
         await waitForLayoutPlanRefreshWork(on: fixture.controller)
 
         #expect(fixture.controller.workspaceManager.preferredFocusToken(in: fixture.workspaceId) == fixture.topToken)
-        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId).selectedNodeId == fixture.topWindow.id)
+        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+            .selectedNodeId == fixture.topWindow.id)
 
         fixture.controller.niriLayoutHandler.focusNeighbor(direction: .down)
         await waitForLayoutPlanRefreshWork(on: fixture.controller)
 
         #expect(fixture.controller.workspaceManager.preferredFocusToken(in: fixture.workspaceId) == fixture.middleToken)
-        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId).selectedNodeId == fixture.middleWindow.id)
+        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+            .selectedNodeId == fixture.middleWindow.id)
     }
 
     @Test @MainActor func focusWindowInColumnUsesNiriVisualOneBasedClamping() async {
@@ -3425,7 +3432,8 @@ private func makeCenteredCrossMonitorFixture(
         #expect(fixture.column.activeTileIdx == 2)
         #expect(fixture.column.activeVisualTileIdx == 0)
         #expect(fixture.column.activeWindow?.token == fixture.topToken)
-        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId).selectedNodeId == fixture.topWindow.id)
+        #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
+            .selectedNodeId == fixture.topWindow.id)
         #expect(!fixture.topWindow.isHiddenInTabbedMode)
         #expect(fixture.bottomWindow.isHiddenInTabbedMode)
     }
@@ -3456,7 +3464,13 @@ private func makeCenteredCrossMonitorFixture(
 
     @Test @MainActor func syncMonitorsToNiriEngineRemovesStaleWorkspaceRootDuplicates() async {
         let primaryMonitor = makeLayoutPlanTestMonitor(displayId: 100, name: "Primary", x: 0, width: 1600, height: 900)
-        let secondaryMonitor = makeLayoutPlanTestMonitor(displayId: 200, name: "Secondary", x: 1600, width: 1600, height: 900)
+        let secondaryMonitor = makeLayoutPlanTestMonitor(
+            displayId: 200,
+            name: "Secondary",
+            x: 1600,
+            width: 1600,
+            height: 900
+        )
         let fixture = makeTwoMonitorLayoutPlanTestController(
             primaryMonitor: primaryMonitor,
             secondaryMonitor: secondaryMonitor
@@ -3471,11 +3485,13 @@ private func makeCenteredCrossMonitorFixture(
               let primaryRoot = engine.root(for: fixture.primaryWorkspaceId),
               let secondaryRoot = engine.root(for: fixture.secondaryWorkspaceId),
               let primaryWorkspaceMonitorId = controller.workspaceManager.monitorId(for: fixture.primaryWorkspaceId),
-              let secondaryWorkspaceMonitorId = controller.workspaceManager.monitorId(for: fixture.secondaryWorkspaceId),
+              let secondaryWorkspaceMonitorId = controller.workspaceManager
+              .monitorId(for: fixture.secondaryWorkspaceId),
               let primaryOwningMonitor = engine.monitor(for: primaryWorkspaceMonitorId),
               let secondaryOwningMonitor = engine.monitor(for: secondaryWorkspaceMonitorId),
               let primaryNonOwningMonitor = engine.monitors.values.first(where: { $0.id != primaryWorkspaceMonitorId }),
-              let secondaryNonOwningMonitor = engine.monitors.values.first(where: { $0.id != secondaryWorkspaceMonitorId })
+              let secondaryNonOwningMonitor = engine.monitors.values
+              .first(where: { $0.id != secondaryWorkspaceMonitorId })
         else {
             Issue.record("Expected Niri engine and monitor roots for stale-root sync test")
             return
@@ -3490,11 +3506,15 @@ private func makeCenteredCrossMonitorFixture(
 
         controller.syncMonitorsToNiriEngine()
 
-        #expect(engine.monitorContaining(workspace: fixture.primaryWorkspaceId) == controller.workspaceManager.monitorId(for: fixture.primaryWorkspaceId))
-        #expect(engine.monitorContaining(workspace: fixture.secondaryWorkspaceId) == controller.workspaceManager.monitorId(for: fixture.secondaryWorkspaceId))
-        #expect(engine.monitor(for: primaryWorkspaceMonitorId)?.workspaceRoots[fixture.primaryWorkspaceId] === primaryRoot)
+        #expect(engine.monitorContaining(workspace: fixture.primaryWorkspaceId) == controller.workspaceManager
+            .monitorId(for: fixture.primaryWorkspaceId))
+        #expect(engine.monitorContaining(workspace: fixture.secondaryWorkspaceId) == controller.workspaceManager
+            .monitorId(for: fixture.secondaryWorkspaceId))
+        #expect(engine.monitor(for: primaryWorkspaceMonitorId)?
+            .workspaceRoots[fixture.primaryWorkspaceId] === primaryRoot)
         #expect(primaryNonOwningMonitor.workspaceRoots[fixture.primaryWorkspaceId] == nil)
-        #expect(engine.monitor(for: secondaryWorkspaceMonitorId)?.workspaceRoots[fixture.secondaryWorkspaceId] === secondaryRoot)
+        #expect(engine.monitor(for: secondaryWorkspaceMonitorId)?
+            .workspaceRoots[fixture.secondaryWorkspaceId] === secondaryRoot)
         #expect(secondaryNonOwningMonitor.workspaceRoots[fixture.secondaryWorkspaceId] == nil)
     }
 
@@ -3521,7 +3541,7 @@ private func makeCenteredCrossMonitorFixture(
 
         engine.syncWorkspaceAssignments([
             (workspaceId: lowerWorkspaceId, monitor: monitors.lower),
-            (workspaceId: upperWorkspaceId, monitor: monitors.upper),
+            (workspaceId: upperWorkspaceId, monitor: monitors.upper)
         ])
 
         #expect(lowerMonitor.workspaceRoots[lowerWorkspaceId] === lowerRoot)
@@ -3911,7 +3931,8 @@ private func makeCenteredCrossMonitorFixture(
 
         let workingFrame = controller.insetWorkingFrame(for: monitor)
         let gap = CGFloat(controller.workspaceManager.gaps)
-        let fixedWidth = (workingFrame.width - gap * CGFloat(engine.maxVisibleColumns - 1)) / CGFloat(engine.maxVisibleColumns)
+        let fixedWidth = (workingFrame.width - gap * CGFloat(engine.maxVisibleColumns - 1)) /
+            CGFloat(engine.maxVisibleColumns)
         for column in engine.columns(in: workspaceId) {
             column.width = .fixed(fixedWidth)
             column.cachedWidth = fixedWidth
@@ -3958,9 +3979,16 @@ private func makeCenteredCrossMonitorFixture(
         #expect(frameChange.frame == expectedFullscreenFrame)
     }
 
-    @Test @MainActor func offscreenLeftPlaceholderFramesUseWorkingFrameOriginOnMonitorWithoutLeftNeighbor() async throws {
+    @Test @MainActor func offscreenLeftPlaceholderFramesUseWorkingFrameOriginOnMonitorWithoutLeftNeighbor(
+    ) async throws {
         let primaryMonitor = makeLayoutPlanTestMonitor(displayId: 100, name: "Primary", x: 0, width: 1600, height: 900)
-        let secondaryMonitor = makeLayoutPlanTestMonitor(displayId: 200, name: "Secondary", x: 1600, width: 1600, height: 900)
+        let secondaryMonitor = makeLayoutPlanTestMonitor(
+            displayId: 200,
+            name: "Secondary",
+            x: 1600,
+            width: 1600,
+            height: 900
+        )
         let fixture = makeTwoMonitorLayoutPlanTestController(
             primaryMonitor: primaryMonitor,
             secondaryMonitor: secondaryMonitor
@@ -4101,7 +4129,8 @@ private func makeCenteredCrossMonitorFixture(
     @Test func fullscreenWindowsStayMonitorAnchoredAcrossVisibleColumns() {
         for visibleCount in 2 ... 5 {
             let fixture = makeVisibleColumnFixture(visibleCount: visibleCount)
-            let expectedFullscreenFrame = fixture.monitor.visibleFrame.roundedToPhysicalPixels(scale: fixture.area.scale)
+            let expectedFullscreenFrame = fixture.monitor.visibleFrame
+                .roundedToPhysicalPixels(scale: fixture.area.scale)
 
             var targetIndices = [visibleCount - 1]
             if visibleCount > 2 {
@@ -4295,7 +4324,8 @@ private func makeCenteredCrossMonitorFixture(
         #expect(coveredFrame.contains(overlapPoint))
         #expect(fullscreenFrame.contains(overlapPoint))
         #expect(
-            fixture.engine.hitTestFocusableWindow(point: overlapPoint, in: fixture.workspaceId)?.token == fullscreenWindow.token
+            fixture.engine.hitTestFocusableWindow(point: overlapPoint, in: fixture.workspaceId)?
+                .token == fullscreenWindow.token
         )
     }
 
@@ -4420,7 +4450,10 @@ private func makeCenteredCrossMonitorFixture(
             guard let originalFrame = originalLayout.frames[targetWindow.token],
                   let widenedFrame = settledLayout.frames[targetWindow.token]
             else {
-                Issue.record("Expected original and widened frames for cycle-width visibility test visibleCount=\(visibleCount)")
+                Issue
+                    .record(
+                        "Expected original and widened frames for cycle-width visibility test visibleCount=\(visibleCount)"
+                    )
                 continue
             }
 
@@ -4435,7 +4468,10 @@ private func makeCenteredCrossMonitorFixture(
             let fixture = makeVisibleColumnFixture(visibleCount: visibleCount)
             let targetWindow = fixture.windows[visibleCount - 1]
             guard let targetColumn = fixture.engine.column(of: targetWindow) else {
-                Issue.record("Expected a target column for disabled cycle-width forward test visibleCount=\(visibleCount)")
+                Issue
+                    .record(
+                        "Expected a target column for disabled cycle-width forward test visibleCount=\(visibleCount)"
+                    )
                 continue
             }
 
@@ -4484,7 +4520,10 @@ private func makeCenteredCrossMonitorFixture(
             guard let originalFrame = originalLayout.frames[targetWindow.token],
                   let updatedFrame = immediateLayout.frames[targetWindow.token]
             else {
-                Issue.record("Expected original and updated frames for disabled cycle-width forward test visibleCount=\(visibleCount)")
+                Issue
+                    .record(
+                        "Expected original and updated frames for disabled cycle-width forward test visibleCount=\(visibleCount)"
+                    )
                 continue
             }
 
@@ -4502,7 +4541,10 @@ private func makeCenteredCrossMonitorFixture(
             let fixture = makeVisibleColumnFixture(visibleCount: visibleCount)
             let targetWindow = fixture.windows[visibleCount - 1]
             guard let targetColumn = fixture.engine.column(of: targetWindow) else {
-                Issue.record("Expected a target column for disabled cycle-width backward test visibleCount=\(visibleCount)")
+                Issue
+                    .record(
+                        "Expected a target column for disabled cycle-width backward test visibleCount=\(visibleCount)"
+                    )
                 continue
             }
 
@@ -4553,7 +4595,10 @@ private func makeCenteredCrossMonitorFixture(
             guard let originalFrame = originalLayout.frames[targetWindow.token],
                   let updatedFrame = immediateLayout.frames[targetWindow.token]
             else {
-                Issue.record("Expected original and updated frames for disabled cycle-width backward test visibleCount=\(visibleCount)")
+                Issue
+                    .record(
+                        "Expected original and updated frames for disabled cycle-width backward test visibleCount=\(visibleCount)"
+                    )
                 continue
             }
 
@@ -4615,7 +4660,8 @@ private func makeCenteredCrossMonitorFixture(
         }
     }
 
-    @Test @MainActor func cycleColumnWidthCommandWithAnimationsDisabledAppliesFrameWithoutStartingScrollAnimation() async throws {
+    @Test @MainActor func cycleColumnWidthCommandWithAnimationsDisabledAppliesFrameWithoutStartingScrollAnimation(
+    ) async throws {
         let fixture = try await makeDisabledMotionWidthCommandFixture()
         let targetWindow = fixture.windows[1]
         guard let targetColumn = fixture.engine.column(of: targetWindow) else {
@@ -4652,7 +4698,8 @@ private func makeCenteredCrossMonitorFixture(
         )
     }
 
-    @Test @MainActor func toggleColumnFullWidthCommandWithAnimationsDisabledAppliesFrameWithoutStartingScrollAnimation() async throws {
+    @Test @MainActor func toggleColumnFullWidthCommandWithAnimationsDisabledAppliesFrameWithoutStartingScrollAnimation(
+    ) async throws {
         let fixture = try await makeDisabledMotionWidthCommandFixture()
         let targetWindow = fixture.windows[1]
         guard let targetColumn = fixture.engine.column(of: targetWindow) else {
@@ -5390,7 +5437,11 @@ private func makeCenteredCrossMonitorFixture(
         let orderedWindowIds = engine.columns(in: wsId).compactMap { $0.windowNodes.first?.token.windowId }
 
         #expect(inserted)
-        #expect(orderedWindowIds == [focusedWindow.token.windowId, targetWindow.token.windowId, trailingWindow.token.windowId])
+        #expect(orderedWindowIds == [
+            focusedWindow.token.windowId,
+            targetWindow.token.windowId,
+            trailingWindow.token.windowId
+        ])
     }
 
     @Test func moveColumnRightNoOpsAtEdgeEvenWhenInfiniteLoopIsEnabled() {
@@ -5477,7 +5528,11 @@ private func makeCenteredCrossMonitorFixture(
         let viewStart = viewportStart(for: state, columns: columns, gap: 8)
 
         #expect(moved)
-        #expect(orderedWindowIds == [leftWindow.token.windowId, rightWindow.token.windowId, movingWindow.token.windowId])
+        #expect(orderedWindowIds == [
+            leftWindow.token.windowId,
+            rightWindow.token.windowId,
+            movingWindow.token.windowId
+        ])
         #expect(state.activeColumnIndex == 2)
         #expect(abs(viewStart - 308) < 0.1)
     }
@@ -5525,7 +5580,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(engine.columns(in: wsId).compactMap { $0.windowNodes.first?.token.windowId } == [
             leftWindow.token.windowId,
             rightWindow.token.windowId,
-            movingWindow.token.windowId,
+            movingWindow.token.windowId
         ])
         #expect(state.activeColumnIndex == 2)
 
@@ -5543,7 +5598,7 @@ private func makeCenteredCrossMonitorFixture(
         #expect(engine.columns(in: wsId).compactMap { $0.windowNodes.first?.token.windowId } == [
             movingWindow.token.windowId,
             leftWindow.token.windowId,
-            rightWindow.token.windowId,
+            rightWindow.token.windowId
         ])
         #expect(state.activeColumnIndex == 0)
     }
@@ -5607,7 +5662,11 @@ private func makeCenteredCrossMonitorFixture(
             to: sourceWorkspaceId,
             afterSelection: targetWindow.id
         )
-        let focusedWindow = engine.addWindow(handle: makeTestHandle(pid: 63), to: targetWorkspaceId, afterSelection: nil)
+        let focusedWindow = engine.addWindow(
+            handle: makeTestHandle(pid: 63),
+            to: targetWorkspaceId,
+            afterSelection: nil
+        )
 
         var sourceState = ViewportState()
         sourceState.selectedNodeId = targetWindow.id
@@ -6567,7 +6626,7 @@ private func makeCenteredCrossMonitorFixture(
         let controller = fixture.controller
         let activeWorkspaceIds: Set<WorkspaceDescriptor.ID> = [
             fixture.primaryWorkspaceId,
-            fixture.secondaryWorkspaceId,
+            fixture.secondaryWorkspaceId
         ]
 
         let initialPlans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
@@ -6633,7 +6692,7 @@ private func makeCenteredCrossMonitorFixture(
         let controller = fixture.controller
         let activeWorkspaceIds: Set<WorkspaceDescriptor.ID> = [
             fixture.primaryWorkspaceId,
-            fixture.secondaryWorkspaceId,
+            fixture.secondaryWorkspaceId
         ]
 
         let initialPlans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
@@ -7031,7 +7090,10 @@ private func makeCenteredCrossMonitorFixture(
               let rightNode = columns[2].windowNodes.first,
               let ghosttyLayoutFrame = ghosttyNode.renderedFrame ?? ghosttyNode.frame
         else {
-            Issue.record("Expected three visible columns and a realized center frame for Ghostty navigation border regression test")
+            Issue
+                .record(
+                    "Expected three visible columns and a realized center frame for Ghostty navigation border regression test"
+                )
             return
         }
 
@@ -7225,7 +7287,8 @@ private func makeCenteredCrossMonitorFixture(
         )
         #expect(controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[1].token)
         #expect(firstReverseState.viewOffsetPixels.isAnimating)
-        #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - expectedFirstReverseStart) < 0.1)
+        #expect(abs(viewportStart(for: firstReverseState, columns: columns, gap: gap) - expectedFirstReverseStart) <
+            0.1)
     }
 
     @Test @MainActor func focusNeighborWithAnimationsDisabledUsesExactVisibleColumnOffsets() async throws {
@@ -7269,7 +7332,7 @@ private func makeCenteredCrossMonitorFixture(
 
         let scenarios = [
             Scenario(visibleCount: 2, startingActiveIndex: 1),
-            Scenario(visibleCount: 3, startingActiveIndex: 2),
+            Scenario(visibleCount: 3, startingActiveIndex: 2)
         ]
 
         controller.setAnimationsEnabled(false)
@@ -7344,7 +7407,7 @@ private func makeCenteredCrossMonitorFixture(
             #expect(!movedState.viewOffsetPixels.isAnimating, comment)
             #expect(abs(viewportStart(for: movedState, columns: columns, gap: gap) - expectedViewStart) < 0.1, comment)
 
-            for _ in 0..<windows.count {
+            for _ in 0 ..< windows.count {
                 if controller.workspaceManager.preferredFocusToken(in: workspaceId) == windows[0].token {
                     break
                 }
@@ -7365,7 +7428,10 @@ private func makeCenteredCrossMonitorFixture(
                 )
                 expectedActiveIndex = targetIndex
                 #expect(!stepState.viewOffsetPixels.isAnimating, comment)
-                #expect(abs(viewportStart(for: stepState, columns: columns, gap: gap) - expectedViewStart) < 0.1, comment)
+                #expect(
+                    abs(viewportStart(for: stepState, columns: columns, gap: gap) - expectedViewStart) < 0.1,
+                    comment
+                )
             }
 
             let finalState = controller.workspaceManager.niriViewportState(for: workspaceId)
@@ -7374,7 +7440,8 @@ private func makeCenteredCrossMonitorFixture(
         }
     }
 
-    @Test @MainActor func turningAnimationsOffLeavesInFlightViewportMotionAloneAndMakesNextNavigationInstant() async throws {
+    @Test @MainActor func turningAnimationsOffLeavesInFlightViewportMotionAloneAndMakesNextNavigationInstant(
+    ) async throws {
         let controller = makeLayoutPlanTestController()
         guard let monitor = controller.workspaceManager.monitors.first,
               let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id

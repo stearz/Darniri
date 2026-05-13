@@ -5,7 +5,8 @@ import GhosttyKit
 enum QuakeGhosttyInputBridge {
     static var keyboardLayoutID: String? {
         if let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-           let sourceIDPointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
+           let sourceIDPointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceID)
+        {
             let sourceID = unsafeBitCast(sourceIDPointer, to: CFString.self)
             return sourceID as String
         }
@@ -44,10 +45,14 @@ enum QuakeGhosttyInputBridge {
         let mod: UInt32
         switch event.keyCode {
         case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
-        case 0x38, 0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
-        case 0x3B, 0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
-        case 0x3A, 0x3D: mod = GHOSTTY_MODS_ALT.rawValue
-        case 0x37, 0x36: mod = GHOSTTY_MODS_SUPER.rawValue
+        case 0x38,
+             0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
+        case 0x3B,
+             0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
+        case 0x3A,
+             0x3D: mod = GHOSTTY_MODS_ALT.rawValue
+        case 0x37,
+             0x36: mod = GHOSTTY_MODS_SUPER.rawValue
         default: return nil
         }
 
@@ -144,7 +149,8 @@ extension NSEvent {
 
         if type == .keyDown || type == .keyUp {
             if let chars = characters(byApplyingModifiers: []),
-               let codepoint = chars.unicodeScalars.first {
+               let codepoint = chars.unicodeScalars.first
+            {
                 keyEvent.unshifted_codepoint = codepoint.value
             }
         }
@@ -156,7 +162,8 @@ extension NSEvent {
         guard let characters else { return nil }
 
         if characters.count == 1,
-           let scalar = characters.unicodeScalars.first {
+           let scalar = characters.unicodeScalars.first
+        {
             if scalar.value < 0x20 {
                 return self.characters(byApplyingModifiers: modifierFlags.subtracting(.control))
             }

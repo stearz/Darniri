@@ -1,6 +1,5 @@
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite @MainActor struct CommandHandlerTests {
     @Test func commandPaletteDisplayNameReflectsToggleBehavior() {

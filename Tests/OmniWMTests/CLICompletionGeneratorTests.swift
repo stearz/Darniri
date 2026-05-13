@@ -1,6 +1,5 @@
-import Testing
-
 @testable import OmniWMCtl
+import Testing
 
 @Suite struct CLICompletionGeneratorTests {
     @Test func zshScriptIncludesNestedManifestBackedSuggestions() {

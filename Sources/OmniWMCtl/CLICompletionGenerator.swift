@@ -296,7 +296,7 @@ enum CLICompletionGenerator {
         let ruleDefinitionLines = ruleDefinitionFlags.flatMap { flag in
             [
                 "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from add' -a '\(flag)'",
-                "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from replace' -a '\(flag)'",
+                "complete -c omniwmctl -f -n '__fish_seen_subcommand_from rule; and __fish_seen_subcommand_from replace' -a '\(flag)'"
             ]
         }
         let ruleApplyLines = ruleApplyFlags.map { flag in
@@ -342,7 +342,19 @@ enum CLICompletionGenerator {
     }
 
     private static var topLevelCommands: [String] {
-        ["ping", "version", "help", "completion", "command", "query", "rule", "workspace", "window", "subscribe", "watch"]
+        [
+            "ping",
+            "version",
+            "help",
+            "completion",
+            "command",
+            "query",
+            "rule",
+            "workspace",
+            "window",
+            "subscribe",
+            "watch"
+        ]
     }
 
     private static var queryNames: [String] {
@@ -420,7 +432,9 @@ enum CLICompletionGenerator {
         commandWordCount: Int
     ) -> [String: [String]] {
         var map: [String: Set<String>] = [:]
-        for descriptor in IPCAutomationManifest.commandDescriptors where descriptor.commandWords.count == commandWordCount {
+        for descriptor in IPCAutomationManifest.commandDescriptors
+            where descriptor.commandWords.count == commandWordCount
+        {
             guard descriptor.arguments.count > argumentIndex,
                   let literals = literalValues(for: descriptor.arguments[argumentIndex].kind)
             else {
@@ -461,7 +475,10 @@ enum CLICompletionGenerator {
             return ["default", "niri", "dwindle"]
         case .resizeOperation:
             return ["grow", "shrink"]
-        case .workspaceNumber, .columnIndex, .windowIndex, .sizeChange:
+        case .workspaceNumber,
+             .columnIndex,
+             .windowIndex,
+             .sizeChange:
             return nil
         }
     }

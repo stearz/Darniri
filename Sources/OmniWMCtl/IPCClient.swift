@@ -208,7 +208,7 @@ actor IPCClientConnection {
         while true {
             let count = Darwin.read(fileDescriptor, &buffer, buffer.count)
             if count > 0 {
-                return Data(buffer[0..<count])
+                return Data(buffer[0 ..< count])
             }
             if count == 0 {
                 return nil

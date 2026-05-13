@@ -1,9 +1,8 @@
 import AppKit
 import ApplicationServices
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeCommandPaletteTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.commandpalette.test.\(UUID().uuidString)"

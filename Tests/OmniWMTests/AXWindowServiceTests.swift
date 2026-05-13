@@ -1,8 +1,7 @@
 import ApplicationServices
 import CoreGraphics
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct AXWindowServiceTests {
     @Test func axWindowRoleIsAcceptedDuringTopLevelEnumeration() {

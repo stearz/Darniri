@@ -56,8 +56,8 @@ struct MonitorSettingsTab: View {
                     "Choose whether OmniWM warps across left/right or top/bottom monitor boundaries. " +
                         "The strip below is the \(warpAxis.orderDescription) order OmniWM uses for mouse warp."
                 )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundColor(.secondary)
 
                 MonitorOrderStrip(
                     entries: warpOrderEntries,
@@ -89,8 +89,8 @@ struct MonitorSettingsTab: View {
                     "Horizontal mode uses left/right edges. Vertical mode uses top/bottom edges. " +
                         "Changing the axis keeps your saved monitor order as-is."
                 )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
 
             Divider()
@@ -115,7 +115,9 @@ struct MonitorSettingsTab: View {
             }
         }
         .onAppear(perform: refreshConnectedMonitors)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+        .onReceive(NotificationCenter.default
+            .publisher(for: NSApplication.didChangeScreenParametersNotification))
+        { _ in
             refreshConnectedMonitors()
         }
     }
@@ -381,9 +383,11 @@ private struct SelectedMonitorDetails: View {
                 .buttonStyle(.borderless)
             }
 
-            Text("Override the auto-detected orientation for this monitor. Vertical monitors scroll windows top-to-bottom instead of left-to-right.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Text(
+                "Override the auto-detected orientation for this monitor. Vertical monitors scroll windows top-to-bottom instead of left-to-right."
+            )
+            .font(.caption)
+            .foregroundColor(.secondary)
         }
     }
 
@@ -417,9 +421,17 @@ struct MonitorOrderEntry: Identifiable, Equatable {
     let monitor: Monitor
     let displayLabel: MonitorDisplayLabel
 
-    var id: Monitor.ID { monitor.id }
-    var name: String { monitor.name }
-    var isMain: Bool { monitor.isMain }
+    var id: Monitor.ID {
+        monitor.id
+    }
+
+    var name: String {
+        monitor.name
+    }
+
+    var isMain: Bool {
+        monitor.isMain
+    }
 }
 
 enum MonitorOrderMoveDirection {
@@ -444,7 +456,10 @@ enum MonitorSettingsTabModel {
         return entries.first?.id
     }
 
-    static func displayLabels(for monitors: [Monitor], axis: MouseWarpAxis = .horizontal) -> [Monitor.ID: MonitorDisplayLabel] {
+    static func displayLabels(
+        for monitors: [Monitor],
+        axis: MouseWarpAxis = .horizontal
+    ) -> [Monitor.ID: MonitorDisplayLabel] {
         let sorted = sortedMonitors(monitors, axis: axis)
         let totals = sorted.reduce(into: [String: Int]()) { counts, monitor in
             counts[monitor.name, default: 0] += 1

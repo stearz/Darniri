@@ -13,7 +13,8 @@ enum CLIOutputFormat: String, Equatable {
 
     static func defaultFormat(for command: String?) -> CLIOutputFormat {
         switch command {
-        case "query", "subscribe":
+        case "query",
+             "subscribe":
             .json
         default:
             .text

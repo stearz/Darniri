@@ -301,7 +301,9 @@ extension ViewportState {
         }
 
         snapPoints.sort { $0.viewPos < $1.viewPos }
-        guard let closest = snapPoints.min(by: { abs($0.viewPos - projectedViewPos) < abs($1.viewPos - projectedViewPos) }) else {
+        guard let closest = snapPoints
+            .min(by: { abs($0.viewPos - projectedViewPos) < abs($1.viewPos - projectedViewPos) })
+        else {
             return SnapResult(viewPos: 0, columnIndex: 0)
         }
 

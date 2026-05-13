@@ -45,14 +45,16 @@ enum SettingsFileStatus: Equatable {
 
     var icon: String {
         switch self {
-        case .opened, .revealed: "checkmark.circle.fill"
+        case .opened,
+             .revealed: "checkmark.circle.fill"
         case .error: "xmark.circle.fill"
         }
     }
 
     var color: Color {
         switch self {
-        case .opened, .revealed: .green
+        case .opened,
+             .revealed: .green
         case .error: .red
         }
     }

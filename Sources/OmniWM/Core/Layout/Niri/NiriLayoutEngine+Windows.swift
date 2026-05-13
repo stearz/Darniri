@@ -255,7 +255,8 @@ extension NiriLayoutEngine {
         let finalSelection: NodeId?
         if let currentSelection,
            !batchRemovedNodeIds.contains(currentSelection),
-           findNode(by: currentSelection) != nil {
+           findNode(by: currentSelection) != nil
+        {
             finalSelection = currentSelection
         } else {
             finalSelection = latestFallback
@@ -273,7 +274,8 @@ extension NiriLayoutEngine {
            !visibilityWasCorrected,
            let fromIndexForVisibility,
            let selectedNode = findNode(by: finalSelection),
-           viewportNeedsRecalc {
+           viewportNeedsRecalc
+        {
             ensureSelectionVisible(
                 node: selectedNode,
                 in: workspaceId,
@@ -349,7 +351,8 @@ extension NiriLayoutEngine {
 
         if column.windowNodes.count == 1,
            let remaining = column.windowNodes.first,
-           remaining.height.isAuto {
+           remaining.height.isAuto
+        {
             remaining.height = .auto(weight: 1.0)
         }
 
@@ -389,7 +392,7 @@ extension NiriLayoutEngine {
         let activeIdx = state.activeColumnIndex.clamped(to: 0 ... max(0, cols.count - 1))
         let postRemovalCount = cols.count - 1
         let offset = columnX(at: removedIdx + 1, columns: cols, gaps: gaps)
-                   - columnX(at: removedIdx, columns: cols, gaps: gaps)
+            - columnX(at: removedIdx, columns: cols, gaps: gaps)
 
         animateColumnsAroundRemoval(
             columns: cols,
@@ -400,7 +403,8 @@ extension NiriLayoutEngine {
         )
 
         if let resize = interactiveResize,
-           removedWindows.contains(where: { $0.id == resize.windowId }) {
+           removedWindows.contains(where: { $0.id == resize.windowId })
+        {
             clearInteractiveResize()
         }
 
@@ -439,7 +443,8 @@ extension NiriLayoutEngine {
             )
         } else if removedIdx == activeIdx,
                   let previousOffset = pendingPreviousOffset,
-                  removedIdx > 0 {
+                  removedIdx > 0
+        {
             state.activeColumnIndex = activeIdx - 1
             state.activatePrevColumnOnRemoval = nil
             state.viewOffsetPixels = .static(previousOffset)
@@ -450,7 +455,8 @@ extension NiriLayoutEngine {
                 excluding: allRemovalNodeIds
             )
             if let fallbackSelectionId,
-               let selectedNode = findNode(by: fallbackSelectionId) {
+               let selectedNode = findNode(by: fallbackSelectionId)
+            {
                 state.selectedNodeId = fallbackSelectionId
                 ensureSelectionVisible(
                     node: selectedNode,
@@ -493,7 +499,8 @@ extension NiriLayoutEngine {
         excluding removedNodeIds: Set<NodeId>
     ) -> NodeId? {
         if let activeWindow = column.activeWindow,
-           !removedNodeIds.contains(activeWindow.id) {
+           !removedNodeIds.contains(activeWindow.id)
+        {
             return activeWindow.id
         }
 
@@ -663,5 +670,4 @@ extension NiriLayoutEngine {
 
         return candidates.max { ($0.lastFocusedTime ?? .distantPast) < ($1.lastFocusedTime ?? .distantPast) }
     }
-
 }

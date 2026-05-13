@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 import OmniWMIPC
+import Testing
 
 private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
     let data = try IPCWire.makeEncoder(prettyPrinted: true).encode(value)
@@ -406,7 +405,7 @@ private func assertRoundTrip<T: Codable & Equatable>(_ value: T) throws {
             "--layout",
             "--assign-to-workspace",
             "--min-width",
-            "--min-height",
+            "--min-height"
         ]
         let addDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .add)
         let replaceDescriptor = IPCAutomationManifest.ruleActionDescriptor(for: .replace)

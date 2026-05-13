@@ -1,7 +1,6 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
-
 @testable import OmniWM
 
 func makeLayoutPlanTestDefaults() -> UserDefaults {

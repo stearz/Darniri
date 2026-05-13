@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite(.serialized) @MainActor struct SponsorsWindowControllerTests {
     @Test func motionToggleKeepsLiveHostingController() async throws {

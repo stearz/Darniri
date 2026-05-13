@@ -158,7 +158,15 @@ struct ReconcileSnapshot: Equatable {
     let focusSession: FocusSessionSnapshot
     let windows: [ReconcileWindowSnapshot]
 
-    var focusedToken: WindowToken? { focusSession.focusedToken }
-    var interactionMonitorId: Monitor.ID? { focusSession.interactionMonitorId }
-    var previousInteractionMonitorId: Monitor.ID? { focusSession.previousInteractionMonitorId }
+    var focusedToken: WindowToken? {
+        focusSession.focusedToken
+    }
+
+    var interactionMonitorId: Monitor.ID? {
+        focusSession.interactionMonitorId
+    }
+
+    var previousInteractionMonitorId: Monitor.ID? {
+        focusSession.previousInteractionMonitorId
+    }
 }

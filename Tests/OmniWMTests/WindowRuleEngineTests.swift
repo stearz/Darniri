@@ -1,8 +1,7 @@
 import AppKit
 import ApplicationServices
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeWindowRuleFacts(
     bundleId: String = "com.example.app",

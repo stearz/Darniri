@@ -5,7 +5,9 @@ final class RunLoopJob: Sendable {
     private let _cancelled = Atomic<Bool>(false)
     nonisolated(unsafe) weak var action: RunLoopAction?
 
-    var isCancelled: Bool { _cancelled.load(ordering: .acquiring) }
+    var isCancelled: Bool {
+        _cancelled.load(ordering: .acquiring)
+    }
 
     func cancel() {
         let (exchanged, _) = _cancelled.compareExchange(

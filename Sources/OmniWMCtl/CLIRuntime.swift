@@ -46,7 +46,8 @@ enum CLIRuntime {
         let terminationStatus: Int32
     }
 
-    typealias WatchChildRunner = @Sendable (IPCEventEnvelope, [String], CLIWatchProcessState) async throws -> WatchChildResult
+    typealias WatchChildRunner = @Sendable (IPCEventEnvelope, [String], CLIWatchProcessState) async throws
+        -> WatchChildResult
 
     private final class WatchChildExecutionHooks: @unchecked Sendable {
         private let lock = NSLock()

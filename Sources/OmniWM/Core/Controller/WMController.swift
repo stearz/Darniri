@@ -69,6 +69,7 @@ final class WMController {
             mouseEventHandler.handleInputSuppressionBegan()
         }
     }
+
     let axManager = AXManager()
     let appInfoCache = AppInfoCache()
     let focusBridge: FocusBridgeCoordinator
@@ -127,8 +128,14 @@ final class WMController {
     private(set) lazy var workspaceNavigationHandler = WorkspaceNavigationHandler(controller: self)
     @ObservationIgnored
     private(set) lazy var layoutRefreshController = LayoutRefreshController(controller: self)
-    var niriLayoutHandler: NiriLayoutHandler { layoutRefreshController.niriHandler }
-    var dwindleLayoutHandler: DwindleLayoutHandler { layoutRefreshController.dwindleHandler }
+    var niriLayoutHandler: NiriLayoutHandler {
+        layoutRefreshController.niriHandler
+    }
+
+    var dwindleLayoutHandler: DwindleLayoutHandler {
+        layoutRefreshController.dwindleHandler
+    }
+
     @ObservationIgnored
     private(set) lazy var serviceLifecycleManager = ServiceLifecycleManager(controller: self)
     @ObservationIgnored
@@ -452,8 +459,8 @@ final class WMController {
         }
 
         let focusedAppName: String? = if let focusedToken = workspaceManager.focusedToken,
-                                          let entry = workspaceManager.entry(for: focusedToken),
-                                          entry.workspaceId == workspace.id
+                                         let entry = workspaceManager.entry(for: focusedToken),
+                                         entry.workspaceId == workspace.id
         {
             resolvedAppInfo(for: entry.pid)?.name
         } else {
@@ -679,7 +686,7 @@ final class WMController {
     }
 
     func waitForWorkspaceBarRefreshForTests() async {
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             await Task.yield()
             if !workspaceBarRefreshDebugState.isQueued {
                 break
@@ -1376,7 +1383,8 @@ final class WMController {
             _ = workspaceManager.setWindowMode(.tiling, for: token)
             return true
 
-        case (.tiling, .tiling), (.floating, .floating):
+        case (.tiling, .tiling),
+             (.floating, .floating):
             return false
         }
     }
@@ -1467,7 +1475,8 @@ final class WMController {
             sizeConstraints: baseFacts.sizeConstraints,
             windowServer: resolvedWindowInfo
         )
-        let fullscreen = appFullscreen ?? (axEventHandler.isFullscreenProvider?(axRef) ?? AXWindowService.isFullscreen(axRef))
+        let fullscreen = appFullscreen ??
+            (axEventHandler.isFullscreenProvider?(axRef) ?? AXWindowService.isFullscreen(axRef))
         let manualOverride = workspaceManager.manualLayoutOverride(for: token)
         let baseDecision = windowRuleEngine.decision(
             for: facts,
@@ -1703,8 +1712,10 @@ final class WMController {
                         role: evaluation.facts.ax.role ?? updatedEntry.managedReplacementMetadata?.role,
                         subrole: evaluation.facts.ax.subrole ?? updatedEntry.managedReplacementMetadata?.subrole,
                         title: evaluation.facts.ax.title ?? updatedEntry.managedReplacementMetadata?.title,
-                        windowLevel: evaluation.facts.windowServer?.level ?? updatedEntry.managedReplacementMetadata?.windowLevel,
-                        parentWindowId: evaluation.facts.windowServer?.parentId ?? updatedEntry.managedReplacementMetadata?.parentWindowId,
+                        windowLevel: evaluation.facts.windowServer?.level ?? updatedEntry.managedReplacementMetadata?
+                            .windowLevel,
+                        parentWindowId: evaluation.facts.windowServer?.parentId ?? updatedEntry
+                            .managedReplacementMetadata?.parentWindowId,
                         frame: evaluation.facts.windowServer?.frame ?? updatedEntry.managedReplacementMetadata?.frame
                     ),
                     for: token
@@ -1874,10 +1885,22 @@ final class WMController {
         workspaceManager.entry(forPid: pid, windowId: windowId)?.workspaceId
     }
 
-    func openCommandPalette() { commandPaletteController.toggle(wmController: self) }
-    func openSponsorsWindow() { sponsorsWindowController.show() }
-    func openMenuAnywhere() { windowActionHandler.openMenuAnywhere() }
-    func navigateToCommandPaletteWindow(_ handle: WindowHandle) { windowActionHandler.navigateToWindow(handle: handle) }
+    func openCommandPalette() {
+        commandPaletteController.toggle(wmController: self)
+    }
+
+    func openSponsorsWindow() {
+        sponsorsWindowController.show()
+    }
+
+    func openMenuAnywhere() {
+        windowActionHandler.openMenuAnywhere()
+    }
+
+    func navigateToCommandPaletteWindow(_ handle: WindowHandle) {
+        windowActionHandler.navigateToWindow(handle: handle)
+    }
+
     func summonCommandPaletteWindowRight(
         _ handle: WindowHandle,
         anchorToken: WindowToken,
@@ -1889,8 +1912,15 @@ final class WMController {
             anchorWorkspaceId: anchorWorkspaceId
         )
     }
-    func toggleOverview() { windowActionHandler.toggleOverview() }
-    func raiseAllFloatingWindows() { windowActionHandler.raiseAllFloatingWindows() }
+
+    func toggleOverview() {
+        windowActionHandler.toggleOverview()
+    }
+
+    func raiseAllFloatingWindows() {
+        windowActionHandler.raiseAllFloatingWindows()
+    }
+
     @discardableResult
     func rescueOffscreenWindows() -> Int {
         guard !isLockScreenActive else { return 0 }
@@ -1956,7 +1986,10 @@ final class WMController {
 
         return rescuePlan.rescuedCount
     }
-    func isOverviewOpen() -> Bool { windowActionHandler.isOverviewOpen() }
+
+    func isOverviewOpen() -> Bool {
+        windowActionHandler.isOverviewOpen()
+    }
 
     @discardableResult
     func resolveAndSetWorkspaceFocusToken(for workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
@@ -2100,7 +2133,8 @@ extension WMController {
     func isPointInQuakeTerminal(_ point: CGPoint) -> Bool {
         guard settings.quakeTerminalEnabled,
               quakeTerminalController.visible,
-              let window = quakeTerminalController.window else {
+              let window = quakeTerminalController.window
+        else {
             return false
         }
         return window.frame.contains(point)

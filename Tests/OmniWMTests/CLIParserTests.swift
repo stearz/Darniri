@@ -1,8 +1,7 @@
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWMCtl
+import OmniWMIPC
+import Testing
 
 private func representativeCommandToken(for kind: IPCCommandArgumentKind) -> String {
     switch kind {
@@ -181,7 +180,11 @@ private func sampleRuleOptionValue(for flag: String) -> String {
     @Test func parsesNiriWindowMoveCommands() throws {
         let down = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-down"])
         let up = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-up"])
-        let downFallback = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-down-or-to-workspace-down"])
+        let downFallback = try CLIParser.parse(arguments: [
+            "omniwmctl",
+            "command",
+            "move-window-down-or-to-workspace-down"
+        ])
         let upFallback = try CLIParser.parse(arguments: ["omniwmctl", "command", "move-window-up-or-to-workspace-up"])
         let consumeLeft = try CLIParser.parse(arguments: ["omniwmctl", "command", "consume-or-expel-window-left"])
         let consumeRight = try CLIParser.parse(arguments: ["omniwmctl", "command", "consume-or-expel-window-right"])
@@ -304,7 +307,7 @@ private func sampleRuleOptionValue(for flag: String) -> String {
                 "windows",
                 "--workspace", "2",
                 "--visible",
-                "--fields", "id,title,workspace",
+                "--fields", "id,title,workspace"
             ]
         )
 
@@ -528,7 +531,7 @@ private func sampleRuleOptionValue(for flag: String) -> String {
             ["omniwmctl", "query", "displays", "--monitor", "Built-in Retina Display"],
             ["omniwmctl", "command", "focus-monitor", "previous"],
             ["omniwmctl", "command", "switch-workspace", "previous"],
-            ["omniwmctl", "command", "switch-workspace", "back"],
+            ["omniwmctl", "command", "switch-workspace", "back"]
         ]
 
         for arguments in removedCompatibilityArgv {
@@ -552,7 +555,7 @@ private func sampleRuleOptionValue(for flag: String) -> String {
                 "add",
                 "--bundle-id", "com.example.terminal",
                 "--title-substring", "Shell",
-                "--layout", "float",
+                "--layout", "float"
             ]
         )
         let moveId = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!.uuidString
@@ -564,7 +567,7 @@ private func sampleRuleOptionValue(for flag: String) -> String {
                 moveId,
                 "--bundle-id", "com.example.browser",
                 "--title-regex", "Docs.*",
-                "--layout", "tile",
+                "--layout", "tile"
             ]
         )
         let remove = try CLIParser.parse(arguments: ["omniwmctl", "rule", "remove", moveId])
@@ -694,7 +697,7 @@ private func sampleRuleOptionValue(for flag: String) -> String {
                 "--bundle-id",
                 "com.example.terminal",
                 "--bundle-id",
-                "com.example.browser",
+                "com.example.browser"
             ],
             [
                 "omniwmctl",
@@ -703,8 +706,8 @@ private func sampleRuleOptionValue(for flag: String) -> String {
                 "--bundle-id",
                 "com.example.terminal",
                 "--unknown",
-                "value",
-            ],
+                "value"
+            ]
         ]
 
         for arguments in invalidArgv {

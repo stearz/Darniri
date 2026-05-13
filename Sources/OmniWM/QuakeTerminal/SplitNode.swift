@@ -47,7 +47,11 @@ indirect enum SplitNode {
         }
     }
 
-    func inserting(at targetView: GhosttySurfaceView, direction: SplitDirection, newView: GhosttySurfaceView) -> SplitNode {
+    func inserting(
+        at targetView: GhosttySurfaceView,
+        direction: SplitDirection,
+        newView: GhosttySurfaceView
+    ) -> SplitNode {
         switch self {
         case let .leaf(view):
             if view === targetView {
@@ -105,12 +109,22 @@ indirect enum SplitNode {
             case .horizontal:
                 let leftWidth = rect.width * clampedRatio
                 let leftRect = NSRect(x: rect.minX, y: rect.minY, width: leftWidth, height: rect.height)
-                let rightRect = NSRect(x: rect.minX + leftWidth, y: rect.minY, width: rect.width - leftWidth, height: rect.height)
+                let rightRect = NSRect(
+                    x: rect.minX + leftWidth,
+                    y: rect.minY,
+                    width: rect.width - leftWidth,
+                    height: rect.height
+                )
                 return left.calculateBounds(in: leftRect) + right.calculateBounds(in: rightRect)
 
             case .vertical:
                 let topHeight = rect.height * clampedRatio
-                let topRect = NSRect(x: rect.minX, y: rect.minY + rect.height - topHeight, width: rect.width, height: topHeight)
+                let topRect = NSRect(
+                    x: rect.minX,
+                    y: rect.minY + rect.height - topHeight,
+                    width: rect.width,
+                    height: topHeight
+                )
                 let bottomRect = NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - topHeight)
                 return left.calculateBounds(in: topRect) + right.calculateBounds(in: bottomRect)
             }
@@ -161,7 +175,12 @@ indirect enum SplitNode {
                     hitRect: hitRect
                 ))
                 let leftRect = NSRect(x: rect.minX, y: rect.minY, width: leftWidth, height: rect.height)
-                let rightRect = NSRect(x: rect.minX + leftWidth, y: rect.minY, width: rect.width - leftWidth, height: rect.height)
+                let rightRect = NSRect(
+                    x: rect.minX + leftWidth,
+                    y: rect.minY,
+                    width: rect.width - leftWidth,
+                    height: rect.height
+                )
                 result += left.calculateDividers(
                     in: leftRect,
                     visibleThickness: visibleThickness,
@@ -196,7 +215,12 @@ indirect enum SplitNode {
                     visibleRect: visibleRect,
                     hitRect: hitRect
                 ))
-                let topRect = NSRect(x: rect.minX, y: rect.minY + rect.height - topHeight, width: rect.width, height: topHeight)
+                let topRect = NSRect(
+                    x: rect.minX,
+                    y: rect.minY + rect.height - topHeight,
+                    width: rect.width,
+                    height: topHeight
+                )
                 let bottomRect = NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - topHeight)
                 result += left.calculateDividers(
                     in: topRect,
@@ -216,7 +240,11 @@ indirect enum SplitNode {
         }
     }
 
-    func findNeighbor(of view: GhosttySurfaceView, direction: NavigationDirection, in rect: NSRect) -> GhosttySurfaceView? {
+    func findNeighbor(
+        of view: GhosttySurfaceView,
+        direction: NavigationDirection,
+        in rect: NSRect
+    ) -> GhosttySurfaceView? {
         let bounds = calculateBounds(in: rect)
         guard let current = bounds.first(where: { $0.view === view }) else { return nil }
 
@@ -230,10 +258,10 @@ indirect enum SplitNode {
             let cCenter = NSPoint(x: candidate.rect.midX, y: candidate.rect.midY)
             let matches: Bool
             switch direction {
-            case .left:  matches = cCenter.x < center.x
+            case .left: matches = cCenter.x < center.x
             case .right: matches = cCenter.x > center.x
-            case .up:    matches = cCenter.y > center.y
-            case .down:  matches = cCenter.y < center.y
+            case .up: matches = cCenter.y > center.y
+            case .down: matches = cCenter.y < center.y
             }
             guard matches else { continue }
 
@@ -306,7 +334,6 @@ indirect enum SplitNode {
             }
         }
     }
-
 }
 
 enum NavigationDirection {

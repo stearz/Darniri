@@ -741,7 +741,8 @@ extension NiriLayoutEngine {
             let renderedBaseFrame: CGRect
             let resolvedSpan: CGFloat
             switch sizingMode {
-            case .fullscreen, .maximized:
+            case .fullscreen,
+                 .maximized:
                 frame = fullscreenRect.roundedToPhysicalPixels(scale: scale)
                 renderedBaseFrame = renderedFullscreenRect
                 resolvedSpan = switch orientation {
@@ -783,7 +784,8 @@ extension NiriLayoutEngine {
 
             let animatedFrame: CGRect
             switch sizingMode {
-            case .fullscreen, .maximized:
+            case .fullscreen,
+                 .maximized:
                 animatedFrame = renderedBaseFrame.roundedToPhysicalPixels(scale: scale)
             case .normal:
                 let windowOffset = windowRenderOffsets[i]

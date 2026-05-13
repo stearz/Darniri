@@ -24,7 +24,7 @@ extension NiriLayoutEngine {
 
         let activeIdx = state.activeColumnIndex
         let offset = columnX(at: removedIdx + 1, columns: cols, gaps: gaps)
-                   - columnX(at: removedIdx, columns: cols, gaps: gaps)
+            - columnX(at: removedIdx, columns: cols, gaps: gaps)
         let postRemovalCount = cols.count - 1
 
         animateColumnsAroundRemoval(
@@ -47,7 +47,8 @@ extension NiriLayoutEngine {
                 restorePreviousViewOffset: nil
             )
         } else if removedIdx == activeIdx,
-                  let prevOffset = state.activatePrevColumnOnRemoval {
+                  let prevOffset = state.activatePrevColumnOnRemoval
+        {
             let newActiveIdx = max(0, activeIdx - 1)
             state.activeColumnIndex = newActiveIdx
             state.activatePrevColumnOnRemoval = nil

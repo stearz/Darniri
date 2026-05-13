@@ -50,7 +50,8 @@ enum WeightedSize: Equatable {
     var weight: CGFloat {
         switch self {
         case let .auto(w): w
-        case .fixed, .preset: 0
+        case .fixed,
+             .preset: 0
         }
     }
 
@@ -200,7 +201,6 @@ struct PresetSize: Equatable {
         case let .fixed(f): .fixed(f)
         }
     }
-
 }
 
 struct NodeId: Hashable, Equatable {
@@ -651,7 +651,6 @@ class NiriContainer: NiriNode {
             activeTileIdx = max(0, activeTileIdx - 1)
         }
     }
-
 }
 
 class NiriWindow: NiriNode {
@@ -691,7 +690,8 @@ class NiriWindow: NiriNode {
         get {
             switch height {
             case let .auto(weight): weight
-            case .fixed, .preset: 1.0
+            case .fixed,
+                 .preset: 1.0
             }
         }
         set {
@@ -702,14 +702,16 @@ class NiriWindow: NiriNode {
     var heightWeight: CGFloat {
         switch height {
         case let .auto(weight): weight
-        case .fixed, .preset: 1.0
+        case .fixed,
+             .preset: 1.0
         }
     }
 
     var widthWeight: CGFloat {
         switch windowWidth {
         case let .auto(weight): weight
-        case .fixed, .preset: 1.0
+        case .fixed,
+             .preset: 1.0
         }
     }
 
@@ -721,7 +723,9 @@ class NiriWindow: NiriNode {
         sizingMode == .maximized
     }
 
-    var handle: WindowHandle { WindowHandle(id: token) }
+    var handle: WindowHandle {
+        WindowHandle(id: token)
+    }
 
     func renderOffset(at time: TimeInterval = CACurrentMediaTime()) -> CGPoint {
         var offset = CGPoint.zero

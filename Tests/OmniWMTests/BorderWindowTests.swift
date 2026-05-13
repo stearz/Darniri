@@ -1,8 +1,7 @@
 import AppKit
 import CoreGraphics
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @MainActor
 private func makeBorderTestContext() -> CGContext? {

@@ -4,9 +4,13 @@ enum WindowRuleManageAction: String, Codable, CaseIterable, Identifiable {
     case auto
     case off
 
-    static var allCases: [WindowRuleManageAction] { [.auto] }
+    static var allCases: [WindowRuleManageAction] {
+        [.auto]
+    }
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -21,7 +25,9 @@ enum WindowRuleLayoutAction: String, Codable, CaseIterable, Identifiable {
     case tile
     case float
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {

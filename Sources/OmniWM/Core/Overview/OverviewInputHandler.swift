@@ -87,7 +87,8 @@ final class OverviewInputHandler {
         switch keyCode {
         case KeyCode.escape:
             return .init(action: .clearSearchOrDismiss, shouldConsume: true)
-        case KeyCode.returnKey, KeyCode.keypadEnter:
+        case KeyCode.returnKey,
+             KeyCode.keypadEnter:
             guard relevantModifiers.isEmpty else { break }
             return .init(action: .activateSelection, shouldConsume: true)
         case KeyCode.leftArrow:

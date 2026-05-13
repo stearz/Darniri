@@ -28,7 +28,8 @@ final class RunLoopResumeState<T: Sendable>: @unchecked Sendable {
         case let .pending(result):
             state = .resumed
             return result
-        case .waiting, .resumed:
+        case .waiting,
+             .resumed:
             return nil
         }
     }
@@ -44,7 +45,8 @@ final class RunLoopResumeState<T: Sendable>: @unchecked Sendable {
         case let .waiting(continuation):
             state = .resumed
             return continuation
-        case .pending, .resumed:
+        case .pending,
+             .resumed:
             return nil
         }
     }
@@ -123,7 +125,7 @@ extension Thread {
 }
 
 final class RunLoopAction: NSObject, Sendable {
-    nonisolated(unsafe) private var _action: (@Sendable (RunLoopJob) -> Void)?
+    private nonisolated(unsafe) var _action: (@Sendable (RunLoopJob) -> Void)?
     let job: RunLoopJob
     private let autoCheckCancelled: Bool
 

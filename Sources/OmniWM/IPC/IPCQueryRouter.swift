@@ -193,7 +193,8 @@ final class IPCQueryRouter {
 
     func displaysResult(_ request: IPCQueryRequest) -> IPCDisplaysQueryResult {
         let fieldSet = requestedFieldSet(from: request)
-        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         let displays = Monitor.sortedByPosition(controller.workspaceManager.monitors)
             .filter { monitor in
                 matchesDisplayQuery(monitor, selectors: request.selectors, currentMonitorId: currentMonitorId)
@@ -335,7 +336,8 @@ final class IPCQueryRouter {
             workspace: include("workspace", in: fields) ? workspaceDescriptor.map(workspaceRef(from:)) : nil,
             display: include("display", in: fields) ? monitor.map(displayRef(from:)) : nil,
             app: include("app", in: fields) ? appRef(from: appInfo) : nil,
-            title: include("title", in: fields) ? AXWindowService.titlePreferFast(windowId: UInt32(entry.windowId)) : nil,
+            title: include("title", in: fields) ? AXWindowService
+                .titlePreferFast(windowId: UInt32(entry.windowId)) : nil,
             frame: include("frame", in: fields) ? AXWindowService.framePreferFast(entry.axRef).map(rect(from:)) : nil,
             mode: include("mode", in: fields) ? ipcWindowMode(from: entry.mode) : nil,
             layoutReason: include("layout-reason", in: fields) ? ipcLayoutReason(from: entry.layoutReason) : nil,
@@ -376,9 +378,11 @@ final class IPCQueryRouter {
         return IPCWorkspaceQuerySnapshot(
             id: include("id", in: fields) ? workspaceIdentifier(descriptor.id) : nil,
             rawName: include("raw-name", in: fields) ? descriptor.name : nil,
-            displayName: include("display-name", in: fields) ? controller.settings.displayName(for: descriptor.name) : nil,
+            displayName: include("display-name", in: fields) ? controller.settings
+                .displayName(for: descriptor.name) : nil,
             number: include("number", in: fields) ? workspaceNumber(from: descriptor) : nil,
-            layout: include("layout", in: fields) ? ipcWorkspaceLayout(from: controller.settings.layoutType(for: descriptor.name)) : nil,
+            layout: include("layout", in: fields) ?
+                ipcWorkspaceLayout(from: controller.settings.layoutType(for: descriptor.name)) : nil,
             display: include("display", in: fields) ? monitor.map(displayRef(from:)) : nil,
             isFocused: include("is-focused", in: fields) ? (focusedWorkspaceId == descriptor.id) : nil,
             isVisible: include("is-visible", in: fields) ? visibleWorkspaceIds.contains(descriptor.id) : nil,
@@ -402,7 +406,8 @@ final class IPCQueryRouter {
             frame: include("frame", in: fields) ? rect(from: monitor.frame) : nil,
             visibleFrame: include("visible-frame", in: fields) ? rect(from: monitor.visibleFrame) : nil,
             hasNotch: include("has-notch", in: fields) ? monitor.hasNotch : nil,
-            orientation: include("orientation", in: fields) ? ipcDisplayOrientation(from: monitor.autoOrientation) : nil,
+            orientation: include("orientation", in: fields) ? ipcDisplayOrientation(from: monitor.autoOrientation) :
+                nil,
             activeWorkspace: include("active-workspace", in: fields) ? activeWorkspace.map(workspaceRef(from:)) : nil
         )
     }
@@ -417,7 +422,8 @@ final class IPCQueryRouter {
             switch IPCWindowOpaqueID.validate(windowSelector, expectingSessionToken: sessionToken) {
             case let .valid(pid, windowId):
                 guard entry.pid == pid, entry.windowId == windowId else { return false }
-            case .stale, .invalid:
+            case .stale,
+                 .invalid:
                 return false
             }
         }
@@ -429,7 +435,10 @@ final class IPCQueryRouter {
         }
 
         if let displaySelector = selectors.display,
-           !matchesDisplaySelector(monitor: controller.workspaceManager.monitor(for: entry.workspaceId), candidate: displaySelector)
+           !matchesDisplaySelector(
+               monitor: controller.workspaceManager.monitor(for: entry.workspaceId),
+               candidate: displaySelector
+           )
         {
             return false
         }
@@ -480,7 +489,10 @@ final class IPCQueryRouter {
         }
 
         if let displaySelector = selectors.display,
-           !matchesDisplaySelector(monitor: controller.workspaceManager.monitor(for: descriptor.id), candidate: displaySelector)
+           !matchesDisplaySelector(
+               monitor: controller.workspaceManager.monitor(for: descriptor.id),
+               candidate: displaySelector
+           )
         {
             return false
         }
@@ -694,7 +706,9 @@ final class IPCQueryRouter {
         }
     }
 
-    private func ipcWindowDecisionDisposition(from disposition: WindowDecisionDisposition) -> IPCWindowDecisionDisposition {
+    private func ipcWindowDecisionDisposition(from disposition: WindowDecisionDisposition)
+        -> IPCWindowDecisionDisposition
+    {
         switch disposition {
         case .managed:
             .managed

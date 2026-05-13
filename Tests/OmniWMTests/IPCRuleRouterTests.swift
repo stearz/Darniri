@@ -1,8 +1,7 @@
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
+import OmniWMIPC
+import Testing
 
 private let ipcRuleTestSessionToken = "ipc-rule-tests"
 private let ipcRuleTestAuthorization = "ipc-rule-tests-secret"
@@ -12,7 +11,7 @@ private func waitUntilRuleTest(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         await Task.yield()
     }
 
@@ -124,7 +123,7 @@ private func installDeferredRuleApplyRule(
         let secondId = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         controller.settings.appRules = [
             AppRule(id: firstId, bundleId: "com.example.one"),
-            AppRule(id: secondId, bundleId: "com.example.two", layout: .tile),
+            AppRule(id: secondId, bundleId: "com.example.two", layout: .tile)
         ]
 
         var fullRescanReasons: [RefreshReason] = []

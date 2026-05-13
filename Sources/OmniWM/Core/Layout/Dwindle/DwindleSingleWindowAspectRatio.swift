@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 
 enum DwindleSingleWindowAspectRatio: String, CaseIterable, Codable, Identifiable {
     case fill = "fill"
@@ -9,7 +9,9 @@ enum DwindleSingleWindowAspectRatio: String, CaseIterable, Codable, Identifiable
     case square = "1:1"
     case ratio3x2 = "3:2"
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {

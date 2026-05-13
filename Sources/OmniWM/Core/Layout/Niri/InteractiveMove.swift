@@ -35,4 +35,3 @@ struct MoveConfiguration {
 
     static let `default` = MoveConfiguration()
 }
-

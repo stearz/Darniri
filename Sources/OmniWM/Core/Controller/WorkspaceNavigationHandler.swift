@@ -260,8 +260,11 @@ final class WorkspaceNavigationHandler {
             saveNiriViewportState(for: currentWorkspace.id)
         }
 
-        guard let targetWorkspaceId = controller.workspaceManager.workspaceId(for: rawWorkspaceID, createIfMissing: false),
-              controller.workspaceManager.monitorForWorkspace(targetWorkspaceId) != nil
+        guard let targetWorkspaceId = controller.workspaceManager.workspaceId(
+            for: rawWorkspaceID,
+            createIfMissing: false
+        ),
+            controller.workspaceManager.monitorForWorkspace(targetWorkspaceId) != nil
         else {
             return
         }
@@ -734,7 +737,8 @@ final class WorkspaceNavigationHandler {
             }
 
             if let currentWorkspaceId,
-               let sourceMonitor = controller.workspaceManager.monitor(for: currentWorkspaceId) {
+               let sourceMonitor = controller.workspaceManager.monitor(for: currentWorkspaceId)
+            {
                 controller.layoutRefreshController.stopScrollAnimation(for: sourceMonitor.displayId)
             }
             var targetState = controller.workspaceManager.niriViewportState(for: target.id)
@@ -771,12 +775,16 @@ final class WorkspaceNavigationHandler {
         } else {
             if let currentWorkspaceId {
                 let sourceState = controller.workspaceManager.niriViewportState(for: currentWorkspaceId)
-                controller.recoverSourceFocusAfterMove(in: currentWorkspaceId, preferredNodeId: sourceState.selectedNodeId)
+                controller.recoverSourceFocusAfterMove(
+                    in: currentWorkspaceId,
+                    preferredNodeId: sourceState.selectedNodeId
+                )
             }
             let focusToken = currentWorkspaceId.flatMap { controller.resolveAndSetWorkspaceFocusToken(for: $0) }
 
             if let currentWorkspaceId,
-               let sourceMonitor = controller.workspaceManager.monitor(for: currentWorkspaceId) {
+               let sourceMonitor = controller.workspaceManager.monitor(for: currentWorkspaceId)
+            {
                 controller.layoutRefreshController.stopScrollAnimation(for: sourceMonitor.displayId)
             }
             controller.layoutRefreshController.commitWorkspaceTransition(

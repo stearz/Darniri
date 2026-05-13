@@ -1,7 +1,6 @@
 import AppKit
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite @MainActor struct QuakeTerminalSplitTests {
     private let containerBounds = CGRect(x: 0, y: 0, width: 400, height: 300)

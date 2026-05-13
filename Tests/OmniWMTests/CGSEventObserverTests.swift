@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @MainActor
 private final class RecordingCGSEventDelegate: CGSEventDelegate {
@@ -36,7 +35,7 @@ private func waitUntilCGSEvents(
     iterations: Int = 100,
     condition: () -> Bool
 ) async {
-    for _ in 0..<iterations where !condition() {
+    for _ in 0 ..< iterations where !condition() {
         await waitForMainRunLoopTurn()
     }
 
@@ -95,7 +94,7 @@ private func waitUntilCGSEvents(
 
             #expect(recorder.events == [
                 .frameChanged(windowId: 71),
-                .created(windowId: 72, spaceId: 55),
+                .created(windowId: 72, spaceId: 55)
             ])
         }
     }
@@ -122,7 +121,7 @@ private func waitUntilCGSEvents(
                 .created(windowId: 81, spaceId: 10),
                 .frameChanged(windowId: 81),
                 .titleChanged(windowId: 81),
-                .frameChanged(windowId: 82),
+                .frameChanged(windowId: 82)
             ])
 
             let snapshot = observer.cgsDebugSnapshot()
@@ -150,7 +149,7 @@ private func waitUntilCGSEvents(
 
             #expect(recorder.events == [
                 .frameChanged(windowId: 92),
-                .closed(windowId: 91),
+                .closed(windowId: 91)
             ])
             #expect(observer.cgsDebugSnapshot().clearedFrameEventsOnDestroy == 1)
         }
@@ -174,7 +173,7 @@ private func waitUntilCGSEvents(
 
             #expect(recorder.events == [
                 .frameChanged(windowId: 102),
-                .destroyed(windowId: 101, spaceId: 44),
+                .destroyed(windowId: 101, spaceId: 44)
             ])
             #expect(observer.cgsDebugSnapshot().clearedFrameEventsOnDestroy == 1)
         }
@@ -203,7 +202,7 @@ private func waitUntilCGSEvents(
             #expect(recorder.events == [
                 .created(windowId: 111, spaceId: 12),
                 .frameChanged(windowId: 111),
-                .titleChanged(windowId: 111),
+                .titleChanged(windowId: 111)
             ])
 
             let snapshot = observer.cgsDebugSnapshot()

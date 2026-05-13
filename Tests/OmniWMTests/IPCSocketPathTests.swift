@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 import OmniWMIPC
+import Testing
 
 @Suite struct IPCSocketPathTests {
     @Test func environmentOverrideWins() {

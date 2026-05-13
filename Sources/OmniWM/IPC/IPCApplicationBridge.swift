@@ -68,7 +68,12 @@ actor IPCApplicationBridge {
                     return .success(id: request.id, kind: .ping, result: IPCResult(pong: queryRouter.pingResult()))
                 case .version:
                     return .success(id: request.id, kind: .version, result: versionResult)
-                case .command, .query, .rule, .workspace, .window, .subscribe:
+                case .command,
+                     .query,
+                     .rule,
+                     .workspace,
+                     .window,
+                     .subscribe:
                     return .failure(
                         id: request.id,
                         kind: IPCResponseKind(requestKind: request.kind),

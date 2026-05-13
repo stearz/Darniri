@@ -11,7 +11,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case hotkeys
     case quakeTerminal
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {

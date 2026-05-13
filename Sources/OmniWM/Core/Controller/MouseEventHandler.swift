@@ -12,7 +12,7 @@ private let mouseWheelRelevantModifierFlags: CGEventFlags = [
     .maskAlternate,
     .maskShift,
     .maskControl,
-    .maskCommand,
+    .maskCommand
 ]
 
 @MainActor
@@ -170,7 +170,7 @@ final class MouseEventHandler {
         var verticalWheelTracker = NiriScrollTracker(tick: niriWheelScrollTickAmount)
     }
 
-    nonisolated(unsafe) static weak var _instance: MouseEventHandler?
+    nonisolated(unsafe) weak static var _instance: MouseEventHandler?
 
     weak var controller: WMController?
     var state = State()
@@ -976,7 +976,8 @@ final class MouseEventHandler {
         }
         guard !controller.workspaceManager.isNonManagedFocusActive,
               !controller.workspaceManager.hasPendingNativeFullscreenTransition,
-              !controller.workspaceManager.isAppFullscreenActive else {
+              !controller.workspaceManager.isAppFullscreenActive
+        else {
             return
         }
 
@@ -989,7 +990,8 @@ final class MouseEventHandler {
         let token = focusFollowsMouseToken(for: target)
 
         if token != state.lastFocusFollowsMouseToken,
-           token != controller.workspaceManager.focusedToken {
+           token != controller.workspaceManager.focusedToken
+        {
             state.lastFocusFollowsMouseTime = now
             state.lastFocusFollowsMouseToken = token
             activateFocusFollowsMouseTarget(target)
@@ -1000,7 +1002,8 @@ final class MouseEventHandler {
         guard let controller, let workspace = controller.activeWorkspace() else { return nil }
 
         switch controller.settings.layoutType(for: workspace.name) {
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             guard let engine = controller.niriEngine,
                   let window = engine.hitTestFocusableWindow(point: location, in: workspace.id)
             else {
@@ -1146,7 +1149,8 @@ final class MouseEventHandler {
             state.gestureLastAverageY = avgY
             state.gesturePhase = .armed
 
-        case .armed, .committed:
+        case .armed,
+             .committed:
             guard let lockedContext = state.lockedGestureContext else {
                 assertionFailure("Active gesture missing locked context")
                 abortActiveGestureIfNeeded()
@@ -1412,7 +1416,8 @@ final class MouseEventHandler {
         }
 
         switch controller.settings.layoutType(for: workspace.name) {
-        case .niri, .defaultLayout:
+        case .niri,
+             .defaultLayout:
             return (engine, workspace.id, monitor)
         case .dwindle:
             return nil
@@ -1478,7 +1483,7 @@ final class MouseEventHandler {
         engine.updateFocusTimestamp(for: window.id)
     }
 
-    nonisolated private static func processTapCallback(
+    private nonisolated static func processTapCallback(
         type: CGEventType,
         event: CGEvent,
         isMainThread: Bool = Thread.isMainThread
@@ -1550,7 +1555,7 @@ final class MouseEventHandler {
         )?.value
     }
 
-    nonisolated private static func resolvedMouseWheelColumnDelta(
+    private nonisolated static func resolvedMouseWheelColumnDelta(
         deltaX: CGFloat,
         deltaY: CGFloat,
         allowVerticalFallback: Bool
@@ -1567,7 +1572,7 @@ final class MouseEventHandler {
         return MouseWheelColumnDelta(axis: .vertical, value: deltaY)
     }
 
-    nonisolated private static func processGestureTapCallback(
+    private nonisolated static func processGestureTapCallback(
         type: CGEventType,
         event: CGEvent,
         isMainThread: Bool = Thread.isMainThread
@@ -1621,12 +1626,12 @@ final class MouseEventHandler {
         )
     }
 
-    nonisolated private static func sanitizedGestureTouchPosition(_ position: CGPoint) -> CGPoint? {
+    private nonisolated static func sanitizedGestureTouchPosition(_ position: CGPoint) -> CGPoint? {
         guard position.x.isFinite, position.y.isFinite else { return nil }
         return position
     }
 
-    nonisolated private static func makeGestureEventSnapshot(from cgEvent: CGEvent) -> GestureEventSnapshot? {
+    private nonisolated static func makeGestureEventSnapshot(from cgEvent: CGEvent) -> GestureEventSnapshot? {
         guard let nsEvent = NSEvent(cgEvent: cgEvent) else { return nil }
         return GestureEventSnapshot(
             location: ScreenCoordinateSpace.toAppKit(point: cgEvent.location),

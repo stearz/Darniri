@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct OverviewScrollBoundsTests {
     @Test @MainActor func boundsAreZeroWhenContentFitsViewport() {

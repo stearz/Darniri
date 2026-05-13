@@ -1,8 +1,7 @@
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
+import OmniWMIPC
+import Testing
 
 private let ipcCommandRouterSessionToken = "ipc-command-router-tests"
 
@@ -497,7 +496,12 @@ private func prepareIPCNiriState(
             mode: .floating
         )
         controller.workspaceManager.updateFloatingGeometry(
-            frame: CGRect(x: monitor.visibleFrame.minX - 1600, y: monitor.visibleFrame.minY - 1200, width: 320, height: 200),
+            frame: CGRect(
+                x: monitor.visibleFrame.minX - 1600,
+                y: monitor.visibleFrame.minY - 1200,
+                width: 320,
+                height: 200
+            ),
             for: token,
             referenceMonitor: monitor
         )

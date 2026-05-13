@@ -40,7 +40,7 @@ final class DisplayConfigurationObserver: NSObject {
         onEvent = handler
     }
 
-    @objc nonisolated private func screensDidChange() {
+    @objc private nonisolated func screensDidChange() {
         Task { @MainActor [weak self] in
             self?.debouncedScreenChange()
         }

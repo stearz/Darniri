@@ -87,8 +87,8 @@ struct GeneralSettingsTab: View {
                     "OmniWM checks the latest GitHub release once per day on launch. "
                         + "Updates stay manual and the popup includes both the GitHub page and the Homebrew command."
                 )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
 
             Section("Layout") {
@@ -409,8 +409,8 @@ private struct GlobalNiriSettingsSection: View {
                                 controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                             }
                         ), format: .number)
-                        .frame(width: 40)
-                        .multilineTextAlignment(.trailing)
+                            .frame(width: 40)
+                            .multilineTextAlignment(.trailing)
                         Text("%")
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                         Button(role: .destructive) {

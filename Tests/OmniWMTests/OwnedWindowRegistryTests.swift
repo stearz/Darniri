@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeOwnedWindowTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.owned-window.test.\(UUID().uuidString)"

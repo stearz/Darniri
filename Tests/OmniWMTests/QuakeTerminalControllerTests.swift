@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeQuakeTerminalTestDefaults() -> UserDefaults {
     let suiteName = "com.omniwm.quake-terminal-focus.test.\(UUID().uuidString)"
@@ -47,7 +46,7 @@ private final class QuakeTerminalFocusBox<Value>: @unchecked Sendable {
 
 @MainActor
 private func settleQuakeTerminalFocusUpdates() async {
-    for _ in 0..<5 {
+    for _ in 0 ..< 5 {
         await Task.yield()
     }
 }

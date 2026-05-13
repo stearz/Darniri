@@ -1,7 +1,6 @@
 import Foundation
 
 struct OverviewSearchFilter {
-
     static func filterWindows(
         in layout: inout OverviewLayout,
         query: String

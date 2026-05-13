@@ -239,7 +239,7 @@ enum CLIRenderer {
             rows: [[
                 payload.display?.name ?? "-",
                 payload.workspace?.displayName ?? "-",
-                payload.focusedApp?.name ?? "-",
+                payload.focusedApp?.name ?? "-"
             ]],
             format: format
         )
@@ -272,7 +272,7 @@ enum CLIRenderer {
                 window.app?.name ?? "-",
                 window.title ?? "-",
                 window.workspace?.displayName ?? "-",
-                frameDescription(window.frame),
+                frameDescription(window.frame)
             ]],
             format: format
         )
@@ -290,7 +290,7 @@ enum CLIRenderer {
                 window.mode?.rawValue ?? "-",
                 boolDescription(window.isFocused),
                 boolDescription(window.isVisible),
-                boolDescription(window.isScratchpad),
+                boolDescription(window.isScratchpad)
             ]
         }
 
@@ -311,7 +311,7 @@ enum CLIRenderer {
                 boolDescription(workspace.isCurrent),
                 boolDescription(workspace.isVisible),
                 countsDescription(workspace.counts),
-                workspace.focusedWindowId ?? "-",
+                workspace.focusedWindowId ?? "-"
             ]
         }
 
@@ -331,7 +331,7 @@ enum CLIRenderer {
                 boolDescription(display.isCurrent),
                 display.orientation?.rawValue ?? "-",
                 display.activeWorkspace?.displayName ?? "-",
-                frameDescription(display.frame),
+                frameDescription(display.frame)
             ]
         }
 
@@ -352,7 +352,7 @@ enum CLIRenderer {
                 rule.assignToWorkspace ?? "-",
                 rule.titleRegex ?? "-",
                 String(rule.specificity),
-                boolDescription(rule.isValid),
+                boolDescription(rule.isValid)
             ]
         }
 
@@ -369,7 +369,7 @@ enum CLIRenderer {
                 query.name.rawValue,
                 query.summary,
                 dashIfEmpty(query.selectors.map(\.name.flag).joined(separator: ", ")),
-                dashIfEmpty(query.fields.joined(separator: ", ")),
+                dashIfEmpty(query.fields.joined(separator: ", "))
             ]
         }
 
@@ -397,7 +397,7 @@ enum CLIRenderer {
                         return option.flag
                     }
                     .joined(separator: ", ")
-                ),
+                )
             ]
         }
 
@@ -446,7 +446,7 @@ enum CLIRenderer {
             ["rule-actions", String(payload.ruleActions.count)],
             ["workspace-actions", String(payload.workspaceActions.count)],
             ["window-actions", String(payload.windowActions.count)],
-            ["subscriptions", String(payload.subscriptions.count)],
+            ["subscriptions", String(payload.subscriptions.count)]
         ]
 
         return formatRows(headers: ["CAPABILITY", "VALUE"], rows: rows, format: format)
@@ -469,7 +469,7 @@ enum CLIRenderer {
             ["layout-decision", window.layoutDecisionKind.rawValue],
             ["admission", window.admissionOutcome.rawValue],
             ["workspace", window.workspace?.displayName ?? "-"],
-            ["matched-rule-id", window.matchedRuleId ?? "-"],
+            ["matched-rule-id", window.matchedRuleId ?? "-"]
         ]
 
         return formatRows(headers: ["FIELD", "VALUE"], rows: rows, format: format)
@@ -503,7 +503,8 @@ enum CLIRenderer {
             return ""
         case .tsv:
             return ([headers] + rows).map { $0.joined(separator: "\t") }.joined(separator: "\n")
-        case .text, .table:
+        case .text,
+             .table:
             return renderTable(headers: headers, rows: rows)
         }
     }

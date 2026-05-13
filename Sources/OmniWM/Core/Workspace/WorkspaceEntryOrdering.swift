@@ -17,7 +17,8 @@ enum WorkspaceEntryOrdering {
             return entries
         }
 
-        let fallbackOrder = Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.handle.id, $0.offset) })
+        let fallbackOrder = Dictionary(uniqueKeysWithValues: entries.enumerated()
+            .map { ($0.element.handle.id, $0.offset) })
 
         return entries.sorted { lhs, rhs in
             let lhsKey = orderMap[lhs.handle.id] ?? SortKey(group: 2, primary: Int.max, secondary: Int.max)

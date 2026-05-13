@@ -24,7 +24,7 @@ final class SettingsWindowController {
             controller: controller,
             updateCoordinator: updateCoordinator
         )
-            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
 
         let hosting = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hosting)

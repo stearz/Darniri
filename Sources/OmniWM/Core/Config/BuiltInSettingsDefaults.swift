@@ -4,7 +4,7 @@ enum BuiltInSettingsDefaults {
     static let niriColumnWidthPresets: [Double] = [
         0.33333333333333331,
         0.5,
-        0.66666666666666663,
+        0.66666666666666663
     ]
 
     static let workspaceConfigurations: [WorkspaceConfiguration] = [
@@ -51,7 +51,7 @@ enum BuiltInSettingsDefaults {
             displayName: "\u{1F680}",
             monitorAssignment: .secondary,
             layoutType: .niri
-        ),
+        )
     ]
 
     static let appRules: [AppRule] = [
@@ -132,7 +132,7 @@ enum BuiltInSettingsDefaults {
             bundleId: "com.apple.MobileSMS",
             minWidth: 660,
             minHeight: 320
-        ),
+        )
     ]
 
     private static func uuid(_ value: String) -> UUID {

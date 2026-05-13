@@ -49,7 +49,8 @@ final class FocusNotificationDispatcher {
         }
         var focusChanged = false
 
-        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?.id
+        let currentMonitorId = controller.workspaceManager.interactionMonitorId ?? controller.monitorForInteraction()?
+            .id
         let currentWorkspaceId = controller.workspaceManager.focusedToken
             .flatMap { controller.workspaceManager.workspace(for: $0) }
             ?? currentMonitorId.flatMap { controller.workspaceManager.currentActiveWorkspace(on: $0)?.id }
@@ -68,10 +69,16 @@ final class FocusNotificationDispatcher {
                 info[OmniWMFocusNotificationKey.newWindowToken] = newToken
                 info[OmniWMFocusNotificationKey.newHandleId] = newToken
             }
-            if let oldWindowId = lastNotifiedFocusedWindowId { info[OmniWMFocusNotificationKey.oldWindowId] = oldWindowId }
+            if let oldWindowId = lastNotifiedFocusedWindowId {
+                info[OmniWMFocusNotificationKey.oldWindowId] = oldWindowId
+            }
             if let newWindowId = currentWindowId { info[OmniWMFocusNotificationKey.newWindowId] = newWindowId }
 
-            NotificationCenter.default.post(name: .omniwmFocusChanged, object: controller, userInfo: info.isEmpty ? nil : info)
+            NotificationCenter.default.post(
+                name: .omniwmFocusChanged,
+                object: controller,
+                userInfo: info.isEmpty ? nil : info
+            )
             lastNotifiedFocusedToken = currentToken
             lastNotifiedFocusedWindowId = currentWindowId
             focusChanged = true
@@ -80,11 +87,13 @@ final class FocusNotificationDispatcher {
         var workspaceInfo: [AnyHashable: Any] = [:]
         if let oldId = lastNotifiedWorkspaceId {
             workspaceInfo[OmniWMFocusNotificationKey.oldWorkspaceId] = oldId
-            if let name = controller.workspaceManager.descriptor(for: oldId)?.name { workspaceInfo[OmniWMFocusNotificationKey.oldWorkspaceName] = name }
+            if let name = controller.workspaceManager.descriptor(for: oldId)?
+                .name { workspaceInfo[OmniWMFocusNotificationKey.oldWorkspaceName] = name }
         }
         if let newId = currentWorkspaceId {
             workspaceInfo[OmniWMFocusNotificationKey.newWorkspaceId] = newId
-            if let name = controller.workspaceManager.descriptor(for: newId)?.name { workspaceInfo[OmniWMFocusNotificationKey.newWorkspaceName] = name }
+            if let name = controller.workspaceManager.descriptor(for: newId)?
+                .name { workspaceInfo[OmniWMFocusNotificationKey.newWorkspaceName] = name }
         }
         let workspaceChanged = postNotificationIfChanged(
             name: .omniwmFocusedWorkspaceChanged,
@@ -97,11 +106,13 @@ final class FocusNotificationDispatcher {
         var monitorInfo: [AnyHashable: Any] = [:]
         if let oldId = lastNotifiedMonitorId {
             monitorInfo[OmniWMFocusNotificationKey.oldMonitorIndex] = oldId.displayId
-            if let name = controller.workspaceManager.monitor(byId: oldId)?.name { monitorInfo[OmniWMFocusNotificationKey.oldMonitorName] = name }
+            if let name = controller.workspaceManager.monitor(byId: oldId)?
+                .name { monitorInfo[OmniWMFocusNotificationKey.oldMonitorName] = name }
         }
         if let newId = currentMonitorId {
             monitorInfo[OmniWMFocusNotificationKey.newMonitorIndex] = newId.displayId
-            if let name = controller.workspaceManager.monitor(byId: newId)?.name { monitorInfo[OmniWMFocusNotificationKey.newMonitorName] = name }
+            if let name = controller.workspaceManager.monitor(byId: newId)?
+                .name { monitorInfo[OmniWMFocusNotificationKey.newMonitorName] = name }
         }
         let monitorChanged = postNotificationIfChanged(
             name: .omniwmFocusedMonitorChanged,

@@ -34,7 +34,7 @@ final class MouseWarpHandler: NSObject {
         var debugCounters = DebugCounters()
     }
 
-    nonisolated(unsafe) static weak var _instance: MouseWarpHandler?
+    nonisolated(unsafe) weak static var _instance: MouseWarpHandler?
     static let cooldownSeconds: TimeInterval = 0.05
 
     weak var controller: WMController?
@@ -140,7 +140,7 @@ final class MouseWarpHandler: NSObject {
         enqueuePendingWarpMove(at: location)
     }
 
-    nonisolated private static func processTapCallback(
+    private nonisolated static func processTapCallback(
         event: CGEvent,
         isMainThread: Bool = Thread.isMainThread
     ) -> Bool {
@@ -173,7 +173,8 @@ final class MouseWarpHandler: NSObject {
                    in: effectiveOrder,
                    monitors: monitors,
                    margin: margin
-               ) {
+               )
+            {
                 return
             }
             mouseWarpClampCursorToNearestMonitor(location: location, monitors: monitors, margin: margin, axis: axis)
@@ -197,7 +198,8 @@ final class MouseWarpHandler: NSObject {
                            in: effectiveOrder,
                            monitors: monitors,
                            margin: margin
-                       ) {
+                       )
+                    {
                         return
                     }
                     mouseWarpBackToMonitor(lastMonitor, location: location, margin: margin, axis: axis)
@@ -282,7 +284,8 @@ final class MouseWarpHandler: NSObject {
                   in: effectiveOrder,
                   monitors: monitors,
                   axis: .vertical
-              ) else {
+              )
+        else {
             return false
         }
 
@@ -481,7 +484,8 @@ final class MouseWarpHandler: NSObject {
                 x = frame.minX + margin + 1
             case .right:
                 x = frame.maxX - margin - 1
-            case .top, .bottom:
+            case .top,
+                 .bottom:
                 x = frame.minX + (clampedRatio * frame.width)
             }
 
@@ -494,7 +498,8 @@ final class MouseWarpHandler: NSObject {
                 y = frame.maxY - margin - 1
             case .bottom:
                 y = frame.minY + margin + 1
-            case .left, .right:
+            case .left,
+                 .right:
                 y = frame.maxY - (clampedRatio * frame.height)
             }
 
@@ -561,9 +566,11 @@ final class MouseWarpHandler: NSObject {
 
         var prefersLeadingMonitor: Bool {
             switch self {
-            case .left, .top:
+            case .left,
+                 .top:
                 true
-            case .right, .bottom:
+            case .right,
+                 .bottom:
                 false
             }
         }
@@ -603,7 +610,8 @@ final class MouseWarpHandler: NSObject {
 
     private func flushPendingWarpEvents() {
         guard state.pendingWarpEvents.hasPendingEvents,
-              let pendingLocation = state.pendingWarpEvents.pendingLocation else {
+              let pendingLocation = state.pendingWarpEvents.pendingLocation
+        else {
             state.pendingWarpEvents.clear()
             return
         }

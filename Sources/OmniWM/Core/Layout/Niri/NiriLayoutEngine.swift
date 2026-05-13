@@ -6,7 +6,9 @@ enum CenterFocusedColumn: String, CaseIterable, Codable, Identifiable {
     case always
     case onOverflow
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -24,7 +26,9 @@ enum SingleWindowAspectRatio: String, CaseIterable, Codable, Identifiable {
     case ratio21x9 = "21:9"
     case square = "1:1"
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -178,7 +182,9 @@ final class NiriLayoutEngine {
         }
     }
 
-    func resolvedColumnResetWidth(in workspaceId: WorkspaceDescriptor.ID) -> (proportion: CGFloat, presetWidthIdx: Int?) {
+    func resolvedColumnResetWidth(in workspaceId: WorkspaceDescriptor
+        .ID) -> (proportion: CGFloat, presetWidthIdx: Int?)
+    {
         if let defaultColumnWidth {
             return (defaultColumnWidth, matchingPresetIndex(for: defaultColumnWidth))
         }

@@ -131,13 +131,14 @@ swift build
 swift test
 
 # Code quality
-make lint          # SwiftLint check
-make format        # SwiftFormat
-make check         # Verify formatting
+make format        # Rewrite Swift formatting with SwiftFormat
+make format-check  # Verify SwiftFormat output without rewriting
+make lint          # Run SwiftLint diagnostics
+make check         # Verify formatting, lint, audit, build, and test
 
 # Create distributable app bundle
-./Scripts/package-app.sh release true    # Build, sign, notarize
-./Scripts/package-app.sh debug false     # Debug build only
+./Scripts/package-app.sh release true    # Run checks, build, sign, notarize
+./Scripts/package-app.sh debug false     # Run checks, debug build only
 ```
 
 ---

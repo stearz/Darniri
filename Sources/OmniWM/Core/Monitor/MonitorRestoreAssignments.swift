@@ -160,7 +160,10 @@ private func resolveBestRestoreMatches(
     return search(snapshotIndex: 0, availableMonitors: monitors).assignmentsBySnapshotIndex
 }
 
-private func restoreMatchScore(snapshot: MonitorRestoreKey, monitor: Monitor) -> (namePenalty: Int, geometryDelta: CGFloat) {
+private func restoreMatchScore(
+    snapshot: MonitorRestoreKey,
+    monitor: Monitor
+) -> (namePenalty: Int, geometryDelta: CGFloat) {
     let namePenalty = snapshot.name.localizedCaseInsensitiveCompare(monitor.name) == .orderedSame ? 0 : 1
     let anchorDistance = snapshot.anchorPoint.distanceSquared(to: monitor.workspaceAnchorPoint)
     let widthDelta = abs(snapshot.frameSize.width - monitor.frame.width)

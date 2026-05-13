@@ -40,7 +40,7 @@ struct SponsorsView: View {
 
     private var visibleSponsors: ArraySlice<Sponsor> {
         let endIndex = min(currentIndex + visibleCount, sponsors.count)
-        return sponsors[currentIndex..<endIndex]
+        return sponsors[currentIndex ..< endIndex]
     }
 
     private func tier(for index: Int) -> SponsorTier {
@@ -229,17 +229,25 @@ enum SponsorTier {
     var gradientColors: [Color] {
         switch self {
         case .gold:
-            return [Color(red: 1.0, green: 0.84, blue: 0.0),
-                    Color(red: 1.0, green: 0.55, blue: 0.0)]
+            return [
+                Color(red: 1.0, green: 0.84, blue: 0.0),
+                Color(red: 1.0, green: 0.55, blue: 0.0)
+            ]
         case .silver:
-            return [Color(red: 0.91, green: 0.91, blue: 0.91),
-                    Color(red: 0.66, green: 0.75, blue: 0.85)]
+            return [
+                Color(red: 0.91, green: 0.91, blue: 0.91),
+                Color(red: 0.66, green: 0.75, blue: 0.85)
+            ]
         case .bronze:
-            return [Color(red: 0.82, green: 0.41, blue: 0.12),
-                    Color(red: 0.42, green: 0.24, blue: 0.10)]
+            return [
+                Color(red: 0.82, green: 0.41, blue: 0.12),
+                Color(red: 0.42, green: 0.24, blue: 0.10)
+            ]
         case .standard:
-            return [Color(red: 0.16, green: 0.62, blue: 0.56),
-                    Color(red: 0.12, green: 0.44, blue: 0.36)]
+            return [
+                Color(red: 0.16, green: 0.62, blue: 0.56),
+                Color(red: 0.12, green: 0.44, blue: 0.36)
+            ]
         }
     }
 
@@ -349,7 +357,8 @@ struct GlowingAvatarView: View {
 
     private var avatarImage: NSImage? {
         guard let url = Bundle.module.url(forResource: imageName, withExtension: imageExtension),
-              let image = NSImage(contentsOf: url) else {
+              let image = NSImage(contentsOf: url)
+        else {
             return nil
         }
         return image

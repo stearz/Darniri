@@ -1,10 +1,9 @@
 import AppKit
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
 @testable import OmniWMCtl
+import OmniWMIPC
+import Testing
 
 private let ipcServerTestSessionToken = "ipc-server-tests"
 
@@ -107,7 +106,7 @@ private func readRawLine(from handle: FileHandle) throws -> Data? {
 
         let count = Darwin.read(handle.fileDescriptor, &chunk, chunk.count)
         if count > 0 {
-            buffer.append(contentsOf: chunk[0..<count])
+            buffer.append(contentsOf: chunk[0 ..< count])
             continue
         }
         if count == 0 {
@@ -1036,7 +1035,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         }
     }
 
-    @Test func focusedMonitorSubscriptionHonorsNoSendInitialAndWorkspaceChangesStayOnActiveWorkspaceChannel() async throws {
+    @Test func focusedMonitorSubscriptionHonorsNoSendInitialAndWorkspaceChangesStayOnActiveWorkspaceChannel(
+    ) async throws {
         let socketPath = makeIPCTestSocketPath()
         let controller = makeLayoutPlanTestController()
         let monitor = try #require(controller.workspaceManager.monitors.first)
@@ -1149,7 +1149,8 @@ private func makeTestFocusEvent(id: String, title: String) -> IPCEventEnvelope {
         }
 
         if case let .displays(payload) = thirdEvent.result.payload {
-            #expect(payload.displays.contains { $0.id == "display:\(fixture.secondaryMonitor.displayId)" && $0.isCurrent == true })
+            #expect(payload.displays
+                .contains { $0.id == "display:\(fixture.secondaryMonitor.displayId)" && $0.isCurrent == true })
         } else {
             Issue.record("Expected displays event payload")
         }

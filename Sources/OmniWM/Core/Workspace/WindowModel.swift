@@ -74,7 +74,8 @@ final class WindowModel {
 
         var restoresViaFloatingState: Bool {
             switch reason {
-            case .workspaceInactive, .scratchpad:
+            case .workspaceInactive,
+                 .scratchpad:
                 true
             case .layoutTransient:
                 false
@@ -152,9 +153,17 @@ final class WindowModel {
         var cachedConstraints: WindowSizeConstraints?
         var constraintsCacheTime: Date?
 
-        var token: WindowToken { handle.id }
-        var pid: pid_t { token.pid }
-        var windowId: Int { token.windowId }
+        var token: WindowToken {
+            handle.id
+        }
+
+        var pid: pid_t {
+            token.pid
+        }
+
+        var windowId: Int {
+            token.windowId
+        }
 
         init(
             handle: WindowHandle,
@@ -272,7 +281,12 @@ final class WindowModel {
     private func appendIndexes(for entry: Entry) {
         let token = entry.token
         entryByWindowId[entry.windowId] = entry
-        appendToken(token, to: entry.workspaceId, tokensByKey: &tokensByWorkspace, tokenIndexByKey: &tokenIndexByWorkspace)
+        appendToken(
+            token,
+            to: entry.workspaceId,
+            tokensByKey: &tokensByWorkspace,
+            tokenIndexByKey: &tokenIndexByWorkspace
+        )
         appendToken(
             token,
             to: WorkspaceModeKey(workspaceId: entry.workspaceId, mode: entry.mode),
@@ -287,7 +301,12 @@ final class WindowModel {
         let windowId = windowId ?? entry.windowId
 
         entryByWindowId.removeValue(forKey: windowId)
-        removeToken(token, from: entry.workspaceId, tokensByKey: &tokensByWorkspace, tokenIndexByKey: &tokenIndexByWorkspace)
+        removeToken(
+            token,
+            from: entry.workspaceId,
+            tokensByKey: &tokensByWorkspace,
+            tokenIndexByKey: &tokenIndexByWorkspace
+        )
         removeToken(
             token,
             from: WorkspaceModeKey(workspaceId: entry.workspaceId, mode: entry.mode),
@@ -424,7 +443,12 @@ final class WindowModel {
         guard let entry = entries[token] else { return }
         let oldWorkspace = entry.workspaceId
         if oldWorkspace != workspace {
-            removeToken(token, from: oldWorkspace, tokensByKey: &tokensByWorkspace, tokenIndexByKey: &tokenIndexByWorkspace)
+            removeToken(
+                token,
+                from: oldWorkspace,
+                tokensByKey: &tokensByWorkspace,
+                tokenIndexByKey: &tokenIndexByWorkspace
+            )
             removeToken(
                 token,
                 from: WorkspaceModeKey(workspaceId: oldWorkspace, mode: entry.mode),

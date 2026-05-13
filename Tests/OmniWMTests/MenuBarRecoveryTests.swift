@@ -1,9 +1,8 @@
 import AppKit
 import CoreGraphics
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeBarSettings(
     notchAware: Bool = true,
@@ -51,10 +50,22 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
 
     @Test func canCollapseSafelyUsesNormalizedScreenSpaceOrdering() {
         #expect(HiddenBarController.canCollapseSafely(omniMinX: 200, separatorMinX: 100, layoutDirection: .leftToRight))
-        #expect(!HiddenBarController.canCollapseSafely(omniMinX: 100, separatorMinX: 200, layoutDirection: .leftToRight))
+        #expect(!HiddenBarController.canCollapseSafely(
+            omniMinX: 100,
+            separatorMinX: 200,
+            layoutDirection: .leftToRight
+        ))
         #expect(HiddenBarController.canCollapseSafely(omniMinX: 100, separatorMinX: 200, layoutDirection: .rightToLeft))
-        #expect(!HiddenBarController.canCollapseSafely(omniMinX: 200, separatorMinX: 100, layoutDirection: .rightToLeft))
-        #expect(!HiddenBarController.canCollapseSafely(omniMinX: nil, separatorMinX: 100, layoutDirection: .leftToRight))
+        #expect(!HiddenBarController.canCollapseSafely(
+            omniMinX: 200,
+            separatorMinX: 100,
+            layoutDirection: .rightToLeft
+        ))
+        #expect(!HiddenBarController.canCollapseSafely(
+            omniMinX: nil,
+            separatorMinX: 100,
+            layoutDirection: .leftToRight
+        ))
     }
 }
 

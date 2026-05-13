@@ -1,10 +1,9 @@
 import AppKit
 import Foundation
-import Testing
-
-import OmniWMIPC
 @testable import OmniWM
 @testable import OmniWMCtl
+import OmniWMIPC
+import Testing
 
 private func makeAppDelegateIPCTestSocketPath() -> String {
     "/tmp/owm-ad-\(UUID().uuidString.prefix(8)).sock"

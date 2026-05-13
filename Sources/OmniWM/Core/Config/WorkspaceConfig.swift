@@ -6,7 +6,9 @@ enum LayoutType: String, Codable, CaseIterable, Identifiable {
     case niri
     case dwindle
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {

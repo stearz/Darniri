@@ -614,7 +614,9 @@ final class MenuToggleSwitchView: NSView {
     private var trackingAreaRef: NSTrackingArea?
     private var isHovered: Bool = false
 
-    override var isFlipped: Bool { true }
+    override var isFlipped: Bool {
+        true
+    }
 
     init(isOn: Bool, motionPolicy: MotionPolicy) {
         self.isOn = isOn

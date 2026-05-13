@@ -79,7 +79,8 @@ extension WindowCapabilityResolutionSource {
 
     var stableKey: String {
         switch self {
-        case let .userOverride(bundleId), let .bundleIdRule(bundleId):
+        case let .userOverride(bundleId),
+             let .bundleIdRule(bundleId):
             return bundleId
         case let .roleSubroleRule(role, subrole):
             return "\(role)/\(subrole ?? "*")"

@@ -1,8 +1,7 @@
 import AppKit
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 @Suite struct WorkspaceBarDataSourceTests {
     @Test @MainActor func floatingOnlyWorkspaceIsHiddenWhenFloatingWindowsAreDisabled() throws {

@@ -148,7 +148,8 @@ final class ServiceLifecycleManager {
         switch event {
         case let .disconnected(monitorId, outputId):
             handleMonitorDisconnect(monitorId: monitorId, outputId: outputId)
-        case .connected, .reconfigured:
+        case .connected,
+             .reconfigured:
             break
         }
         handleMonitorConfigurationChanged()
@@ -156,7 +157,10 @@ final class ServiceLifecycleManager {
 
     private func handleMonitorDisconnect(monitorId: Monitor.ID, outputId: OutputId) {
         guard let controller else { return }
-        controller.layoutRefreshController.cleanupForMonitorDisconnect(displayId: outputId.displayId, migrateAnimations: false)
+        controller.layoutRefreshController.cleanupForMonitorDisconnect(
+            displayId: outputId.displayId,
+            migrateAnimations: false
+        )
 
         controller.niriEngine?.cleanupRemovedMonitor(monitorId)
         controller.dwindleEngine?.cleanupRemovedMonitor(monitorId)

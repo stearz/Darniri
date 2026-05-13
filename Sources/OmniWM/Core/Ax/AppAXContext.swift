@@ -7,13 +7,21 @@ final class LockedWindowIdSet: @unchecked Sendable {
     private var ids: Set<Int> = []
 
     func insert(_ id: Int) {
-        lock.lock(); ids.insert(id); lock.unlock()
+        lock.lock()
+        ids.insert(id)
+        lock.unlock()
     }
+
     func remove(_ id: Int) {
-        lock.lock(); ids.remove(id); lock.unlock()
+        lock.lock()
+        ids.remove(id)
+        lock.unlock()
     }
+
     func contains(_ id: Int) -> Bool {
-        lock.lock(); defer { lock.unlock() }; return ids.contains(id)
+        lock.lock()
+        defer { lock.unlock() }
+        return ids.contains(id)
     }
 }
 
@@ -87,7 +95,7 @@ final class AppAXContext {
 
     private let axApp: ThreadGuardedValue<AXUIElement>
     private let windows: ThreadGuardedValue<[Int: AXUIElement]>
-    nonisolated(unsafe) private var thread: Thread?
+    private nonisolated(unsafe) var thread: Thread?
     private var activeFrameBatchJobs: [UUID: RunLoopJob] = [:]
     private let frameWriteGenerations = LockedWindowGenerationMap()
     let suppressedFrameWindowIds = LockedWindowIdSet()
@@ -101,7 +109,7 @@ final class AppAXContext {
     @MainActor private static var inFlightCreations: [pid_t: Task<AppAXContext?, Error>] = [:]
     @MainActor static var contextFactoryForTests: ((NSRunningApplication) async throws -> AppAXContext?)?
 
-    nonisolated private init(
+    private nonisolated init(
         _ nsApp: NSRunningApplication,
         _ axApp: ThreadGuardedValue<AXUIElement>,
         _ windows: ThreadGuardedValue<[Int: AXUIElement]>,
@@ -625,7 +633,6 @@ final class AppAXContext {
             }
         }
     }
-
 }
 
 private func applyFrameWriteRequest(

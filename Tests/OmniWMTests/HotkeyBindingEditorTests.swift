@@ -1,8 +1,7 @@
 import Carbon
 import Foundation
-import Testing
-
 @testable import OmniWM
+import Testing
 
 private func makeHotkeyEditorDefaults() -> UserDefaults {
     let suiteName = "HotkeyBindingEditorTests-\(UUID().uuidString)"

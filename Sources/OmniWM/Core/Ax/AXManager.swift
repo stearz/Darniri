@@ -352,8 +352,8 @@ final class AXManager {
                         continue
                     }
                 } else if let cached = cachedFrame,
-                   cached.approximatelyEqual(to: frame, tolerance: 0.5),
-                   !hasRecentFailure
+                          cached.approximatelyEqual(to: frame, tolerance: 0.5),
+                          !hasRecentFailure
                 {
                     if let terminalObserver {
                         terminalObserver(
@@ -627,7 +627,8 @@ final class AXManager {
     private func shouldRetryFrameWrite(after result: AXFrameApplyResult) -> Bool {
         guard let failureReason = result.writeResult.failureReason else { return false }
         switch failureReason {
-        case .cancelled, .suppressed:
+        case .cancelled,
+             .suppressed:
             return false
         default:
             return true
