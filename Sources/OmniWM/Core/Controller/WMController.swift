@@ -138,6 +138,8 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var windowActionHandler = WindowActionHandler(controller: self)
     @ObservationIgnored
+    private lazy var clipboardHistoryService = ClipboardHistoryService(configuration: clipboardHistoryConfiguration())
+    @ObservationIgnored
     private(set) lazy var focusNotificationDispatcher = FocusNotificationDispatcher(controller: self)
     @ObservationIgnored
     private(set) lazy var borderCoordinator = BorderCoordinator(controller: self)
@@ -266,6 +268,7 @@ final class WMController {
         setWorkspaceBarEnabled(settings.workspaceBarEnabled)
         setPreventSleepEnabled(settings.preventSleepEnabled)
         setQuakeTerminalEnabled(settings.quakeTerminalEnabled)
+        syncClipboardHistoryService()
 
         // External edits to settings.toml otherwise stop here at refreshStatusBar
         // and skip subsystems that read settings only at trigger time. Push the
@@ -1925,6 +1928,45 @@ final class WMController {
 
     func openCommandPalette() {
         commandPaletteController.toggle(wmController: self)
+    }
+
+    func clipboardPaletteItems() -> [ClipboardPaletteItem] {
+        clipboardHistoryService.paletteItems
+    }
+
+    func setClipboardHistoryEnabled(_ enabled: Bool) {
+        settings.clipboardHistoryEnabled = enabled
+        syncClipboardHistoryService()
+    }
+
+    func copyClipboardItem(id: UUID) async -> Bool {
+        await clipboardHistoryService.copyItemToPasteboard(id: id)
+    }
+
+    func deleteClipboardItem(id: UUID) async -> [ClipboardPaletteItem] {
+        await clipboardHistoryService.deleteItem(id: id)
+    }
+
+    func clearClipboardHistory() async -> [ClipboardPaletteItem] {
+        await clipboardHistoryService.clearHistory()
+    }
+
+    func flushClipboardHistoryForTermination() async {
+        await clipboardHistoryService.flushAndStop()
+    }
+
+    private func syncClipboardHistoryService() {
+        clipboardHistoryService.updateConfiguration(clipboardHistoryConfiguration())
+    }
+
+    private func clipboardHistoryConfiguration() -> ClipboardHistoryConfiguration {
+        ClipboardHistoryConfiguration(
+            isEnabled: settings.clipboardHistoryEnabled,
+            maxItems: settings.clipboardMaxItems,
+            maxItemBytes: settings.clipboardMaxItemBytes,
+            maxTotalBytes: settings.clipboardMaxTotalBytes,
+            storageDirectory: settings.settingsFileURL.deletingLastPathComponent()
+        )
     }
 
     func openSponsorsWindow() {
