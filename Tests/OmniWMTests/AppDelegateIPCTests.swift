@@ -73,11 +73,36 @@ private final class TestUpdateCoordinator: AppUpdateCoordinating {
 
 @MainActor
 private func resetAppDelegateTestFactories() {
+    AppDelegate.sharedBootstrap = nil
     AppDelegate.ipcServerFactoryForTests = nil
     AppDelegate.updateCoordinatorFactoryForTests = nil
 }
 
 @Suite(.serialized) @MainActor struct AppDelegateIPCTests {
+    @Test func applicationShouldTerminateApprovesImmediateTermination() {
+        let appDelegate = AppDelegate()
+
+        let reply = appDelegate.applicationShouldTerminate(.shared)
+
+        #expect(reply == .terminateNow)
+    }
+
+    @Test func applicationWillTerminateStopsWMServices() {
+        let bootstrap = AppBootstrapState()
+        let controller = makeLayoutPlanTestController()
+        let appDelegate = AppDelegate()
+        controller.hasStartedServices = true
+        bootstrap.controller = controller
+        AppDelegate.sharedBootstrap = bootstrap
+        defer {
+            resetAppDelegateTestFactories()
+        }
+
+        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+        #expect(controller.hasStartedServices == false)
+    }
+
     @Test func setIPCDisabledDoesNotStartServer() throws {
         let controller = makeLayoutPlanTestController()
         let appDelegate = AppDelegate()

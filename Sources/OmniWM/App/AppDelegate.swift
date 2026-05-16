@@ -20,25 +20,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cliManager: AppCLIManager?
     private var updateCoordinator: (any AppUpdateCoordinating)?
     private var runtimeStateStore: RuntimeStateStore?
-    private var isCompletingTermination = false
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         bootstrapApplication()
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard !isCompletingTermination else { return .terminateNow }
-        isCompletingTermination = true
-        Task { @MainActor in
-            await AppDelegate.sharedBootstrap?.controller?.flushClipboardHistoryForTermination()
-            sender.reply(toApplicationShouldTerminate: true)
-        }
-        return .terminateLater
+    func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
+        return .terminateNow
     }
 
     func applicationWillTerminate(_: Notification) {
-        AppDelegate.sharedBootstrap?.controller?.workspaceManager.flushPersistedWindowRestoreCatalogNow()
+        if let controller = AppDelegate.sharedBootstrap?.controller {
+            controller.serviceLifecycleManager.stop()
+            controller.workspaceManager.flushPersistedWindowRestoreCatalogNow()
+        }
         AppDelegate.sharedBootstrap?.settings?.flushNow()
         stopIPCServer()
         runtimeStateStore?.flushNow()

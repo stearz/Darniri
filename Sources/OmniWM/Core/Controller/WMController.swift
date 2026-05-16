@@ -1951,10 +1951,6 @@ final class WMController {
         await clipboardHistoryService.clearHistory()
     }
 
-    func flushClipboardHistoryForTermination() async {
-        await clipboardHistoryService.flushAndStop()
-    }
-
     private func syncClipboardHistoryService() {
         clipboardHistoryService.updateConfiguration(clipboardHistoryConfiguration())
     }
