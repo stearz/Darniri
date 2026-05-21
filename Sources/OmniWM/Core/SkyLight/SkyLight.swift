@@ -492,17 +492,15 @@ final class SkyLight {
             let hasVisibleAttribute = (attributes & 0x2) != 0
             let hasTagBit54 = (tags & 0x0040_0000_0000_0000) != 0
             guard hasVisibleAttribute || hasTagBit54 else { continue }
-
-            let isDocument = (tags & 0x1) != 0
-            let isFloating = (tags & 0x2) != 0
-            let isModal = (tags & 0x8000_0000) != 0
-            guard isDocument || (isFloating && isModal) else { continue }
+            let hasDocumentTag = WindowServerInfo.hasDocumentTag(tags)
+            let hasFloatingTag = WindowServerInfo.hasFloatingTag(tags)
+            let hasModalTag = WindowServerInfo.hasModalTag(tags)
+            guard hasDocumentTag || (hasFloatingTag && hasModalTag) else { continue }
 
             let wid = windowIteratorGetWindowID(iterator)
             let pid = windowIteratorGetPID(iterator)
             let bounds = windowIteratorGetBounds(iterator)
-
-            results.append(WindowServerInfo(
+            let info = WindowServerInfo(
                 id: wid,
                 pid: pid,
                 level: level,
@@ -510,7 +508,9 @@ final class SkyLight {
                 tags: tags,
                 attributes: attributes,
                 parentId: parentId
-            ))
+            )
+
+            results.append(info)
         }
 
         return results
@@ -770,4 +770,16 @@ struct WindowServerInfo: Equatable, Sendable {
     var attributes: UInt32 = 0
     var parentId: UInt32 = 0
     var title: String?
+
+    static func hasDocumentTag(_ tags: UInt64) -> Bool { (tags & 0x1) != 0 }
+    static func hasFloatingTag(_ tags: UInt64) -> Bool { (tags & 0x2) != 0 }
+    static func hasModalTag(_ tags: UInt64) -> Bool { (tags & 0x8000_0000) != 0 }
+
+    var hasDocumentTag: Bool { Self.hasDocumentTag(tags) }
+    var hasFloatingTag: Bool { Self.hasFloatingTag(tags) }
+    var hasModalTag: Bool { Self.hasModalTag(tags) }
+    var hasParentWindow: Bool { parentId != 0 }
+    var hasTransientSurfaceEvidence: Bool {
+        hasParentWindow || (hasFloatingTag && !hasDocumentTag)
+    }
 }

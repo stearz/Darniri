@@ -162,6 +162,116 @@ private func makeWindowRuleFacts(
         #expect(decision.heuristicReasons == [.attributeFetchFailed])
     }
 
+    @Test func degradedAxParentedWindowServerTransientFallsBackToFloating() {
+        let engine = WindowRuleEngine()
+        let rule = AppRule(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000164")!,
+            bundleId: "com.example.transient",
+            assignToWorkspace: "2"
+        )
+        engine.rebuild(rules: [rule])
+        var windowServer = WindowServerInfo(id: 3201, pid: 3201, level: 0, frame: .zero)
+        windowServer.parentId = 44
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                bundleId: "com.example.transient",
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false,
+                windowServer: windowServer
+            ),
+            token: nil,
+            appFullscreen: false,
+            allowDegradedWindowServerFloatingFallback: true
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.layoutDecisionKind == .fallbackLayout)
+        #expect(decision.workspaceName == "2")
+        #expect(decision.source == .userRule(rule.id))
+        #expect(decision.deferredReason == nil)
+        #expect(decision.heuristicReasons == [.attributeFetchFailed, .windowServerTransientSurface])
+    }
+
+    @Test func degradedAxFloatingTaggedWindowServerTransientFallsBackToFloating() {
+        let engine = WindowRuleEngine()
+        var windowServer = WindowServerInfo(id: 3202, pid: 3202, level: 0, frame: .zero)
+        windowServer.tags = 0x2
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false,
+                windowServer: windowServer
+            ),
+            token: nil,
+            appFullscreen: false,
+            allowDegradedWindowServerFloatingFallback: true
+        )
+
+        #expect(decision.disposition == .floating)
+        #expect(decision.source == .heuristic)
+        #expect(decision.heuristicReasons == [.attributeFetchFailed, .windowServerTransientSurface])
+    }
+
+    @Test func degradedAxAuxiliaryLevelWithoutParentOrFloatingTagRemainsUndecided() {
+        let engine = WindowRuleEngine()
+        let windowServer = WindowServerInfo(id: 3205, pid: 3205, level: 103, frame: .zero)
+
+        let decision = engine.decision(
+            for: makeWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false,
+                windowServer: windowServer
+            ),
+            token: nil,
+            appFullscreen: false,
+            allowDegradedWindowServerFloatingFallback: true
+        )
+
+        #expect(decision.disposition == .undecided)
+        #expect(decision.deferredReason == .attributeFetchFailed)
+    }
+
+    @Test func degradedAxDocumentAndHelpTagSurfacesRemainUndecided() {
+        let engine = WindowRuleEngine()
+        var documentWindowServer = WindowServerInfo(id: 3203, pid: 3203, level: 0, frame: .zero)
+        documentWindowServer.tags = 0x1
+        let documentDecision = engine.decision(
+            for: makeWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                attributeFetchSucceeded: false,
+                windowServer: documentWindowServer
+            ),
+            token: nil,
+            appFullscreen: false,
+            allowDegradedWindowServerFloatingFallback: true
+        )
+
+        var helpWindowServer = WindowServerInfo(id: 3204, pid: 3204, level: 103, frame: .zero)
+        helpWindowServer.parentId = 44
+        let helpDecision = engine.decision(
+            for: makeWindowRuleFacts(
+                role: "AXHelpTag",
+                subrole: kAXStandardWindowSubrole as String,
+                attributeFetchSucceeded: false,
+                windowServer: helpWindowServer
+            ),
+            token: nil,
+            appFullscreen: false,
+            allowDegradedWindowServerFloatingFallback: true
+        )
+
+        #expect(documentDecision.disposition == .undecided)
+        #expect(documentDecision.deferredReason == .attributeFetchFailed)
+        #expect(helpDecision.disposition == .undecided)
+        #expect(helpDecision.deferredReason == .attributeFetchFailed)
+    }
+
     @Test func tileRuleDefersWhenAttributeFetchFails() {
         let engine = WindowRuleEngine()
         let rule = AppRule(

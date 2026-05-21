@@ -2655,6 +2655,101 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(workspaceBarWindowCount(controller: controller, workspaceId: workspaceId) == 5)
     }
 
+    @Test @MainActor func nativeFullscreenLikeDestroyBeforeRecordPreservesMultiColumnNiriOrder() async {
+        let controller = makeRefreshTestController()
+        defer { cleanupRefreshTestController(controller) }
+        let visibleWindows = VisibleWindowsStore([
+            (makeRefreshTestWindow(windowId: 2671), getpid(), 2671),
+            (makeRefreshTestWindow(windowId: 2672), getpid(), 2672),
+            (makeRefreshTestWindow(windowId: 2673), getpid(), 2673),
+            (makeRefreshTestWindow(windowId: 2674), getpid(), 2674),
+            (makeRefreshTestWindow(windowId: 2675), getpid(), 2675)
+        ])
+        configureNativeFullscreenTestState(on: controller, visibleWindows: visibleWindows)
+        controller.enableNiriLayout(maxWindowsPerColumn: 2)
+        await waitForRefreshWork(on: controller)
+
+        controller.layoutRefreshController.requestFullRescan(reason: .startup)
+        await waitForSettledRefreshWork(on: controller)
+        controller.layoutRefreshController.requestImmediateRelayout(reason: .workspaceTransition)
+        await waitForSettledRefreshWork(on: controller)
+
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+        let targetToken = WindowToken(pid: getpid(), windowId: 2674)
+        guard let engine = controller.niriEngine,
+              let originalEntry = controller.workspaceManager.entry(for: targetToken),
+              let originalNode = engine.findNode(for: targetToken),
+              let originalColumn = engine.column(of: originalNode),
+              let originalColumnIndex = engine.columnIndex(of: originalColumn, in: workspaceId),
+              let originalSnapshot = niriColumnTokenSnapshot(controller: controller, workspaceId: workspaceId)
+        else {
+            Issue.record("Missing original Niri state")
+            return
+        }
+        _ = controller.workspaceManager.setManagedFocus(
+            targetToken,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        controller.axEventHandler.isFullscreenProvider = { axRef in
+            axRef.windowId == targetToken.windowId
+        }
+
+        controller.axEventHandler.handleRemoved(token: targetToken)
+        visibleWindows.value = []
+        controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
+        await waitForSettledRefreshWork(on: controller)
+
+        guard let unavailableRecord = controller.workspaceManager.nativeFullscreenRecord(for: targetToken),
+              let preservedNode = engine.findNode(for: targetToken),
+              let preservedColumn = engine.column(of: preservedNode),
+              let preservedColumnIndex = engine.columnIndex(of: preservedColumn, in: workspaceId),
+              let preservedSnapshot = niriColumnTokenSnapshot(controller: controller, workspaceId: workspaceId)
+        else {
+            Issue.record("Missing preserved Niri state")
+            return
+        }
+
+        #expect(unavailableRecord.availability == .temporarilyUnavailable)
+        #expect(controller.workspaceManager.entry(for: targetToken)?.handle === originalEntry.handle)
+        #expect(controller.workspaceManager.layoutReason(for: targetToken) == .nativeFullscreen)
+        #expect(preservedNode.id == originalNode.id)
+        #expect(preservedColumnIndex == originalColumnIndex)
+        #expect(preservedSnapshot == originalSnapshot)
+        #expect(controller.workspaceManager.barVisibleEntries(in: workspaceId).count == 5)
+        #expect(workspaceBarWindowCount(controller: controller, workspaceId: workspaceId) == 5)
+
+        visibleWindows.value = [
+            (makeRefreshTestWindow(windowId: 2674), getpid(), 2674)
+        ]
+        controller.layoutRefreshController.requestFullRescan(reason: .activeSpaceChanged)
+        await waitForSettledRefreshWork(on: controller)
+
+        guard let suspendedRecord = controller.workspaceManager.nativeFullscreenRecord(for: targetToken),
+              let suspendedNode = engine.findNode(for: targetToken),
+              let suspendedColumn = engine.column(of: suspendedNode),
+              let suspendedColumnIndex = engine.columnIndex(of: suspendedColumn, in: workspaceId),
+              let suspendedSnapshot = niriColumnTokenSnapshot(controller: controller, workspaceId: workspaceId)
+        else {
+            Issue.record("Missing suspended Niri state")
+            return
+        }
+
+        if case .suspended = suspendedRecord.transition {} else {
+            Issue.record("Expected speculative record to become suspended")
+        }
+        #expect(suspendedRecord.availability == .present)
+        #expect(controller.workspaceManager.entry(for: targetToken)?.handle === originalEntry.handle)
+        #expect(suspendedNode.id == originalNode.id)
+        #expect(suspendedColumnIndex == originalColumnIndex)
+        #expect(suspendedSnapshot == originalSnapshot)
+        #expect(controller.workspaceManager.barVisibleEntries(in: workspaceId).count == 5)
+        #expect(workspaceBarWindowCount(controller: controller, workspaceId: workspaceId) == 5)
+    }
+
     @Test @MainActor func nativeFullscreenReplacementWithFloatingFactsRemovesOriginalNiriEntry() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }

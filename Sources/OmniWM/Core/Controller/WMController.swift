@@ -1541,6 +1541,16 @@ final class WMController {
             return nil
         }
 
+        if context == .automatic,
+           let existingEntry,
+           existingEntry.mode == .floating,
+           trackedMode == .tiling,
+           decision.source == .heuristic,
+           existingEntry.managedReplacementMetadata?.transientWindowServerEvidence == true
+        {
+            return .floating
+        }
+
         guard context == .automatic,
               let existingEntry,
               existingEntry.mode == .tiling,
@@ -1581,7 +1591,8 @@ final class WMController {
         pid: pid_t,
         appFullscreen: Bool? = nil,
         applyingManualOverride: Bool = true,
-        windowInfo: WindowServerInfo? = nil
+        windowInfo: WindowServerInfo? = nil,
+        allowDegradedWindowServerFloatingFallback: Bool = false
     ) -> WindowDecisionEvaluation {
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
         let sizeConstraints = evaluateSizeConstraints(for: token, axRef: axRef)
@@ -1614,7 +1625,8 @@ final class WMController {
         let baseDecision = windowRuleEngine.decision(
             for: facts,
             token: token,
-            appFullscreen: fullscreen
+            appFullscreen: fullscreen,
+            allowDegradedWindowServerFloatingFallback: allowDegradedWindowServerFloatingFallback
         )
         let decision = applyingManualOverride
             ? decisionApplyingManualOverride(baseDecision, manualOverride: manualOverride)
@@ -1886,7 +1898,10 @@ final class WMController {
                             .windowLevel,
                         parentWindowId: evaluation.facts.windowServer?.parentId ?? updatedEntry
                             .managedReplacementMetadata?.parentWindowId,
-                        frame: evaluation.facts.windowServer?.frame ?? updatedEntry.managedReplacementMetadata?.frame
+                        frame: evaluation.facts.windowServer?.frame ?? updatedEntry.managedReplacementMetadata?.frame,
+                        transientWindowServerEvidence: updatedEntry.managedReplacementMetadata?
+                            .transientWindowServerEvidence == true
+                            || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true
                     ),
                     for: token
                 )

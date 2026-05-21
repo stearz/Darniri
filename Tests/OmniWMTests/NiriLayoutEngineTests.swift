@@ -6070,6 +6070,41 @@ private func makeCenteredCrossMonitorFixture(
         #expect(!fullyContainedFrame.intersects(secondaryMonitor.frame))
     }
 
+    @Test func neighboringRightMonitorKeepsFullscreenAndMaximizedHiddenColumnHandles() {
+        let fixture = makeHorizontalNeighboringRevealFixture(workspaceOnPrimary: true, pidBase: 55)
+        let engine = fixture.engine
+        let wsId = fixture.workspaceId
+        let primaryMonitor = fixture.owningMonitor
+        let leakingWindow = fixture.secondWindow
+
+        var hiddenState = ViewportState()
+        hiddenState.activeColumnIndex = 0
+        hiddenState.viewOffsetPixels = .static(0)
+
+        leakingWindow.sizingMode = .fullscreen
+        let fullscreenLayout = engine.calculateCombinedLayoutUsingPools(
+            in: wsId,
+            monitor: primaryMonitor,
+            gaps: fixture.gaps,
+            state: hiddenState,
+            workingArea: fixture.area,
+            animationTime: nil
+        )
+
+        leakingWindow.sizingMode = .maximized
+        let maximizedLayout = engine.calculateCombinedLayoutUsingPools(
+            in: wsId,
+            monitor: primaryMonitor,
+            gaps: fixture.gaps,
+            state: hiddenState,
+            workingArea: fixture.area,
+            animationTime: nil
+        )
+
+        #expect(fullscreenLayout.hiddenHandles[leakingWindow.token] == .right)
+        #expect(maximizedLayout.hiddenHandles[leakingWindow.token] == .right)
+    }
+
     @Test func neighboringLeftMonitorKeepsPartiallyRevealedColumnHiddenUntilFullyContained() {
         let fixture = makeHorizontalNeighboringRevealFixture(workspaceOnPrimary: false, pidBase: 61)
         let engine = fixture.engine

@@ -1299,7 +1299,10 @@ import QuartzCore
                     .windowLevel,
                 parentWindowId: evaluation.facts.windowServer?.parentId ?? existingEntry?.managedReplacementMetadata?
                     .parentWindowId,
-                frame: evaluation.facts.windowServer?.frame ?? existingEntry?.managedReplacementMetadata?.frame
+                frame: evaluation.facts.windowServer?.frame ?? existingEntry?.managedReplacementMetadata?.frame,
+                transientWindowServerEvidence: existingEntry?.managedReplacementMetadata?
+                    .transientWindowServerEvidence == true
+                    || evaluation.facts.windowServer?.hasTransientSurfaceEvidence == true
             )
 
             _ = controller.workspaceManager.addWindow(

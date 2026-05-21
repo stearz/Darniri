@@ -1142,6 +1142,29 @@ final class WorkspaceManager {
         return record
     }
 
+    @discardableResult
+    func markNativeFullscreenSpeculativelyUnavailable(
+        _ token: WindowToken,
+        now: Date = Date()
+    ) -> NativeFullscreenRecord? {
+        guard let entry = entry(for: token) else { return nil }
+
+        _ = rememberFocus(token, in: entry.workspaceId)
+        setLayoutReason(.nativeFullscreen, for: token)
+        let record = NativeFullscreenRecord(
+            originalToken: token,
+            currentToken: token,
+            workspaceId: entry.workspaceId,
+            exitRequestedByCommand: false,
+            transition: .enterRequested,
+            availability: .temporarilyUnavailable,
+            unavailableSince: now
+        )
+        upsertNativeFullscreenRecord(record)
+        _ = setManagedAppFullscreen(false)
+        return record
+    }
+
     func nativeFullscreenUnavailableCandidate(
         for pid: pid_t,
         activeWorkspaceId: WorkspaceDescriptor.ID?

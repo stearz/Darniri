@@ -903,13 +903,14 @@ final class AXEventHandler: CGSEventDelegate {
         guard let controller else { return }
         let entry = controller.workspaceManager.entry(for: token)
         let affectedWorkspaceId = entry?.workspaceId
-        clearManagedFocusState(matching: token, workspaceId: affectedWorkspaceId)
-        controller.nativeFullscreenPlaceholderManager.remove(token)
-        controller.clearResizePlaceholder(for: token)
 
         if handleNativeFullscreenDestroy(token) {
             return
         }
+
+        clearManagedFocusState(matching: token, workspaceId: affectedWorkspaceId)
+        controller.nativeFullscreenPlaceholderManager.remove(token)
+        controller.clearResizePlaceholder(for: token)
 
         let shouldRecoverFocus = token == controller.workspaceManager.focusedToken
         let layoutType = affectedWorkspaceId
@@ -1478,24 +1479,49 @@ final class AXEventHandler: CGSEventDelegate {
     }
 
     private func handleNativeFullscreenDestroy(_ token: WindowToken) -> Bool {
+        guard let controller else {
+            return false
+        }
+
+        let existingRecord = controller.workspaceManager.nativeFullscreenRecord(for: token)
+        let unavailableRecord: WorkspaceManager.NativeFullscreenRecord?
+        if existingRecord?.currentToken == token {
+            unavailableRecord = controller.workspaceManager.markNativeFullscreenTemporarilyUnavailable(token)
+        } else if existingRecord != nil {
+            return false
+        } else if shouldSpeculativelyPreserveNativeFullscreenDestroy(token) {
+            unavailableRecord = controller.workspaceManager.markNativeFullscreenSpeculativelyUnavailable(token)
+        } else {
+            return false
+        }
+
+        guard let unavailableRecord else { return false }
+        controller.borderManager.hideBorder()
+        controller.nativeFullscreenPlaceholderManager.remove(token)
+        controller.clearResizePlaceholder(for: token)
+        clearManagedFocusState(matching: token, workspaceId: unavailableRecord.workspaceId)
+        scheduleNativeFullscreenFollowup(for: unavailableRecord.originalToken)
+        return true
+    }
+
+    private func shouldSpeculativelyPreserveNativeFullscreenDestroy(_ token: WindowToken) -> Bool {
         guard let controller,
-              let record = controller.workspaceManager.nativeFullscreenRecord(for: token),
-              record.currentToken == token
+              let entry = controller.workspaceManager.entry(for: token),
+              entry.mode == .tiling,
+              controller.workspaceManager.focusedToken == token,
+              controller.workspaceManager.scratchpadToken() != token
         else {
             return false
         }
 
-        guard let unavailableRecord = controller.workspaceManager.markNativeFullscreenTemporarilyUnavailable(
-            token
-        ) else {
-            return false
-        }
+        let layoutType = controller.workspaceManager.descriptor(for: entry.workspaceId)
+            .map { controller.settings.layoutType(for: $0.name) } ?? .defaultLayout
+        guard layoutType != .dwindle else { return false }
 
-        controller.borderManager.hideBorder()
-        controller.nativeFullscreenPlaceholderManager.remove(token)
-        controller.clearResizePlaceholder(for: token)
-        scheduleNativeFullscreenFollowup(for: unavailableRecord.originalToken)
-        return true
+        if let isFullscreenProvider {
+            return isFullscreenProvider(entry.axRef)
+        }
+        return AXWindowService.isFullscreenAttributeSet(entry.axRef)
     }
 
     func handleAppHidden(pid: pid_t) {
@@ -1604,7 +1630,8 @@ final class AXEventHandler: CGSEventDelegate {
             axRef: axRef,
             pid: token.pid,
             appFullscreen: appFullscreen,
-            windowInfo: windowInfo
+            windowInfo: windowInfo,
+            allowDegradedWindowServerFloatingFallback: true
         )
 
         let trackedMode = controller.trackedModeForLifecycle(
@@ -1732,7 +1759,12 @@ final class AXEventHandler: CGSEventDelegate {
             return
         }
 
-        if shouldDelayManagedReplacementDestroy(candidate) {
+        let shouldDelayDestroy = shouldDelayManagedReplacementDestroy(candidate)
+        if shouldDelayDestroy, handleNativeFullscreenDestroy(candidate.token) {
+            return
+        }
+
+        if shouldDelayDestroy {
             enqueueManagedReplacementDestroy(candidate)
             return
         }
@@ -1894,7 +1926,8 @@ final class AXEventHandler: CGSEventDelegate {
             title: facts.ax.title,
             windowLevel: facts.windowServer?.level,
             parentWindowId: facts.windowServer?.parentId,
-            frame: facts.windowServer?.frame
+            frame: facts.windowServer?.frame,
+            transientWindowServerEvidence: facts.windowServer?.hasTransientSurfaceEvidence ?? false
         )
     }
 

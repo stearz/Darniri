@@ -151,6 +151,7 @@ enum AXWindowHeuristicReason: String, Sendable {
     case missingFullscreenButton
     case disabledFullscreenButton
     case fixedSizeWindow
+    case windowServerTransientSurface
 }
 
 struct AXWindowFacts: Equatable, Sendable {
@@ -459,6 +460,25 @@ enum AXWindowService {
 
         if let frame = try? frame(window) {
             return isFullscreenFrame(frame)
+        }
+
+        return false
+    }
+
+    static func isFullscreenAttributeSet(_ window: AXWindowRef) -> Bool {
+        if let subrole = subrole(window), subrole == "AXFullScreenWindow" {
+            return true
+        }
+
+        var value: CFTypeRef?
+        let fullScreenAttribute = "AXFullScreen" as CFString
+        let result = AXUIElementCopyAttributeValue(
+            window.element,
+            fullScreenAttribute,
+            &value
+        )
+        if result == .success, let boolValue = value as? Bool {
+            return boolValue
         }
 
         return false

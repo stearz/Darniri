@@ -302,7 +302,8 @@ final class WindowRuleEngine {
     func decision(
         for facts: WindowRuleFacts,
         token: WindowToken?,
-        appFullscreen: Bool
+        appFullscreen: Bool,
+        allowDegradedWindowServerFloatingFallback: Bool = false
     ) -> WindowDecision {
         let userRule = bestMatch(in: compiledUserRules, facts: facts)
         let builtInRule = bestMatch(in: builtInRules, facts: facts)
@@ -383,6 +384,17 @@ final class WindowRuleEngine {
                     heuristicReasons: [.attributeFetchFailed]
                 )
             }
+            if allowDegradedWindowServerFloatingFallback,
+               let decision = degradedWindowServerFloatingDecision(
+                   for: facts,
+                   userRule: userRule,
+                   builtInRule: builtInRule,
+                   workspaceName: workspaceName,
+                   effects: effects
+               )
+            {
+                return decision
+            }
             return WindowDecision(
                 disposition: .undecided,
                 source: userRule.map { .userRule($0.rule.id) } ?? .heuristic,
@@ -407,6 +419,34 @@ final class WindowRuleEngine {
             ruleEffects: effects,
             heuristicReasons: heuristic.reasons,
             deferredReason: heuristic.disposition == .undecided ? .attributeFetchFailed : nil
+        )
+    }
+
+    private func degradedWindowServerFloatingDecision(
+        for facts: WindowRuleFacts,
+        userRule: CompiledRule?,
+        builtInRule: CompiledRule?,
+        workspaceName: String?,
+        effects: ManagedWindowRuleEffects
+    ) -> WindowDecision? {
+        guard facts.ax.role != "AXHelpTag",
+              AXWindowService.shouldTreatAsTopLevelWindow(role: facts.ax.role, subrole: facts.ax.subrole),
+              let windowServer = facts.windowServer,
+              windowServer.hasTransientSurfaceEvidence
+        else {
+            return nil
+        }
+
+        return WindowDecision(
+            disposition: .floating,
+            source: userRule.map { .userRule($0.rule.id) }
+                ?? builtInRule.map { builtInRuleSource(for: $0) }
+                ?? .heuristic,
+            layoutDecisionKind: .fallbackLayout,
+            workspaceName: workspaceName,
+            ruleEffects: effects,
+            heuristicReasons: [.attributeFetchFailed, .windowServerTransientSurface],
+            deferredReason: nil
         )
     }
 

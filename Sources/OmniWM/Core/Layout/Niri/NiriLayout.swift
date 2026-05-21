@@ -227,9 +227,7 @@ extension NiriLayoutEngine {
                 renderedContainerRect = visibilityRect
             case let .hidden(hiddenEdge):
                 for window in containerWindowNodes[idx] {
-                    if window.sizingMode != .fullscreen, window.sizingMode != .maximized {
-                        hiddenHandles[window.token] = hiddenEdge.encodedHideSide
-                    }
+                    hiddenHandles[window.token] = hiddenEdge.encodedHideSide
                 }
                 renderedContainerRect = hiddenRenderedContainerRect(
                     canonicalRect: canonicalContainerRect,

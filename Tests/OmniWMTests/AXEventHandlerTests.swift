@@ -2064,6 +2064,162 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.isAppFullscreenActive)
     }
 
+    @Test @MainActor func nativeFullscreenLikeDestroyWithoutRecordBypassesManagedReplacementDelay() {
+        let controller = makeAXEventTestController()
+        defer { controller.axEventHandler.resetDebugStateForTests() }
+        controller.hasStartedServices = true
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8042),
+            pid: getpid(),
+            windowId: 8042,
+            to: workspaceId
+        )
+        guard let originalEntry = controller.workspaceManager.entry(for: token) else {
+            Issue.record("Missing managed entry before speculative native fullscreen destroy")
+            return
+        }
+        _ = controller.workspaceManager.setManagedFocus(
+            token,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        _ = controller.workspaceManager.beginManagedFocusRequest(
+            token,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        _ = controller.focusBridge.beginManagedRequest(token: token, workspaceId: workspaceId)
+        controller.focusBridge.setFocusedTarget(
+            KeyboardFocusTarget(
+                token: token,
+                axRef: originalEntry.axRef,
+                workspaceId: workspaceId,
+                isManaged: true
+            )
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in true }
+        controller.axEventHandler.windowInfoProvider = { windowId in
+            WindowServerInfo(
+                id: windowId,
+                pid: getpid(),
+                level: 0,
+                frame: CGRect(x: 100, y: 120, width: 640, height: 420)
+            )
+        }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String
+            )
+        }
+
+        controller.axEventHandler.handleRemoved(pid: getpid(), winId: 8042)
+
+        guard let record = controller.workspaceManager.nativeFullscreenRecord(for: token) else {
+            Issue.record("Missing speculative native fullscreen record")
+            return
+        }
+        if case .enterRequested = record.transition {} else {
+            Issue.record("Expected speculative record to stay in enterRequested transition")
+        }
+        #expect(record.availability == .temporarilyUnavailable)
+        #expect(controller.workspaceManager.entry(for: token)?.handle === originalEntry.handle)
+        #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
+        #expect(controller.focusBridge.activeManagedRequest == nil)
+        #expect(controller.focusBridge.focusedTarget == nil)
+        #expect(controller.workspaceManager.pendingFocusedToken == nil)
+    }
+
+    @Test @MainActor func ordinaryFocusedDestroyDoesNotSpeculativelyPreserveNativeFullscreen() {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8043),
+            pid: getpid(),
+            windowId: 8043,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            token,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in false }
+
+        controller.axEventHandler.handleRemoved(token: token)
+
+        #expect(controller.workspaceManager.entry(for: token) == nil)
+        #expect(controller.workspaceManager.nativeFullscreenRecord(for: token) == nil)
+    }
+
+    @Test @MainActor func dwindleDestroyDoesNotSpeculativelyPreserveNativeFullscreen() {
+        let controller = makeAXEventTestController(
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main, layoutType: .dwindle),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main, layoutType: .dwindle)
+            ]
+        )
+        controller.enableDwindleLayout()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8044),
+            pid: getpid(),
+            windowId: 8044,
+            to: workspaceId
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            token,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in true }
+
+        controller.axEventHandler.handleRemoved(token: token)
+
+        #expect(controller.workspaceManager.entry(for: token) == nil)
+        #expect(controller.workspaceManager.nativeFullscreenRecord(for: token) == nil)
+    }
+
+    @Test @MainActor func floatingDestroyDoesNotSpeculativelyPreserveNativeFullscreen() {
+        let controller = makeAXEventTestController()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        let token = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 8045),
+            pid: getpid(),
+            windowId: 8045,
+            to: workspaceId,
+            mode: .floating
+        )
+        _ = controller.workspaceManager.setManagedFocus(
+            token,
+            in: workspaceId,
+            onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
+        )
+        controller.axEventHandler.isFullscreenProvider = { _ in true }
+
+        controller.axEventHandler.handleRemoved(token: token)
+
+        #expect(controller.workspaceManager.entry(for: token) == nil)
+        #expect(controller.workspaceManager.nativeFullscreenRecord(for: token) == nil)
+    }
+
     @Test @MainActor func nativeFullscreenExitDestroySurvivesFollowupBeforeDelayedSameTokenRestoreActivation() async {
         let controller = makeAXEventTestController()
         defer { controller.axEventHandler.resetDebugStateForTests() }
@@ -6393,6 +6549,150 @@ private func waitUntilAXEventTest(
         #expect(entry.workspaceId == workspaceId)
         #expect(entry.mode == .floating)
         #expect(controller.workspaceManager.floatingState(for: entry.token) != nil)
+    }
+
+    @Test @MainActor func parentedCreateWithDegradedAxFactsFallsBackToFloating() async {
+        let controller = makeAXEventTestController()
+        var info = makeAXEventWindowInfo(
+            id: 830,
+            frame: CGRect(x: 180, y: 220, width: 480, height: 260),
+            parentId: 410
+        )
+        info.tags = 0x2
+        controller.axEventHandler.windowInfoProvider = { _ in info }
+        controller.axEventHandler.axWindowRefProvider = { windowId, _ in
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        }
+        controller.axEventHandler.frameProvider = { _ in info.frame }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                bundleId: "com.microsoft.Outlook",
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false
+            )
+        }
+        defer { controller.axEventHandler.frameProvider = nil }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .created(windowId: 830, spaceId: 0)
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let entry = controller.workspaceManager.entry(forPid: getpid(), windowId: 830) else {
+            Issue.record("Expected degraded parented popup to be tracked")
+            return
+        }
+
+        #expect(entry.mode == .floating)
+        #expect(controller.workspaceManager.floatingState(for: entry.token) != nil)
+    }
+
+    @Test @MainActor func parentedFallbackFloatingCreateStaysFloatingAfterAutomaticReevaluation() async {
+        let controller = makeAXEventTestController()
+        var info = makeAXEventWindowInfo(
+            id: 833,
+            frame: CGRect(x: 180, y: 220, width: 480, height: 260),
+            parentId: 410
+        )
+        info.tags = 0x2
+        controller.axEventHandler.windowInfoProvider = { _ in info }
+        controller.axEventHandler.axWindowRefProvider = { windowId, _ in
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        }
+        controller.axEventHandler.frameProvider = { _ in info.frame }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: "AXUnknown",
+                attributeFetchSucceeded: false
+            )
+        }
+        defer { controller.axEventHandler.frameProvider = nil }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .created(windowId: 833, spaceId: 0)
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        guard let entry = controller.workspaceManager.entry(forPid: getpid(), windowId: 833) else {
+            Issue.record("Expected degraded parented popup to be tracked")
+            return
+        }
+        #expect(entry.mode == .floating)
+
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                attributeFetchSucceeded: true
+            )
+        }
+
+        _ = await controller.reevaluateWindowRules(for: [.window(entry.token)])
+
+        #expect(controller.workspaceManager.entry(for: entry.token)?.mode == .floating)
+    }
+
+    @Test @MainActor func documentShapedDegradedCreateRemainsDeferred() async {
+        let controller = makeAXEventTestController()
+        var info = makeAXEventWindowInfo(id: 831)
+        info.tags = 0x1
+        controller.axEventHandler.windowInfoProvider = { _ in info }
+        controller.axEventHandler.axWindowRefProvider = { windowId, _ in
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                attributeFetchSucceeded: false
+            )
+        }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .created(windowId: 831, spaceId: 0)
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 831) == nil)
+    }
+
+    @Test @MainActor func helpTagShapedDegradedCreateRemainsDeferred() async {
+        let controller = makeAXEventTestController()
+        var info = makeAXEventWindowInfo(id: 832, parentId: 410)
+        info = WindowServerInfo(
+            id: info.id,
+            pid: info.pid,
+            level: 103,
+            frame: info.frame,
+            tags: info.tags,
+            attributes: info.attributes,
+            parentId: info.parentId,
+            title: info.title
+        )
+        controller.axEventHandler.windowInfoProvider = { _ in info }
+        controller.axEventHandler.axWindowRefProvider = { windowId, _ in
+            AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: Int(windowId))
+        }
+        controller.axEventHandler.windowFactsProvider = { _, _ in
+            makeAXEventWindowRuleFacts(
+                role: "AXHelpTag",
+                subrole: kAXStandardWindowSubrole as String,
+                attributeFetchSucceeded: false
+            )
+        }
+
+        controller.axEventHandler.cgsEventObserver(
+            CGSEventObserver.shared,
+            didReceive: .created(windowId: 832, spaceId: 0)
+        )
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 832) == nil)
     }
 
     @Test @MainActor func browserHelperSurfaceWithAutoAssignRuleStaysTrackedAtCreateTime() async {
