@@ -482,6 +482,7 @@ import QuartzCore
         executeLayoutPlans(plan.workspacePlans)
 
         if let visibility = plan.effects.visibility {
+            restoreWorkspaceInactiveFloatingWindows(activeWorkspaceIds: visibility.activeWorkspaceIds)
             hideInactiveWorkspaces(activeWorkspaceIds: visibility.activeWorkspaceIds)
         }
 
@@ -2005,6 +2006,58 @@ import QuartzCore
             allEntries: allEntries,
             activeWorkspaceIds: activeWorkspaceIds
         )
+    }
+
+    func hasWorkspaceInactiveFloatingWindows(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>) -> Bool {
+        guard let controller else { return false }
+        for workspaceId in activeWorkspaceIds {
+            guard let monitor = controller.workspaceManager.monitor(for: workspaceId) else { continue }
+            for entry in controller.workspaceManager.floatingEntries(in: workspaceId)
+                where workspaceInactiveFloatingRestoreFrame(for: entry, monitor: monitor) != nil
+            {
+                return true
+            }
+        }
+        return false
+    }
+
+    @discardableResult
+    func restoreWorkspaceInactiveFloatingWindows(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>) -> Int {
+        guard let controller else { return 0 }
+        var frameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = []
+        var visibleJobs: [(pid: pid_t, windowId: Int)] = []
+
+        for workspaceId in activeWorkspaceIds {
+            guard let monitor = controller.workspaceManager.monitor(for: workspaceId) else { continue }
+            for entry in controller.workspaceManager.floatingEntries(in: workspaceId) {
+                guard let frame = workspaceInactiveFloatingRestoreFrame(for: entry, monitor: monitor) else { continue }
+                controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                visibleJobs.append((entry.pid, entry.windowId))
+                controller.axManager.markWindowActive(entry.windowId)
+                controller.axManager.forceApplyNextFrame(for: entry.windowId)
+                frameUpdates.append((entry.pid, entry.windowId, frame))
+            }
+        }
+
+        if !visibleJobs.isEmpty {
+            controller.axManager.unsuppressFrameWrites(visibleJobs)
+        }
+        controller.axManager.applyFramesParallel(frameUpdates)
+        return frameUpdates.count
+    }
+
+    private func workspaceInactiveFloatingRestoreFrame(
+        for entry: WindowModel.Entry,
+        monitor: Monitor
+    ) -> CGRect? {
+        guard let controller else { return nil }
+        guard entry.mode == .floating,
+              entry.layoutReason == .standard,
+              controller.workspaceManager.hiddenState(for: entry.token)?.workspaceInactive == true
+        else {
+            return nil
+        }
+        return controller.workspaceManager.resolvedFloatingFrame(for: entry.token, preferredMonitor: monitor)
     }
 
     func hideInactiveWorkspaces(activeWorkspaceIds: Set<WorkspaceDescriptor.ID>) {

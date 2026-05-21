@@ -145,6 +145,7 @@ final class WindowActionHandler {
             guard !controller.isFrontmostAppLockScreen() else { return }
         }
 
+        controller.restoreVisibleWorkspaceInactiveFloatingWindows()
         guard let plan = makeRaiseAllFloatingPlan() else { return }
 
         for batch in plan.batches {
@@ -157,7 +158,7 @@ final class WindowActionHandler {
     }
 
     func hasRaisableFloatingWindows() -> Bool {
-        makeRaiseAllFloatingPlan() != nil
+        makeRaiseAllFloatingPlan() != nil || controller?.hasVisibleWorkspaceInactiveFloatingWindows() == true
     }
 
     @discardableResult

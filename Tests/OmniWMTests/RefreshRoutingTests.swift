@@ -1818,6 +1818,77 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.workspaceManager.layoutReason(for: token) == .nativeFullscreen)
     }
 
+    @Test @MainActor func workspaceTransitionRestoresWorkspaceInactiveFloatingWindowsOnlyOnNewlyVisibleWorkspace()
+        async throws
+    {
+        let controller = makeRefreshTestController(
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "2", monitorAssignment: .main),
+                WorkspaceConfiguration(name: "3", monitorAssignment: .main)
+            ]
+        )
+        defer { cleanupRefreshTestController(controller) }
+        let workspaceOne = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let workspaceTwo = try #require(controller.workspaceManager.workspaceId(for: "2", createIfMissing: false))
+        let workspaceThree = try #require(controller.workspaceManager.workspaceId(for: "3", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: workspaceOne))
+        #expect(controller.workspaceManager.setActiveWorkspace(workspaceOne, on: monitor.id))
+        _ = controller.workspaceManager.setInteractionMonitor(monitor.id)
+
+        let targetFrame = CGRect(x: 260, y: 180, width: 520, height: 360)
+        let token = controller.workspaceManager.addWindow(
+            makeRefreshTestWindow(windowId: 2603),
+            pid: getpid(),
+            windowId: 2603,
+            to: workspaceTwo,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: targetFrame,
+            for: token,
+            referenceMonitor: monitor
+        )
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(
+            on: controller,
+            token: token,
+            monitor: monitor
+        )
+        controller.axManager.markWindowInactive(token.windowId)
+        controller.axManager.suppressFrameWrites([(token.pid, token.windowId)])
+
+        let hiddenToken = controller.workspaceManager.addWindow(
+            makeRefreshTestWindow(windowId: 2604),
+            pid: getpid(),
+            windowId: 2604,
+            to: workspaceThree,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: CGRect(x: 420, y: 260, width: 460, height: 300),
+            for: hiddenToken,
+            referenceMonitor: monitor
+        )
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(
+            on: controller,
+            token: hiddenToken,
+            monitor: monitor
+        )
+        controller.axManager.markWindowInactive(hiddenToken.windowId)
+        controller.axManager.suppressFrameWrites([(hiddenToken.pid, hiddenToken.windowId)])
+
+        controller.workspaceNavigationHandler.switchWorkspace(index: 1)
+        await waitForSettledRefreshWork(on: controller)
+
+        #expect(controller.activeWorkspace()?.id == workspaceTwo)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == targetFrame)
+        #expect(controller.workspaceManager.hiddenState(for: hiddenToken)?.workspaceInactive == true)
+        #expect(controller.axManager.inactiveWorkspaceWindowIds.contains(hiddenToken.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: hiddenToken.windowId) == nil)
+    }
+
     @Test @MainActor func hideInactiveWorkspacesSkipsNativeFullscreenRealWindowMoves() {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }

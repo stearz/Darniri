@@ -317,6 +317,138 @@ private func lastWindowRemovedTrace(in manager: WorkspaceManager) -> ReconcileTr
         #expect(raiseCount == 1)
     }
 
+    @Test @MainActor func rescueOffscreenWindowsClearsWorkspaceInactiveStateForVisibleFloatingWindow() throws {
+        var raiseCount = 0
+        let operations = WindowFocusOperations(
+            activateApp: { _ in },
+            focusSpecificWindow: { _, _, _ in },
+            raiseWindow: { _ in
+                raiseCount += 1
+            }
+        )
+        let controller = makeLayoutPlanTestController(
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+            ],
+            windowFocusOperations: operations
+        )
+        let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: workspaceId))
+        let targetFrame = CGRect(x: 220, y: 180, width: 500, height: 340)
+
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 9203),
+            pid: 9203,
+            windowId: 9203,
+            to: workspaceId,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: targetFrame,
+            for: token,
+            referenceMonitor: monitor
+        )
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+        controller.axManager.markWindowInactive(token.windowId)
+        controller.axManager.suppressFrameWrites([(token.pid, token.windowId)])
+
+        let rescued = controller.rescueOffscreenWindows()
+
+        #expect(rescued == 1)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == targetFrame)
+        #expect(raiseCount == 1)
+    }
+
+    @Test @MainActor func rescueOffscreenWindowsClearsWorkspaceInactiveStateWhenLiveFrameAlreadyMatchesTarget()
+        async throws
+    {
+        try await withAXFrameProviderIsolationForTests {
+            let controller = makeLayoutPlanTestController(
+                workspaceConfigurations: [
+                    WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+                ]
+            )
+            let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+            let monitor = try #require(controller.workspaceManager.monitor(for: workspaceId))
+            let targetFrame = CGRect(x: 240, y: 190, width: 460, height: 320)
+
+            let token = controller.workspaceManager.addWindow(
+                makeLayoutPlanTestWindow(windowId: 9204),
+                pid: 9204,
+                windowId: 9204,
+                to: workspaceId,
+                mode: .floating
+            )
+            controller.workspaceManager.updateFloatingGeometry(
+                frame: targetFrame,
+                for: token,
+                referenceMonitor: monitor
+            )
+            setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+            controller.axManager.markWindowInactive(token.windowId)
+            controller.axManager.suppressFrameWrites([(token.pid, token.windowId)])
+            AXWindowService.fastFrameProviderForTests = { window in
+                window.windowId == token.windowId ? targetFrame : nil
+            }
+            defer {
+                AXWindowService.fastFrameProviderForTests = nil
+            }
+
+            let rescued = controller.rescueOffscreenWindows()
+
+            #expect(rescued == 1)
+            #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+            #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+            #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == targetFrame)
+        }
+    }
+
+    @Test @MainActor func rescueOffscreenWindowsRestoresVisibleSecondaryWorkspaceInactiveFloatingWindow()
+        throws
+    {
+        let fixture = makeTwoMonitorLayoutPlanTestController()
+        let controller = fixture.controller
+        let primaryFrame = CGRect(x: 260, y: 180, width: 500, height: 340)
+
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 9205),
+            pid: 9205,
+            windowId: 9205,
+            to: fixture.secondaryWorkspaceId,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: primaryFrame,
+            for: token,
+            referenceMonitor: fixture.primaryMonitor
+        )
+        let expectedFrame = try #require(
+            controller.workspaceManager.resolvedFloatingFrame(
+                for: token,
+                preferredMonitor: fixture.secondaryMonitor
+            )
+        )
+        let floatingStateBefore = try #require(controller.workspaceManager.floatingState(for: token))
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(
+            on: controller,
+            token: token,
+            monitor: fixture.primaryMonitor
+        )
+        controller.axManager.markWindowInactive(token.windowId)
+        controller.axManager.suppressFrameWrites([(token.pid, token.windowId)])
+
+        let rescued = controller.rescueOffscreenWindows()
+
+        #expect(rescued == 1)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == expectedFrame)
+        #expect(fixture.secondaryMonitor.visibleFrame.contains(expectedFrame.center))
+        #expect(controller.workspaceManager.floatingState(for: token) == floatingStateBefore)
+    }
+
     @Test func rescueOffscreenWindowsDoesNotSurfaceWorkspaceInactiveFloatingWindowOnHiddenWorkspace() throws {
         let controller = makeLayoutPlanTestController(
             workspaceConfigurations: [

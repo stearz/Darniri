@@ -1182,6 +1182,44 @@ private func waitForFocusRefresh(on controller: WMController) async {
         ])
     }
 
+    @Test @MainActor func raiseAllFloatingWindowsRestoresWorkspaceInactiveFloatingWindowBeforeRaising() {
+        let recorder = RaiseAllFloatingRecorder()
+        let (controller, workspaceId, _) = makeFocusTestController(
+            windowFocusOperations: makeRaiseAllFloatingOperations(recorder: recorder)
+        )
+        installSynchronousFrameApplySuccessOverride(on: controller)
+        let monitor = controller.workspaceManager.monitor(for: workspaceId)!
+        let targetFrame = CGRect(x: 220, y: 160, width: 500, height: 340)
+        let handle = addManagedTestWindow(
+            on: controller,
+            pid: 55,
+            windowId: 723,
+            workspaceId: workspaceId,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: targetFrame,
+            for: handle.id,
+            referenceMonitor: monitor
+        )
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: handle.id, monitor: monitor)
+        controller.axManager.markWindowInactive(handle.windowId)
+        controller.axManager.suppressFrameWrites([(handle.pid, handle.windowId)])
+        let handler = makeRaiseAllFloatingHandler(controller: controller, recorder: recorder)
+
+        handler.raiseAllFloatingWindows()
+
+        #expect(controller.workspaceManager.hiddenState(for: handle.id) == nil)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(handle.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: handle.windowId) == targetFrame)
+        #expect(recorder.events == [
+            .order(723),
+            .activate(55),
+            .focus(55, 723),
+            .raise
+        ])
+    }
+
     @Test @MainActor func raiseAllFloatingWindowsIsNoOpWhileLocked() {
         let recorder = RaiseAllFloatingRecorder()
         let (controller, workspaceId, _) = makeFocusTestController(

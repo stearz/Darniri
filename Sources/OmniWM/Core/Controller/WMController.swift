@@ -2414,6 +2414,19 @@ final class WMController {
     }
 
     @discardableResult
+    func restoreVisibleWorkspaceInactiveFloatingWindows() -> Int {
+        layoutRefreshController.restoreWorkspaceInactiveFloatingWindows(
+            activeWorkspaceIds: workspaceManager.visibleWorkspaceIds()
+        )
+    }
+
+    func hasVisibleWorkspaceInactiveFloatingWindows() -> Bool {
+        layoutRefreshController.hasWorkspaceInactiveFloatingWindows(
+            activeWorkspaceIds: workspaceManager.visibleWorkspaceIds()
+        )
+    }
+
+    @discardableResult
     func rescueOffscreenWindows() -> Int {
         guard !isLockScreenActive else { return 0 }
 
@@ -2454,22 +2467,34 @@ final class WMController {
 
         let rescuePlan = restorePlanner.planFloatingRescue(candidates)
         var frameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = []
+        var visibleJobs: [(pid: pid_t, windowId: Int)] = []
         var rescuedEntries: [WindowModel.Entry] = []
 
         for operation in rescuePlan.operations {
             guard let entry = workspaceManager.entry(for: operation.token) else { continue }
-            workspaceManager.updateFloatingGeometry(
-                frame: operation.targetFrame,
-                for: operation.token,
-                referenceMonitor: operation.targetMonitor,
-                restoreToFloating: true
-            )
+            let wasWorkspaceInactiveHidden = workspaceManager.hiddenState(for: operation.token)?.workspaceInactive == true
+            if !wasWorkspaceInactiveHidden {
+                workspaceManager.updateFloatingGeometry(
+                    frame: operation.targetFrame,
+                    for: operation.token,
+                    referenceMonitor: operation.targetMonitor,
+                    restoreToFloating: true
+                )
+            }
+            if wasWorkspaceInactiveHidden {
+                workspaceManager.setHiddenState(nil, for: operation.token)
+                visibleJobs.append((operation.pid, operation.windowId))
+                axManager.markWindowActive(operation.windowId)
+            }
             axManager.forceApplyNextFrame(for: operation.windowId)
             frameUpdates.append((operation.pid, operation.windowId, operation.targetFrame))
             rescuedEntries.append(entry)
         }
 
         if !frameUpdates.isEmpty {
+            if !visibleJobs.isEmpty {
+                axManager.unsuppressFrameWrites(visibleJobs)
+            }
             axManager.applyFramesParallel(frameUpdates)
             for entry in rescuedEntries {
                 windowFocusOperations.raiseWindow(entry.axRef.element)

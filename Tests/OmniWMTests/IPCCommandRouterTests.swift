@@ -5,6 +5,37 @@ import Testing
 
 private let ipcCommandRouterSessionToken = "ipc-command-router-tests"
 
+private enum IPCFloatingRaiseEvent: Equatable {
+    case order(Int)
+    case activate(pid_t)
+    case focus(pid_t, UInt32)
+    case raise
+}
+
+private final class IPCFloatingRaiseRecorder {
+    var events: [IPCFloatingRaiseEvent] = []
+}
+
+@MainActor
+private func makeIPCFloatingRaiseOperations(
+    recorder: IPCFloatingRaiseRecorder
+) -> WindowFocusOperations {
+    WindowFocusOperations(
+        activateApp: { pid in
+            recorder.events.append(.activate(pid))
+        },
+        focusSpecificWindow: { pid, windowId, _ in
+            recorder.events.append(.focus(pid, windowId))
+        },
+        raiseWindow: { _ in
+            recorder.events.append(.raise)
+        },
+        orderWindow: { windowId in
+            recorder.events.append(.order(Int(windowId)))
+        }
+    )
+}
+
 @MainActor
 private func makeIPCCommandRouter(for controller: WMController) -> IPCCommandRouter {
     IPCCommandRouter(controller: controller, sessionToken: ipcCommandRouterSessionToken)
@@ -477,6 +508,48 @@ private func prepareIPCNiriState(
         let result = router.handle(.raiseAllFloatingWindows)
 
         #expect(result == .ignoredDisabled)
+    }
+
+    @Test func raiseAllFloatingWindowsRestoresVisibleWorkspaceInactiveFloatingWindow() throws {
+        let recorder = IPCFloatingRaiseRecorder()
+        let controller = makeLayoutPlanTestController(
+            workspaceConfigurations: [
+                WorkspaceConfiguration(name: "1", monitorAssignment: .main)
+            ],
+            windowFocusOperations: makeIPCFloatingRaiseOperations(recorder: recorder)
+        )
+        let router = makeIPCCommandRouter(for: controller)
+        let workspaceId = try #require(controller.workspaceManager.workspaceId(for: "1", createIfMissing: false))
+        let monitor = try #require(controller.workspaceManager.monitor(for: workspaceId))
+        let targetFrame = CGRect(x: 260, y: 210, width: 520, height: 360)
+        let token = controller.workspaceManager.addWindow(
+            makeLayoutPlanTestWindow(windowId: 2402),
+            pid: 2402,
+            windowId: 2402,
+            to: workspaceId,
+            mode: .floating
+        )
+        controller.workspaceManager.updateFloatingGeometry(
+            frame: targetFrame,
+            for: token,
+            referenceMonitor: monitor
+        )
+        setWorkspaceInactiveHiddenStateForLayoutPlanTests(on: controller, token: token, monitor: monitor)
+        controller.axManager.markWindowInactive(token.windowId)
+        controller.axManager.suppressFrameWrites([(token.pid, token.windowId)])
+
+        let result = router.handle(.raiseAllFloatingWindows)
+
+        #expect(result == .executed)
+        #expect(controller.workspaceManager.hiddenState(for: token) == nil)
+        #expect(!controller.axManager.inactiveWorkspaceWindowIds.contains(token.windowId))
+        #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == targetFrame)
+        #expect(recorder.events == [
+            .order(token.windowId),
+            .activate(token.pid),
+            .focus(token.pid, UInt32(token.windowId)),
+            .raise
+        ])
     }
 
     @Test func rescueOffscreenWindowsRoutesThroughControllerAndReturnsNotFoundWhenSettled() throws {
