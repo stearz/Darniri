@@ -1742,8 +1742,7 @@ final class AXEventHandler: CGSEventDelegate {
             axRef: axRef,
             pid: token.pid,
             appFullscreen: appFullscreen,
-            windowInfo: windowInfo,
-            allowDegradedWindowServerFloatingFallback: true
+            windowInfo: windowInfo
         )
 
         let trackedMode = controller.trackedModeForLifecycle(

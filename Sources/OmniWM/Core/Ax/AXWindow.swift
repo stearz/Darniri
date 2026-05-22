@@ -151,7 +151,6 @@ enum AXWindowHeuristicReason: String, Sendable {
     case missingFullscreenButton
     case disabledFullscreenButton
     case fixedSizeWindow
-    case windowServerTransientSurface
 }
 
 struct AXWindowFacts: Equatable, Sendable {

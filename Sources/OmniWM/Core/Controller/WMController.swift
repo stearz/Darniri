@@ -1833,8 +1833,7 @@ final class WMController {
         pid: pid_t,
         appFullscreen: Bool? = nil,
         applyingManualOverride: Bool = true,
-        windowInfo: WindowServerInfo? = nil,
-        allowDegradedWindowServerFloatingFallback: Bool = false
+        windowInfo: WindowServerInfo? = nil
     ) -> WindowDecisionEvaluation {
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
         let sizeConstraints = evaluateSizeConstraints(for: token, axRef: axRef)
@@ -1867,8 +1866,7 @@ final class WMController {
         let baseDecision = windowRuleEngine.decision(
             for: facts,
             token: token,
-            appFullscreen: fullscreen,
-            allowDegradedWindowServerFloatingFallback: allowDegradedWindowServerFloatingFallback
+            appFullscreen: fullscreen
         )
         let decision = applyingManualOverride
             ? decisionApplyingManualOverride(baseDecision, manualOverride: manualOverride)

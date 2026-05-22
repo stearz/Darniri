@@ -162,7 +162,7 @@ private func makeWindowRuleFacts(
         #expect(decision.heuristicReasons == [.attributeFetchFailed])
     }
 
-    @Test func degradedAxParentedWindowServerTransientFallsBackToFloating() {
+    @Test func degradedAxParentedWindowServerTransientRemainsUndecided() {
         let engine = WindowRuleEngine()
         let rule = AppRule(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000164")!,
@@ -182,19 +182,19 @@ private func makeWindowRuleFacts(
                 windowServer: windowServer
             ),
             token: nil,
-            appFullscreen: false,
-            allowDegradedWindowServerFloatingFallback: true
+            appFullscreen: false
         )
 
-        #expect(decision.disposition == .floating)
+        #expect(decision.disposition == .undecided)
         #expect(decision.layoutDecisionKind == .fallbackLayout)
         #expect(decision.workspaceName == "2")
         #expect(decision.source == .userRule(rule.id))
-        #expect(decision.deferredReason == nil)
-        #expect(decision.heuristicReasons == [.attributeFetchFailed, .windowServerTransientSurface])
+        #expect(decision.deferredReason == .attributeFetchFailed)
+        #expect(decision.trackedMode == nil)
+        #expect(decision.heuristicReasons == [.attributeFetchFailed])
     }
 
-    @Test func degradedAxFloatingTaggedWindowServerTransientFallsBackToFloating() {
+    @Test func degradedAxFloatingTaggedWindowServerTransientRemainsUndecided() {
         let engine = WindowRuleEngine()
         var windowServer = WindowServerInfo(id: 3202, pid: 3202, level: 0, frame: .zero)
         windowServer.tags = 0x2
@@ -207,13 +207,14 @@ private func makeWindowRuleFacts(
                 windowServer: windowServer
             ),
             token: nil,
-            appFullscreen: false,
-            allowDegradedWindowServerFloatingFallback: true
+            appFullscreen: false
         )
 
-        #expect(decision.disposition == .floating)
+        #expect(decision.disposition == .undecided)
         #expect(decision.source == .heuristic)
-        #expect(decision.heuristicReasons == [.attributeFetchFailed, .windowServerTransientSurface])
+        #expect(decision.deferredReason == .attributeFetchFailed)
+        #expect(decision.trackedMode == nil)
+        #expect(decision.heuristicReasons == [.attributeFetchFailed])
     }
 
     @Test func degradedAxAuxiliaryLevelWithoutParentOrFloatingTagRemainsUndecided() {
@@ -228,8 +229,7 @@ private func makeWindowRuleFacts(
                 windowServer: windowServer
             ),
             token: nil,
-            appFullscreen: false,
-            allowDegradedWindowServerFloatingFallback: true
+            appFullscreen: false
         )
 
         #expect(decision.disposition == .undecided)
@@ -248,8 +248,7 @@ private func makeWindowRuleFacts(
                 windowServer: documentWindowServer
             ),
             token: nil,
-            appFullscreen: false,
-            allowDegradedWindowServerFloatingFallback: true
+            appFullscreen: false
         )
 
         var helpWindowServer = WindowServerInfo(id: 3204, pid: 3204, level: 103, frame: .zero)
@@ -262,8 +261,7 @@ private func makeWindowRuleFacts(
                 windowServer: helpWindowServer
             ),
             token: nil,
-            appFullscreen: false,
-            allowDegradedWindowServerFloatingFallback: true
+            appFullscreen: false
         )
 
         #expect(documentDecision.disposition == .undecided)
@@ -482,8 +480,7 @@ private func makeWindowRuleFacts(
                     windowServer: WindowServerInfo(id: 7, pid: 41, level: 3, frame: .zero)
                 ),
                 token: nil,
-                appFullscreen: false,
-                allowDegradedWindowServerFloatingFallback: true
+                appFullscreen: false
             )
 
             #expect(decision.disposition == .unmanaged)

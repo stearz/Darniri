@@ -8386,7 +8386,7 @@ private func waitUntilAXEventTest(
         #expect(controller.workspaceManager.entry(for: entry.token) != nil)
     }
 
-    @Test @MainActor func parentedCreateWithDegradedAxFactsFallsBackToFloating() async {
+    @Test @MainActor func parentedCreateWithDegradedAxFactsRemainsDeferred() async {
         let controller = makeAXEventTestController()
         var info = makeAXEventWindowInfo(
             id: 830,
@@ -8415,16 +8415,11 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        guard let entry = controller.workspaceManager.entry(forPid: getpid(), windowId: 830) else {
-            Issue.record("Expected degraded parented popup to be tracked")
-            return
-        }
-
-        #expect(entry.mode == .floating)
-        #expect(controller.workspaceManager.floatingState(for: entry.token) != nil)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 830) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: 830) == nil)
     }
 
-    @Test @MainActor func parentedFallbackFloatingCreateStaysFloatingAfterAutomaticReevaluation() async {
+    @Test @MainActor func parentedFloatingTaggedCreateWithDegradedAxFactsRemainsDeferred() async {
         let controller = makeAXEventTestController()
         var info = makeAXEventWindowInfo(
             id: 833,
@@ -8452,23 +8447,8 @@ private func waitUntilAXEventTest(
         )
         await controller.layoutRefreshController.waitForRefreshWorkForTests()
 
-        guard let entry = controller.workspaceManager.entry(forPid: getpid(), windowId: 833) else {
-            Issue.record("Expected degraded parented popup to be tracked")
-            return
-        }
-        #expect(entry.mode == .floating)
-
-        controller.axEventHandler.windowFactsProvider = { _, _ in
-            makeAXEventWindowRuleFacts(
-                role: kAXWindowRole as String,
-                subrole: kAXStandardWindowSubrole as String,
-                attributeFetchSucceeded: true
-            )
-        }
-
-        _ = await controller.reevaluateWindowRules(for: [.window(entry.token)])
-
-        #expect(controller.workspaceManager.entry(for: entry.token)?.mode == .floating)
+        #expect(controller.workspaceManager.entry(forPid: getpid(), windowId: 833) == nil)
+        #expect(controller.axManager.lastAppliedFrame(for: 833) == nil)
     }
 
     @Test @MainActor func documentShapedDegradedCreateRemainsDeferred() async {
