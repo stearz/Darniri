@@ -2256,6 +2256,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenSpaceChangeRetainsMultiColumnNiriOrderWithSameWindowId() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
+        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2641), getpid(), 2641),
             (makeRefreshTestWindow(windowId: 2642), getpid(), 2642),
@@ -2541,6 +2542,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenDelayedSameTokenDestroyRoundTripPreservesNiriIdentityAndBarState() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
+        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2731), getpid(), 2731),
             (makeRefreshTestWindow(windowId: 2732), getpid(), 2732),
@@ -2685,6 +2687,7 @@ private func syncNiriWorkspaceStatesForRefreshTests(
     @Test @MainActor func nativeFullscreenReplacementSpaceChangePreservesMultiColumnNiriOrder() async {
         let controller = makeRefreshTestController()
         defer { cleanupRefreshTestController(controller) }
+        controller.motionPolicy.animationsEnabled = false
         let visibleWindows = VisibleWindowsStore([
             (makeRefreshTestWindow(windowId: 2651), getpid(), 2651),
             (makeRefreshTestWindow(windowId: 2652), getpid(), 2652),
@@ -3441,11 +3444,21 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         let pid = getpid()
         let windowId = 3061
         _ = addWindow(on: controller, workspaceId: workspaceId, pid: pid, windowId: windowId)
+        let targetFrame = CGRect(x: 120, y: 120, width: 500, height: 320)
+        controller.axManager.frameApplyOverrideForTests = { _ in [] }
+        controller.axManager.applyFramesParallel([(pid, windowId, targetFrame)])
+        controller.axManager.markWindowInactive(windowId)
+        controller.axManager.forceApplyNextFrame(for: windowId)
 
         controller.layoutRefreshController.requestFullRescan(reason: .startup)
         await waitForRefreshWork(on: controller)
 
         #expect(controller.workspaceManager.entry(forPid: pid, windowId: windowId) == nil)
+        let axState = controller.axManager.windowStateDebugSnapshot()
+        #expect(axState.pendingFrameWriteCount == 0)
+        #expect(axState.retryBudgetCount == 0)
+        #expect(axState.forceApplyWindowIdCount == 0)
+        #expect(axState.inactiveWorkspaceWindowIdCount == 0)
     }
 
     @Test @MainActor func fullRescanClearsFocusedFloatingBorderWhenWindowMissing() async {
@@ -4056,6 +4069,32 @@ private func syncNiriWorkspaceStatesForRefreshTests(
         #expect(controller.layoutRefreshController.debugCounters.fullRescanExecutions == 0)
     }
 
+    @Test @MainActor func scopedRelayoutDoesNotNarrowPendingGlobalRelayout() async {
+        let controller = makeRefreshTestController()
+        guard let workspaceId = controller.activeWorkspace()?.id else {
+            Issue.record("Missing active workspace")
+            return
+        }
+
+        var affectedWorkspaceSnapshots: [Set<WorkspaceDescriptor.ID>] = []
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onRelayout = { _, _ in
+            affectedWorkspaceSnapshots.append(
+                controller.layoutRefreshController.layoutState.activeRefresh?.affectedWorkspaceIds ?? []
+            )
+            return true
+        }
+
+        controller.layoutRefreshController.requestRelayout(reason: .gapsChanged)
+        controller.layoutRefreshController.requestRelayout(
+            reason: .axWindowChanged,
+            affectedWorkspaceIds: [workspaceId]
+        )
+        await waitForRefreshWork(on: controller)
+
+        #expect(affectedWorkspaceSnapshots.last == [])
+    }
+
     @Test @MainActor func appLifecycleUsesFullRescan() async {
         let controller = makeRefreshTestController()
         let lifecycleManager = ServiceLifecycleManager(controller: controller)
@@ -4362,6 +4401,10 @@ private func syncNiriWorkspaceStatesForRefreshTests(
 
             #expect(recorder.relayoutEvents.map(\.0) == [.axWindowChanged])
             #expect(recorder.relayoutEvents.map(\.1) == [.relayout])
+            #expect(
+                controller.layoutRefreshController.refreshDebugSnapshot()
+                    .lastAffectedWorkspaceIdsByReason[.axWindowChanged] == [workspaceId]
+            )
             #expect(recorder.fullRescanReasons.isEmpty)
             #expect(recorder.visibilityReasons.isEmpty)
             assertNoLegacyReasons(recorder)

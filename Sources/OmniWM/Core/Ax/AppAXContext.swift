@@ -101,7 +101,7 @@ final class AppAXContext {
     let suppressedFrameWindowIds = LockedWindowIdSet()
     private let axObserver: ThreadGuardedValue<AXObserver?>
     private let focusedWindowObserver: ThreadGuardedValue<AXObserver?>
-    private let subscribedWindowIds: ThreadGuardedValue<Set<Int>>
+    private let subscribedWindows: ThreadGuardedValue<[Int: AXUIElement]>
 
     @MainActor static var onWindowDestroyed: ((pid_t, Int) -> Void)?
     @MainActor static var onWindowMiniaturized: ((pid_t, Int) -> Void)?
@@ -117,7 +117,7 @@ final class AppAXContext {
         _ windows: ThreadGuardedValue<[Int: AXUIElement]>,
         _ observer: ThreadGuardedValue<AXObserver?>,
         _ focusedWindowObserver: ThreadGuardedValue<AXObserver?>,
-        _ subscribedWindowIds: ThreadGuardedValue<Set<Int>>,
+        _ subscribedWindows: ThreadGuardedValue<[Int: AXUIElement]>,
         _ thread: Thread
     ) {
         self.nsApp = nsApp
@@ -126,7 +126,7 @@ final class AppAXContext {
         self.windows = windows
         axObserver = observer
         self.focusedWindowObserver = focusedWindowObserver
-        self.subscribedWindowIds = subscribedWindowIds
+        self.subscribedWindows = subscribedWindows
         self.thread = thread
     }
 
@@ -202,7 +202,7 @@ final class AppAXContext {
                     let guardedWindows = ThreadGuardedValue([Int: AXUIElement]())
                     let guardedObserver = ThreadGuardedValue(observer)
                     let guardedFocusedWindowObserver = ThreadGuardedValue(focusObserver)
-                    let guardedSubscribedWindowIds = ThreadGuardedValue(Set<Int>())
+                    let guardedSubscribedWindows = ThreadGuardedValue([Int: AXUIElement]())
                     let currentThread = Thread.current
 
                     scheduleOnMainRunLoop {
@@ -214,7 +214,7 @@ final class AppAXContext {
                             guardedWindows,
                             guardedObserver,
                             guardedFocusedWindowObserver,
-                            guardedSubscribedWindowIds,
+                            guardedSubscribedWindows,
                             currentThread
                         )
                         if state.resume(with: .success(context)) {
@@ -308,6 +308,42 @@ final class AppAXContext {
         return destroyResult == .success
     }
 
+    private nonisolated static func removeWindowNotifications(
+        observer: AXObserver,
+        element: AXUIElement
+    ) {
+        AXObserverRemoveNotification(
+            observer,
+            element,
+            kAXUIElementDestroyedNotification as CFString
+        )
+        AXObserverRemoveNotification(
+            observer,
+            element,
+            kAXWindowMiniaturizedNotification as CFString
+        )
+    }
+
+    private nonisolated static func removeMissingWindowSubscription(
+        windowId: Int,
+        existingElement: AXUIElement?,
+        observer: AXObserver?,
+        subscribedWindows: ThreadGuardedValue<[Int: AXUIElement]>
+    ) -> Bool {
+        if let uintWindowId = UInt32(exactly: windowId),
+           AXWindowService.pinnedWindowId(for: uintWindowId) == CGWindowID(uintWindowId)
+        {
+            return false
+        }
+
+        let element = subscribedWindows[windowId] ?? existingElement
+        subscribedWindows[windowId] = nil
+        if let observer, let element {
+            AppAXContext.removeWindowNotifications(observer: observer, element: element)
+        }
+        return true
+    }
+
     func getWindowsAsync() async throws -> [(AXWindowRef, Int)] {
         guard let thread else { return [] }
         nonisolated(unsafe) let appThread = thread
@@ -316,7 +352,7 @@ final class AppAXContext {
             axApp,
             windows,
             axObserver,
-            subscribedWindowIds
+            subscribedWindows
         ] job -> (
             [(AXWindowRef, Int)],
             [Int]
@@ -379,9 +415,9 @@ final class AppAXContext {
                 seenIds.insert(windowId)
                 results.append((axRef, windowId))
 
-                if !subscribedWindowIds.contains(windowId), let obs = axObserver.value {
+                if subscribedWindows[windowId] == nil, let obs = axObserver.value {
                     if AppAXContext.addWindowNotifications(observer: obs, element: element, windowId: windowId) {
-                        subscribedWindowIds.insert(windowId)
+                        subscribedWindows[windowId] = element
                     }
                 }
             }
@@ -389,8 +425,18 @@ final class AppAXContext {
             var deadIds: [Int] = []
             windows.forEachKey { existingId in
                 if !seenIds.contains(existingId) {
-                    deadIds.append(existingId)
-                    subscribedWindowIds.remove(existingId)
+                    let existingElement = windows[existingId]
+                    let didRemoveSubscription = AppAXContext.removeMissingWindowSubscription(
+                        windowId: existingId,
+                        existingElement: existingElement,
+                        observer: axObserver.value,
+                        subscribedWindows: subscribedWindows
+                    )
+                    if didRemoveSubscription {
+                        deadIds.append(existingId)
+                    } else if let existingElement {
+                        newWindows[existingId] = existingElement
+                    }
                 }
             }
 
@@ -422,21 +468,85 @@ final class AppAXContext {
         guard let thread else { return }
         nonisolated(unsafe) let appThread = thread
 
-        appThread.runInLoopAsync { [windows, axObserver, subscribedWindowIds] _ in
-            windows.value.removeValue(forKey: oldWindowId)
-            windows.value[newWindow.windowId] = newWindow.element
-
-            subscribedWindowIds.remove(oldWindowId)
-            if !subscribedWindowIds.contains(newWindow.windowId),
+        appThread.runInLoopAsync { [windows, axObserver, subscribedWindows] _ in
+            if let oldElement = subscribedWindows[oldWindowId],
                let observer = axObserver.value
             {
-                if AppAXContext.addWindowNotifications(
-                    observer: observer,
-                    element: newWindow.element,
-                    windowId: newWindow.windowId
-                ) {
-                    subscribedWindowIds.insert(newWindow.windowId)
-                }
+                AppAXContext.removeWindowNotifications(observer: observer, element: oldElement)
+            }
+            subscribedWindows[oldWindowId] = nil
+
+            windows[oldWindowId] = nil
+            windows[newWindow.windowId] = newWindow.element
+
+            if subscribedWindows[newWindow.windowId] == nil,
+               let observer = axObserver.value,
+               AppAXContext.addWindowNotifications(
+                   observer: observer,
+                   element: newWindow.element,
+                   windowId: newWindow.windowId
+               )
+            {
+                subscribedWindows[newWindow.windowId] = newWindow.element
+            }
+        }
+    }
+
+    func removeWindowState(windowId: Int) {
+        cancelFrameJob(for: windowId)
+        unsuppressFrameWrites(for: [windowId])
+        guard let thread else { return }
+        nonisolated(unsafe) let appThread = thread
+
+        appThread.runInLoopAsync { [windows, axObserver, subscribedWindows] _ in
+            let existingElement = windows.value[windowId]
+            if let element = subscribedWindows[windowId] ?? existingElement,
+               let observer = axObserver.value
+            {
+                AppAXContext.removeWindowNotifications(observer: observer, element: element)
+            }
+            subscribedWindows[windowId] = nil
+            windows[windowId] = nil
+        }
+    }
+
+    func subscribedWindowCountForTests() async -> Int {
+        guard let thread else { return 0 }
+        nonisolated(unsafe) let appThread = thread
+        return (try? await appThread.runInLoop { [subscribedWindows] _ in
+            subscribedWindows.value.count
+        }) ?? 0
+    }
+
+    func installSubscribedWindowsForTests(_ windowRefs: [AXWindowRef]) async throws {
+        guard let thread else { return }
+        nonisolated(unsafe) let appThread = thread
+        _ = try await appThread.runInLoop { [subscribedWindows] _ in
+            subscribedWindows.value = Dictionary(uniqueKeysWithValues: windowRefs.map { ($0.windowId, $0.element) })
+        }
+    }
+
+    func installWindowAndSubscriptionForTests(_ windowRef: AXWindowRef) async throws {
+        guard let thread else { return }
+        nonisolated(unsafe) let appThread = thread
+        _ = try await appThread.runInLoop { [windows, subscribedWindows] _ in
+            windows.value[windowRef.windowId] = windowRef.element
+            subscribedWindows.value[windowRef.windowId] = windowRef.element
+        }
+    }
+
+    func removeMissingWindowForTests(windowId: Int) async throws {
+        guard let thread else { return }
+        nonisolated(unsafe) let appThread = thread
+        _ = try await appThread.runInLoop { [windows, axObserver, subscribedWindows] _ in
+            let didRemoveSubscription = AppAXContext.removeMissingWindowSubscription(
+                windowId: windowId,
+                existingElement: windows[windowId],
+                observer: axObserver.value,
+                subscribedWindows: subscribedWindows
+            )
+            if didRemoveSubscription {
+                windows[windowId] = nil
             }
         }
     }
@@ -595,14 +705,18 @@ final class AppAXContext {
         activeFrameBatchJobs = [:]
 
         nonisolated(unsafe) let appThread = thread
-        appThread?.runInLoopAsync { [windows, axApp, axObserver, focusedWindowObserver, subscribedWindowIds] _ in
+        appThread?.runInLoopAsync { [windows, axApp, axObserver, focusedWindowObserver, subscribedWindows] _ in
+            let subscribed = subscribedWindows.valueIfExists ?? [:]
             if let obs = axObserver.valueIfExists.flatMap({ $0 }) {
+                for (_, element) in subscribed {
+                    AppAXContext.removeWindowNotifications(observer: obs, element: element)
+                }
                 CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
             }
             if let focusObs = focusedWindowObserver.valueIfExists.flatMap({ $0 }) {
                 CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(focusObs), .defaultMode)
             }
-            subscribedWindowIds.destroy()
+            subscribedWindows.destroy()
             axObserver.destroy()
             focusedWindowObserver.destroy()
             windows.destroy()
@@ -631,7 +745,7 @@ final class AppAXContext {
                     let guardedWindows = ThreadGuardedValue([Int: AXUIElement]())
                     let guardedObserver = ThreadGuardedValue<AXObserver?>(nil)
                     let guardedFocusedWindowObserver = ThreadGuardedValue<AXObserver?>(nil)
-                    let guardedSubscribedWindowIds = ThreadGuardedValue(Set<Int>())
+                    let guardedSubscribedWindows = ThreadGuardedValue([Int: AXUIElement]())
                     let currentThread = Thread.current
 
                     Task { @MainActor in
@@ -642,7 +756,7 @@ final class AppAXContext {
                                 guardedWindows,
                                 guardedObserver,
                                 guardedFocusedWindowObserver,
-                                guardedSubscribedWindowIds,
+                                guardedSubscribedWindows,
                                 currentThread
                             )
                         )

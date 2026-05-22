@@ -201,6 +201,10 @@ final class ServiceLifecycleManager {
         guard let controller else { return }
         controller.axEventHandler.cleanupFocusStateForTerminatedApp(pid: pid)
         let removedTokens = controller.workspaceManager.entries(forPid: pid).map(\.token)
+        for token in removedTokens {
+            controller.cleanupScratchpadWindowResourcesIfNeeded(for: token)
+            controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
+        }
         let affectedWorkspaces = controller.workspaceManager.removeWindowsForApp(pid: pid)
         for token in removedTokens {
             controller.nativeFullscreenPlaceholderManager.remove(token)

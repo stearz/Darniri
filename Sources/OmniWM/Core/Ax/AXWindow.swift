@@ -186,6 +186,7 @@ enum AXWindowService {
     nonisolated(unsafe) static var axWindowRefProviderForTests: ((UInt32, pid_t) -> AXWindowRef?)?
     nonisolated(unsafe) static var setFrameResultProviderForTests: ((AXWindowRef, CGRect, CGRect?)
         -> AXFrameWriteResult)?
+    nonisolated(unsafe) static var pinnedWindowIdProviderForTests: ((UInt32) -> CGWindowID?)?
     @MainActor static var fastFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
     @MainActor static var titleLookupProviderForTests: ((UInt32) -> String?)?
     @MainActor static var timeSourceForTests: (() -> TimeInterval)?
@@ -209,6 +210,12 @@ enum AXWindowService {
         pinnedElements.removeValue(forKey: windowId)
     }
 
+    static func hasPinnedAXElementForTests(for windowId: UInt32) -> Bool {
+        pinnedElementsLock.lock()
+        defer { pinnedElementsLock.unlock() }
+        return pinnedElements[windowId] != nil
+    }
+
     static func clearPinnedAXElementsForTests() {
         pinnedElementsLock.lock()
         defer { pinnedElementsLock.unlock() }
@@ -222,6 +229,9 @@ enum AXWindowService {
     }
 
     static func pinnedWindowId(for windowId: UInt32) -> CGWindowID? {
+        if let overrideWindowId = pinnedWindowIdProviderForTests?(windowId) {
+            return overrideWindowId
+        }
         guard let pinned = pinnedAXElement(for: windowId) else { return nil }
         var resolvedWindowId: CGWindowID = 0
         guard _AXUIElementGetWindow(pinned, &resolvedWindowId) == .success else { return nil }

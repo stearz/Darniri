@@ -292,4 +292,128 @@ private func axManagerTestWriteResult(
             #expect(controller.axManager.lastAppliedFrame(for: token.windowId) == secondFrame)
         }
     }
+
+    @Test @MainActor func removeWindowStateClearsFrameStateAndCancelsPendingObserver() async {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for AXManager removal cleanup test")
+            return
+        }
+
+        let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 914)
+        let targetFrame = CGRect(x: 220, y: 140, width: 760, height: 500)
+
+        controller.axManager.frameApplyOverrideForTests = { _ in [] }
+        defer { controller.axManager.frameApplyOverrideForTests = nil }
+
+        var observerResults: [AXFrameApplyResult] = []
+        controller.axManager.applyFramesParallel(
+            [(token.pid, token.windowId, targetFrame)],
+            terminalObserver: { observerResults.append($0) }
+        )
+        controller.axManager.markWindowInactive(token.windowId)
+        controller.axManager.forceApplyNextFrame(for: token.windowId)
+
+        let before = controller.axManager.windowStateDebugSnapshot()
+        #expect(before.pendingFrameWriteCount == 1)
+        #expect(before.retryBudgetCount == 1)
+        #expect(before.forceApplyWindowIdCount == 1)
+        #expect(before.pendingFrameObserverCount == 1)
+        #expect(before.observerRequestIdCount == 1)
+        #expect(before.inactiveWorkspaceWindowIdCount == 1)
+
+        controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
+
+        #expect(observerResults.count == 1)
+        #expect(observerResults.first?.writeResult.failureReason == .cancelled)
+
+        let after = controller.axManager.windowStateDebugSnapshot()
+        #expect(after.lastAppliedFrameCount == 0)
+        #expect(after.pendingFrameWriteCount == 0)
+        #expect(after.recentFrameWriteFailureCount == 0)
+        #expect(after.retryBudgetCount == 0)
+        #expect(after.forceApplyWindowIdCount == 0)
+        #expect(after.pendingFrameObserverCount == 0)
+        #expect(after.observerRequestIdCount == 0)
+        #expect(after.rekeyedWindowIdCount == 0)
+        #expect(after.inactiveWorkspaceWindowIdCount == 0)
+    }
+
+    @Test @MainActor func oldWindowRemovalKeepsRekeyMappingForLateFrameResult() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for AXManager rekey cleanup test")
+            return
+        }
+
+        let oldToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 915)
+        let newWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 916)
+        let targetFrame = CGRect(x: 240, y: 160, width: 720, height: 480)
+        var didRekeyAndRemoveOldState = false
+
+        controller.axManager.frameApplyOverrideForTests = { requests in
+            requests.map { request in
+                if !didRekeyAndRemoveOldState {
+                    didRekeyAndRemoveOldState = true
+                    controller.axManager.rekeyWindowState(
+                        pid: oldToken.pid,
+                        oldWindowId: oldToken.windowId,
+                        newWindow: newWindow
+                    )
+                    controller.axManager.removeWindowState(pid: oldToken.pid, windowId: oldToken.windowId)
+                }
+                return AXFrameApplyResult(
+                    requestId: request.requestId,
+                    pid: request.pid,
+                    windowId: oldToken.windowId,
+                    targetFrame: request.frame,
+                    currentFrameHint: request.currentFrameHint,
+                    writeResult: axManagerTestWriteResult(
+                        targetFrame: request.frame,
+                        currentFrameHint: request.currentFrameHint,
+                        observedFrame: request.frame,
+                        failureReason: nil
+                    )
+                )
+            }
+        }
+        defer { controller.axManager.frameApplyOverrideForTests = nil }
+
+        var observerResults: [AXFrameApplyResult] = []
+        controller.axManager.applyFramesParallel(
+            [(oldToken.pid, oldToken.windowId, targetFrame)],
+            terminalObserver: { observerResults.append($0) }
+        )
+
+        #expect(didRekeyAndRemoveOldState)
+        #expect(observerResults.count == 1)
+        #expect(observerResults.first?.windowId == newWindow.windowId)
+        #expect(controller.axManager.lastAppliedFrame(for: newWindow.windowId) == targetFrame)
+        #expect(controller.axManager.windowStateDebugSnapshot().rekeyedWindowIdCount == 0)
+    }
+
+    @Test @MainActor func oldWindowRemovalDropsRekeyMappingWhenOnlyForceApplyMoved() {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or active workspace for AXManager force apply rekey test")
+            return
+        }
+
+        let oldToken = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 917)
+        let newWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 918)
+
+        controller.axManager.forceApplyNextFrame(for: oldToken.windowId)
+        controller.axManager.rekeyWindowState(pid: oldToken.pid, oldWindowId: oldToken.windowId, newWindow: newWindow)
+        controller.axManager.removeWindowState(pid: oldToken.pid, windowId: oldToken.windowId)
+
+        let snapshot = controller.axManager.windowStateDebugSnapshot()
+        #expect(snapshot.rekeyedWindowIdCount == 0)
+        #expect(snapshot.forceApplyWindowIdCount == 1)
+    }
 }

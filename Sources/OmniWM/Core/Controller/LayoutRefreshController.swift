@@ -70,6 +70,7 @@ import QuartzCore
         var visibilityExecutions: Int = 0
         var windowRemovalExecutions: Int = 0
         var requestedByReason: [RefreshReason: Int] = [:]
+        var lastAffectedWorkspaceIdsByReason: [RefreshReason: Set<WorkspaceDescriptor.ID>] = [:]
         var executedByReason: [RefreshReason: Int] = [:]
     }
 
@@ -1333,6 +1334,7 @@ import QuartzCore
             controller.nativeFullscreenPlaceholderManager.remove(token)
             controller.clearResizePlaceholder(for: token)
             controller.cleanupScratchpadWindowResourcesIfNeeded(for: token)
+            controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
             _ = controller.workspaceManager.removeWindow(pid: token.pid, windowId: token.windowId)
             controller.clearKeyboardFocusTarget(matching: token)
         }
@@ -1374,6 +1376,7 @@ import QuartzCore
         for entry in trackedEntries where !remainingTokens.contains(entry.token) {
             controller.nativeFullscreenPlaceholderManager.remove(entry.token)
             controller.clearResizePlaceholder(for: entry.token)
+            controller.axManager.removeWindowState(pid: entry.pid, windowId: entry.windowId)
             controller.clearKeyboardFocusTarget(matching: entry.token)
         }
         if let scratchpadTokenBeforeRemove,
@@ -1576,7 +1579,7 @@ import QuartzCore
     }
 
     private func enqueueRefresh(_ refresh: ScheduledRefresh) {
-        recordRefreshRequest(refresh.reason)
+        recordRefreshRequest(refresh.reason, affectedWorkspaceIds: refresh.affectedWorkspaceIds)
         if let activeRefresh = layoutState.activeRefresh {
             handleRefresh(refresh, whileActive: activeRefresh)
             return
@@ -1769,8 +1772,14 @@ import QuartzCore
             pendingRefresh = upgradedRefresh
         }
 
-        pendingRefresh.affectedWorkspaceIds.formUnion(existingAffectedWorkspaceIds)
-        pendingRefresh.affectedWorkspaceIds.formUnion(refresh.affectedWorkspaceIds)
+        pendingRefresh.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
+            pendingRefresh.affectedWorkspaceIds,
+            existingAffectedWorkspaceIds
+        )
+        pendingRefresh.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
+            pendingRefresh.affectedWorkspaceIds,
+            refresh.affectedWorkspaceIds
+        )
 
         layoutState.pendingRefresh = pendingRefresh
     }
@@ -1867,8 +1876,12 @@ import QuartzCore
         }
     }
 
-    private func recordRefreshRequest(_ reason: RefreshReason) {
+    private func recordRefreshRequest(
+        _ reason: RefreshReason,
+        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID>
+    ) {
         debugCounters.requestedByReason[reason, default: 0] += 1
+        debugCounters.lastAffectedWorkspaceIdsByReason[reason] = affectedWorkspaceIds
     }
 
     private func mergeWindowRemovalPayloads(
@@ -1876,6 +1889,14 @@ import QuartzCore
         with incomingPayloads: [WindowRemovalPayload]
     ) -> [WindowRemovalPayload] {
         existingPayloads + incomingPayloads
+    }
+
+    private func mergedAffectedWorkspaceIds(
+        _ existing: Set<WorkspaceDescriptor.ID>,
+        _ incoming: Set<WorkspaceDescriptor.ID>
+    ) -> Set<WorkspaceDescriptor.ID> {
+        guard !existing.isEmpty, !incoming.isEmpty else { return [] }
+        return existing.union(incoming)
     }
 
     private func mergeFollowUp(
@@ -1917,13 +1938,19 @@ import QuartzCore
             return value
         case let (existing?, incoming?):
             var merged = incoming
-            merged.affectedWorkspaceIds.formUnion(existing.affectedWorkspaceIds)
+            merged.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
+                existing.affectedWorkspaceIds,
+                incoming.affectedWorkspaceIds
+            )
             if existing.kind == .immediateRelayout || incoming.kind == .immediateRelayout {
                 if incoming.kind == .immediateRelayout {
                     return merged
                 }
                 var kept = existing
-                kept.affectedWorkspaceIds.formUnion(incoming.affectedWorkspaceIds)
+                kept.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
+                    existing.affectedWorkspaceIds,
+                    incoming.affectedWorkspaceIds
+                )
                 return kept
             }
             return merged
@@ -1940,7 +1967,10 @@ import QuartzCore
             pendingRefresh.postLayoutActions.insert(contentsOf: refresh.postLayoutActions, at: 0)
         }
 
-        pendingRefresh.affectedWorkspaceIds.formUnion(refresh.affectedWorkspaceIds)
+        pendingRefresh.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
+            pendingRefresh.affectedWorkspaceIds,
+            refresh.affectedWorkspaceIds
+        )
 
         if refresh.kind == .windowRemoval, !refresh.windowRemovalPayloads.isEmpty {
             pendingRefresh.windowRemovalPayloads = mergeWindowRemovalPayloads(

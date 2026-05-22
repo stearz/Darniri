@@ -255,4 +255,63 @@ private func waitForSemaphore(
             #expect(results.first?.writeResult.isVerifiedSuccess == true)
         }
     }
+
+    @Test @MainActor func removeWindowStateDropsSubscribedWindowForTests() async throws {
+        guard let context = await AppAXContext.makeForTests() else {
+            Issue.record("Failed to create AppAXContext test fixture")
+            return
+        }
+        defer { context.destroy() }
+
+        let window = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9401)
+        try await context.installWindowAndSubscriptionForTests(window)
+        #expect(await context.subscribedWindowCountForTests() == 1)
+
+        context.removeWindowState(windowId: window.windowId)
+        #expect(await context.subscribedWindowCountForTests() == 0)
+    }
+
+    @Test @MainActor func rekeyWindowDropsOldSubscriptionForTests() async throws {
+        guard let context = await AppAXContext.makeForTests() else {
+            Issue.record("Failed to create AppAXContext test fixture")
+            return
+        }
+        defer { context.destroy() }
+
+        let oldWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9402)
+        let newWindow = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9403)
+        try await context.installWindowAndSubscriptionForTests(oldWindow)
+        #expect(await context.subscribedWindowCountForTests() == 1)
+
+        context.rekeyWindow(oldWindowId: oldWindow.windowId, newWindow: newWindow)
+        #expect(await context.subscribedWindowCountForTests() == 0)
+    }
+
+    @Test @MainActor func missingPinnedWindowKeepsSubscribedWindowForTests() async throws {
+        guard let context = await AppAXContext.makeForTests() else {
+            Issue.record("Failed to create AppAXContext test fixture")
+            return
+        }
+        let previousPinnedWindowIdProvider = AXWindowService.pinnedWindowIdProviderForTests
+        defer {
+            AXWindowService.pinnedWindowIdProviderForTests = previousPinnedWindowIdProvider
+            AXWindowService.clearPinnedAXElementsForTests()
+            context.destroy()
+        }
+
+        let window = AXWindowRef(element: AXUIElementCreateSystemWide(), windowId: 9404)
+        try await context.installWindowAndSubscriptionForTests(window)
+        AXWindowService.pinAXElement(window.element, for: UInt32(window.windowId))
+        AXWindowService.pinnedWindowIdProviderForTests = { windowId in
+            windowId == UInt32(window.windowId) ? CGWindowID(window.windowId) : nil
+        }
+
+        try await context.removeMissingWindowForTests(windowId: window.windowId)
+        #expect(await context.subscribedWindowCountForTests() == 1)
+
+        AXWindowService.pinnedWindowIdProviderForTests = previousPinnedWindowIdProvider
+        AXWindowService.clearPinnedAXElementsForTests()
+        try await context.removeMissingWindowForTests(windowId: window.windowId)
+        #expect(await context.subscribedWindowCountForTests() == 0)
+    }
 }

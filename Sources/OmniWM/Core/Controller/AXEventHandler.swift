@@ -131,6 +131,8 @@ final class AXEventHandler: CGSEventDelegate {
     struct DebugCounters {
         var geometryRelayoutRequests = 0
         var geometryRelayoutsSuppressedDuringGesture = 0
+        var geometryRelayoutsSuppressedForOwnFrameWrites = 0
+        var scopedGeometryRelayoutRequests = 0
     }
 
     struct ManagedReplacementTraceEvent: Equatable {
@@ -637,8 +639,45 @@ final class AXEventHandler: CGSEventDelegate {
             return
         }
 
+        if shouldSuppressFrameChangedRelayout(
+            for: entry,
+            observedFrame: focusedObservedFrame
+        ) {
+            return
+        }
+
+        let suppressionObservedFrame = focusedObservedFrame
+            ?? (controller.axManager.lastAppliedFrame(for: entry.windowId) == nil ? nil : observedFrame(for: entry))
+        if suppressionObservedFrame != focusedObservedFrame,
+           shouldSuppressFrameChangedRelayout(
+               for: entry,
+               observedFrame: suppressionObservedFrame
+           )
+        {
+            return
+        }
+
         debugCounters.geometryRelayoutRequests += 1
-        controller.layoutRefreshController.requestRelayout(reason: .axWindowChanged)
+        debugCounters.scopedGeometryRelayoutRequests += 1
+        controller.layoutRefreshController.requestRelayout(
+            reason: .axWindowChanged,
+            affectedWorkspaceIds: [entry.workspaceId]
+        )
+    }
+
+    private func shouldSuppressFrameChangedRelayout(
+        for entry: WindowModel.Entry,
+        observedFrame: CGRect?
+    ) -> Bool {
+        guard let controller else { return false }
+        if controller.axManager.shouldSuppressFrameChangeRelayout(
+            for: entry.windowId,
+            observedFrame: observedFrame
+        ) {
+            debugCounters.geometryRelayoutsSuppressedForOwnFrameWrites += 1
+            return true
+        }
+        return false
     }
 
     private func updateFocusedBorderForFrameChange(resolvedToken: WindowToken?) -> CGRect? {
@@ -1014,6 +1053,7 @@ final class AXEventHandler: CGSEventDelegate {
         let affectedWorkspaceId = entry?.workspaceId
 
         cancelPostCreateLifecycleVerification(for: token)
+        controller.axManager.removeWindowState(pid: token.pid, windowId: token.windowId)
         if handleNativeFullscreenDestroy(token) {
             return
         }
@@ -1929,6 +1969,10 @@ final class AXEventHandler: CGSEventDelegate {
                 pidHint: pidHint
             )
             if let resolvedToken {
+                controller?.axManager.removeWindowState(
+                    pid: resolvedToken.pid,
+                    windowId: resolvedToken.windowId
+                )
                 scheduleWindowRuleReevaluationIfNeeded(targets: [.pid(resolvedToken.pid)])
             } else if let pid = pidHint ?? resolveWindowInfo(windowId)?.pid {
                 scheduleWindowRuleReevaluationIfNeeded(targets: [.pid(pid_t(pid))])

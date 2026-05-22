@@ -9,6 +9,18 @@ private let perAppTimeout: TimeInterval = 0.5
 final class AXManager {
     typealias FrameApplicationTerminalObserver = @MainActor (AXFrameApplyResult) -> Void
 
+    struct WindowStateDebugSnapshot: Equatable {
+        let lastAppliedFrameCount: Int
+        let pendingFrameWriteCount: Int
+        let recentFrameWriteFailureCount: Int
+        let retryBudgetCount: Int
+        let forceApplyWindowIdCount: Int
+        let pendingFrameObserverCount: Int
+        let observerRequestIdCount: Int
+        let rekeyedWindowIdCount: Int
+        let inactiveWorkspaceWindowIdCount: Int
+    }
+
     struct FullRescanEnumerationSnapshot {
         let windows: [(AXWindowRef, pid_t, Int)]
         let failedPIDs: Set<pid_t>
@@ -137,6 +149,32 @@ final class AXManager {
         pendingFrameWrites[windowId]
     }
 
+    func shouldSuppressFrameChangeRelayout(for windowId: Int, observedFrame: CGRect?) -> Bool {
+        if pendingFrameWrites[windowId] != nil {
+            return true
+        }
+        guard let observedFrame,
+              let lastAppliedFrame = lastAppliedFrames[windowId]
+        else {
+            return false
+        }
+        return observedFrame.approximatelyEqual(to: lastAppliedFrame, tolerance: 0.5)
+    }
+
+    func windowStateDebugSnapshot() -> WindowStateDebugSnapshot {
+        WindowStateDebugSnapshot(
+            lastAppliedFrameCount: lastAppliedFrames.count,
+            pendingFrameWriteCount: pendingFrameWrites.count,
+            recentFrameWriteFailureCount: recentFrameWriteFailures.count,
+            retryBudgetCount: retryBudgetByWindowId.count,
+            forceApplyWindowIdCount: forceApplyWindowIds.count,
+            pendingFrameObserverCount: pendingFrameObserversByRequestId.count,
+            observerRequestIdCount: observerRequestIdByWindowId.count,
+            rekeyedWindowIdCount: rekeyedWindowIdsByPreviousId.count,
+            inactiveWorkspaceWindowIdCount: inactiveWorkspaceWindowIds.count
+        )
+    }
+
     func clearInactiveWorkspaceWindows() {
         inactiveWorkspaceWindowIds.removeAll()
     }
@@ -191,6 +229,51 @@ final class AXManager {
         lastAppliedFrames[windowId] = frame
         recentFrameWriteFailures.removeValue(forKey: windowId)
         retryBudgetByWindowId.removeValue(forKey: windowId)
+        clearSettledRekeyMappings(to: windowId)
+    }
+
+    func removeWindowState(pid: pid_t, windowId: Int) {
+        AppAXContext.contexts[pid]?.removeWindowState(windowId: windowId)
+
+        var cancelledResults: [(PendingFrameObserver, AXFrameApplyResult)] = []
+        if let requestId = observerRequestIdByWindowId.removeValue(forKey: windowId),
+           let pendingObserver = pendingFrameObserversByRequestId.removeValue(forKey: requestId)
+        {
+            let currentFrameHint = pendingFrameWrites[windowId] ?? lastAppliedFrames[windowId]
+            cancelledResults.append((
+                pendingObserver,
+                AXFrameApplyResult(
+                    requestId: requestId,
+                    pid: pendingObserver.pid,
+                    windowId: pendingObserver.windowId,
+                    targetFrame: pendingObserver.targetFrame,
+                    currentFrameHint: pendingObserver.currentFrameHint,
+                    writeResult: .skipped(
+                        targetFrame: pendingObserver.targetFrame,
+                        currentFrameHint: currentFrameHint,
+                        failureReason: .cancelled,
+                        observedFrame: currentFrameHint
+                    )
+                )
+            ))
+        }
+
+        lastAppliedFrames.removeValue(forKey: windowId)
+        pendingFrameWrites.removeValue(forKey: windowId)
+        recentFrameWriteFailures.removeValue(forKey: windowId)
+        retryBudgetByWindowId.removeValue(forKey: windowId)
+        forceApplyWindowIds.remove(windowId)
+        inactiveWorkspaceWindowIds.remove(windowId)
+        pruneRekeyMappingsAfterRemovingWindowState(for: windowId)
+
+        for (pendingObserver, result) in cancelledResults {
+            let deliveredResult = pendingObserver.windowId == result.windowId
+                ? result
+                : result.rekeyed(to: pendingObserver.windowId)
+            for observer in pendingObserver.observers {
+                observer(deliveredResult)
+            }
+        }
     }
 
     func cleanup() {
@@ -579,6 +662,7 @@ final class AXManager {
                 recentFrameWriteFailures.removeValue(forKey: resolvedWindowId)
                 retryBudgetByWindowId.removeValue(forKey: resolvedWindowId)
                 notifyPendingFrameObserver(with: resolvedResult)
+                clearSettledRekeyMappings(to: resolvedWindowId)
                 continue
             }
 
@@ -592,6 +676,7 @@ final class AXManager {
             else {
                 retryBudgetByWindowId.removeValue(forKey: resolvedWindowId)
                 notifyPendingFrameObserver(with: resolvedResult)
+                clearSettledRekeyMappings(to: resolvedWindowId)
                 continue
             }
 
@@ -701,5 +786,33 @@ final class AXManager {
             resolvedWindowId = rekeyedWindowId
         }
         return resolvedWindowId
+    }
+
+    private func hasUnsettledFrameState(for windowId: Int) -> Bool {
+        pendingFrameWrites[windowId] != nil
+            || retryBudgetByWindowId[windowId] != nil
+            || observerRequestIdByWindowId[windowId] != nil
+    }
+
+    private func clearSettledRekeyMappings(to windowId: Int) {
+        guard !rekeyedWindowIdsByPreviousId.isEmpty,
+              !hasUnsettledFrameState(for: windowId),
+              rekeyedWindowIdsByPreviousId.values.contains(windowId)
+        else { return }
+        rekeyedWindowIdsByPreviousId = rekeyedWindowIdsByPreviousId.filter { _, mappedWindowId in
+            mappedWindowId != windowId
+        }
+    }
+
+    private func pruneRekeyMappingsAfterRemovingWindowState(for windowId: Int) {
+        rekeyedWindowIdsByPreviousId = rekeyedWindowIdsByPreviousId.filter { previousWindowId, mappedWindowId in
+            if mappedWindowId == windowId {
+                return false
+            }
+            if previousWindowId == windowId {
+                return hasUnsettledFrameState(for: mappedWindowId)
+            }
+            return true
+        }
     }
 }

@@ -1,3 +1,4 @@
+import ApplicationServices
 import CoreGraphics
 import Foundation
 @testable import OmniWM
@@ -171,6 +172,47 @@ private func setScratchpadTestFrame(
         controller.resetWorkspaceBarRefreshDebugStateForTests()
         controller.toggleScratchpadWindow()
         #expect(controller.workspaceBarRefreshDebugState.requestCount > 0)
+    }
+
+    @Test @MainActor func appTerminationUnpinsHiddenScratchpadAXElement() async {
+        let controller = makeLayoutPlanTestController()
+        guard let monitor = controller.workspaceManager.monitors.first,
+              let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+        else {
+            Issue.record("Missing monitor or workspace for scratchpad app termination test")
+            return
+        }
+
+        let pid: pid_t = 71_012
+        let windowId = 71_012
+        let token = addLayoutPlanTestWindow(
+            on: controller,
+            workspaceId: workspaceId,
+            windowId: windowId,
+            pid: pid
+        )
+        #expect(controller.workspaceManager.setScratchpadToken(token))
+        controller.workspaceManager.setHiddenState(
+            .init(
+                proportionalPosition: .zero,
+                referenceMonitorId: monitor.id,
+                reason: .scratchpad
+            ),
+            for: token
+        )
+        AXWindowService.pinAXElement(AXUIElementCreateSystemWide(), for: UInt32(windowId))
+        defer { AXWindowService.clearPinnedAXElementsForTests() }
+
+        #expect(AXWindowService.hasPinnedAXElementForTests(for: UInt32(windowId)))
+
+        controller.layoutRefreshController.resetDebugState()
+        controller.layoutRefreshController.debugHooks.onFullRescan = { _ in true }
+        controller.serviceLifecycleManager.handleAppTerminated(pid: pid)
+        await controller.layoutRefreshController.waitForRefreshWorkForTests()
+
+        #expect(!AXWindowService.hasPinnedAXElementForTests(for: UInt32(windowId)))
+        #expect(controller.workspaceManager.scratchpadToken() == nil)
+        #expect(controller.workspaceManager.entry(for: token) == nil)
     }
 
     @Test @MainActor func assignFocusedWindowToScratchpadClearsVisibleScratchpadSlotWhenRepeated() {
