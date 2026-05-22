@@ -18,12 +18,12 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .general: "General"
-        case .niri: "Niri"
-        case .dwindle: "Dwindle"
+        case .niri: "Niri Layout"
+        case .dwindle: "Dwindle Layout"
         case .monitors: "Monitors"
         case .workspaces: "Workspaces"
         case .borders: "Borders"
-        case .bar: "Bar"
+        case .bar: "Workspace Bar"
         case .hotkeys: "Hotkeys"
         case .quakeTerminal: "Quake Terminal"
         }
@@ -40,6 +40,30 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .bar: "menubar.rectangle"
         case .hotkeys: "keyboard"
         case .quakeTerminal: "terminal"
+        }
+    }
+}
+
+enum SettingsSectionGroup: String, CaseIterable, Identifiable {
+    case basics = "Basics"
+    case layouts = "Layouts"
+    case workspace = "Workspace"
+    case input = "Input"
+
+    var id: String {
+        rawValue
+    }
+
+    var sections: [SettingsSection] {
+        switch self {
+        case .basics:
+            [.general]
+        case .layouts:
+            [.niri, .dwindle, .monitors]
+        case .workspace:
+            [.workspaces, .borders, .bar]
+        case .input:
+            [.hotkeys, .quakeTerminal]
         }
     }
 }

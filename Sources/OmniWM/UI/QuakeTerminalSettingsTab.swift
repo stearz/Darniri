@@ -27,15 +27,21 @@ struct QuakeTerminalSettingsTab: View {
                         }
                     }
 
-                    VStack(alignment: .leading) {
-                        Text("Width: \(Int(settings.quakeTerminalWidthPercent))%")
-                        Slider(value: $settings.quakeTerminalWidthPercent, in: 10 ... 100, step: 5)
-                    }
+                    SettingsSliderRow(
+                        label: "Width",
+                        value: $settings.quakeTerminalWidthPercent,
+                        range: 10 ... 100,
+                        step: 5,
+                        valueText: "\(Int(settings.quakeTerminalWidthPercent))%"
+                    )
 
-                    VStack(alignment: .leading) {
-                        Text("Height: \(Int(settings.quakeTerminalHeightPercent))%")
-                        Slider(value: $settings.quakeTerminalHeightPercent, in: 10 ... 100, step: 5)
-                    }
+                    SettingsSliderRow(
+                        label: "Height",
+                        value: $settings.quakeTerminalHeightPercent,
+                        range: 10 ... 100,
+                        step: 5,
+                        valueText: "\(Int(settings.quakeTerminalHeightPercent))%"
+                    )
 
                     if settings.quakeTerminalUseCustomFrame {
                         Button("Reset to Default Position") {
@@ -45,25 +51,30 @@ struct QuakeTerminalSettingsTab: View {
                 }
 
                 Section("Appearance") {
-                    VStack(alignment: .leading) {
-                        Text("Background Opacity: \(Int(settings.quakeTerminalOpacity * 100))%")
-                        Slider(value: $settings.quakeTerminalOpacity, in: 0.1 ... 1.0, step: 0.05)
-                            .onChange(of: settings.quakeTerminalOpacity) { _, _ in
-                                controller.reloadQuakeTerminalOpacity()
-                            }
+                    SettingsSliderRow(
+                        label: "Background Opacity",
+                        value: $settings.quakeTerminalOpacity,
+                        range: 0.1 ... 1.0,
+                        step: 0.05,
+                        valueText: "\(Int(settings.quakeTerminalOpacity * 100))%"
+                    )
+                    .onChange(of: settings.quakeTerminalOpacity) { _, _ in
+                        controller.reloadQuakeTerminalOpacity()
                     }
                 }
 
                 Section("Behavior") {
-                    VStack(alignment: .leading) {
-                        Text("Animation Duration: \(String(format: "%.1f", settings.quakeTerminalAnimationDuration))s")
-                        Slider(value: $settings.quakeTerminalAnimationDuration, in: 0 ... 1, step: 0.1)
-                            .disabled(!controller.motionPolicy.animationsEnabled)
-                        if !controller.motionPolicy.animationsEnabled {
-                            Text("Ignored while global animations are disabled.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                    SettingsSliderRow(
+                        label: "Animation Duration",
+                        value: $settings.quakeTerminalAnimationDuration,
+                        range: 0 ... 1,
+                        step: 0.1,
+                        valueText: "\(String(format: "%.1f", settings.quakeTerminalAnimationDuration))s"
+                    )
+                    .disabled(!controller.motionPolicy.animationsEnabled)
+
+                    if !controller.motionPolicy.animationsEnabled {
+                        SettingsCaption("Ignored while global animations are disabled.")
                     }
 
                     Toggle("Auto-hide on Focus Loss", isOn: $settings.quakeTerminalAutoHide)
@@ -72,11 +83,9 @@ struct QuakeTerminalSettingsTab: View {
 
             Section("About") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(
+                    SettingsCaption(
                         "Quake Terminal provides a drop-down terminal that can be toggled with a hotkey, similar to the console in Quake-style games."
                     )
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
 
                     Label("Default hotkey: Option + ` (backtick)", systemImage: "keyboard")
                         .font(.footnote)

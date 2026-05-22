@@ -48,6 +48,7 @@ struct WorkspacesSettingsTab: View {
 
     @State private var editingConfig: WorkspaceConfiguration?
     @State private var isAddingNew = false
+    @State private var pendingDeleteConfig: WorkspaceConfiguration?
     @State private var connectedMonitors: [Monitor] = Monitor.sortedByPosition(Monitor.current())
 
     var body: some View {
@@ -78,7 +79,7 @@ struct WorkspacesSettingsTab: View {
                             canDelete: canDeleteConfiguration(config),
                             deleteHelp: deleteConfigurationHelp(config),
                             onEdit: { editingConfig = config },
-                            onDelete: { deleteConfiguration(config) }
+                            onDelete: { pendingDeleteConfig = config }
                         )
                     }
                 }
@@ -87,10 +88,12 @@ struct WorkspacesSettingsTab: View {
                     Text("Workspace Configurations")
                     Spacer()
                     Button(action: { isAddingNew = true }) {
-                        Image(systemName: "plus.circle")
+                        Label("Add workspace", systemImage: "plus.circle")
+                            .labelStyle(.iconOnly)
                     }
                     .buttonStyle(.plain)
                     .help(addButtonHelp)
+                    .accessibilityLabel("Add workspace")
                 }
             } footer: {
                 Text(WorkspaceConfigurationAddPolicy.footerText)
@@ -127,14 +130,46 @@ struct WorkspacesSettingsTab: View {
                 onCancel: { isAddingNew = false }
             )
         }
+        .confirmationDialog(
+            "Delete workspace?",
+            isPresented: isConfirmingDelete,
+            presenting: pendingDeleteConfig
+        ) { config in
+            Button("Delete Workspace", role: .destructive) {
+                deleteConfiguration(config)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { config in
+            Text(deleteConfirmationMessage(for: config))
+        }
     }
 
     private var sortedConfigurations: [WorkspaceConfiguration] {
         settings.workspaceConfigurations.sorted { WorkspaceIDPolicy.sortsBefore($0.name, $1.name) }
     }
 
+    private var isConfirmingDelete: Binding<Bool> {
+        Binding(
+            get: { pendingDeleteConfig != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteConfig = nil
+                }
+            }
+        )
+    }
+
     private var addButtonHelp: String {
         WorkspaceConfigurationAddPolicy.addButtonHelp
+    }
+
+    private func deleteConfirmationMessage(for config: WorkspaceConfiguration) -> String {
+        let matchingRuleCount = settings.appRules.count { $0.assignToWorkspace == config.name }
+        guard matchingRuleCount > 0 else {
+            return "Delete workspace \(config.effectiveDisplayName)?"
+        }
+        let ruleText = matchingRuleCount == 1 ? "1 app rule" : "\(matchingRuleCount) app rules"
+        return "Delete workspace \(config.effectiveDisplayName)? This also clears workspace assignments from \(ruleText)."
     }
 
     private func canDeleteConfiguration(_ config: WorkspaceConfiguration) -> Bool {
@@ -220,13 +255,16 @@ struct WorkspaceConfigurationRow: View {
             Spacer()
 
             Button(action: onEdit) {
-                Image(systemName: "pencil.circle")
+                Label("Edit \(configuration.effectiveDisplayName)", systemImage: "pencil.circle")
+                    .labelStyle(.iconOnly)
             }
             .buttonStyle(.plain)
             .help("Edit workspace configuration")
+            .accessibilityLabel("Edit \(configuration.effectiveDisplayName)")
 
             Button(action: onDelete) {
-                Image(systemName: "trash.circle")
+                Label("Delete \(configuration.effectiveDisplayName)", systemImage: "trash.circle")
+                    .labelStyle(.iconOnly)
                     .foregroundColor(.red)
             }
             .buttonStyle(.plain)

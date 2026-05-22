@@ -41,50 +41,56 @@ struct HotkeySettingsView: View {
     @State private var recordingActionId: String?
     @State private var conflictAlert: ConflictAlert?
     @State private var searchText: String = ""
+    @State private var confirmsResetToDefaults = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Hotkey Bindings")
-                    .font(.headline)
-                Spacer()
-                Button("Reset to Defaults") {
-                    settings.resetHotkeysToDefaults()
-                    controller.updateHotkeyBindings(settings.hotkeyBindings)
-                }
-                .buttonStyle(.link)
-            }
-            .padding(.bottom, 12)
+        SettingsPage(
+            subtitle: "Search commands, edit shortcuts, and review registration problems without leaving the settings window."
+        ) {
+            Section("Controls") {
+                LabeledContent("Search") {
+                    HStack(spacing: 8) {
+                        TextField("Command, shortcut, or scope", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Search hotkeys")
 
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search hotkeys...", text: $searchText)
-                    .textFieldStyle(.plain)
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Label("Clear search", systemImage: "xmark.circle.fill")
+                                    .labelStyle(.iconOnly)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Clear search")
+                            .accessibilityLabel("Clear hotkey search")
+                        }
                     }
-                    .buttonStyle(.plain)
+                }
+
+                LabeledContent("Defaults") {
+                    Button("Reset to Defaults", role: .destructive) {
+                        confirmsResetToDefaults = true
+                    }
                 }
             }
-            .padding(8)
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-            .padding(.bottom, 12)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(HotkeyCategory.allCases, id: \.self) { category in
-                        let actions = actionsForCategory(category)
-                        if !actions.isEmpty {
-                            HotkeyCategorySection(
-                                category: category,
-                                bindings: actions,
-                                motionPolicy: controller.motionPolicy,
+            if !hasSearchMatches {
+                Section("Shortcuts") {
+                    Text("No matching hotkeys.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(HotkeyCategory.allCases, id: \.self) { category in
+                let actions = actionsForCategory(category)
+                if !actions.isEmpty {
+                    Section(category.rawValue) {
+                        ForEach(actions) { binding in
+                            HotkeyBindingRow(
+                                binding: binding,
                                 recordingActionId: $recordingActionId,
-                                registrationFailures: controller.hotkeyRegistrationFailures,
+                                failureReason: controller.hotkeyRegistrationFailures[binding.command],
                                 onStartRecording: startRecording,
                                 onBindingCaptured: handleBindingCaptured,
                                 onClearBinding: clearBinding,
@@ -115,6 +121,22 @@ struct HotkeySettingsView: View {
                     recordingActionId = nil
                 }
             )
+        }
+        .confirmationDialog("Reset all hotkeys?", isPresented: $confirmsResetToDefaults) {
+            Button("Reset Hotkeys", role: .destructive) {
+                settings.resetHotkeysToDefaults()
+                controller.updateHotkeyBindings(settings.hotkeyBindings)
+                recordingActionId = nil
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All hotkey bindings will be restored to OmniWM defaults.")
+        }
+    }
+
+    private var hasSearchMatches: Bool {
+        settings.hotkeyBindings.contains {
+            ActionCatalog.matchesSearch(searchText, binding: $0)
         }
     }
 
@@ -180,43 +202,8 @@ struct ConflictAlert: Identifiable {
     }
 }
 
-struct HotkeyCategorySection: View {
-    let category: HotkeyCategory
-    let bindings: [HotkeyBinding]
-    let motionPolicy: MotionPolicy
-    @Binding var recordingActionId: String?
-    let registrationFailures: [HotkeyCommand: HotkeyRegistrationFailureReason]
-    let onStartRecording: (String) -> Void
-    let onBindingCaptured: (String, KeyBinding) -> Void
-    let onClearBinding: (String) -> Void
-    let onResetBindings: (String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(category.rawValue)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.accentColor)
-
-            ForEach(bindings) { binding in
-                HotkeyBindingRow(
-                    binding: binding,
-                    motionPolicy: motionPolicy,
-                    recordingActionId: $recordingActionId,
-                    failureReason: registrationFailures[binding.command],
-                    onStartRecording: onStartRecording,
-                    onBindingCaptured: onBindingCaptured,
-                    onClearBinding: onClearBinding,
-                    onResetBindings: onResetBindings
-                )
-            }
-        }
-    }
-}
-
 struct HotkeyBindingRow: View {
     let binding: HotkeyBinding
-    let motionPolicy: MotionPolicy
     @Binding var recordingActionId: String?
     let failureReason: HotkeyRegistrationFailureReason?
     let onStartRecording: (String) -> Void
@@ -224,71 +211,70 @@ struct HotkeyBindingRow: View {
     let onClearBinding: (String) -> Void
     let onResetBindings: (String) -> Void
 
-    @State private var showHotkeyHelp = false
-    @State private var hotkeyHelpTask: Task<Void, Never>?
-
-    private let hoverHelpDelayNs: UInt64 = 120_000_000
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                HStack(spacing: 6) {
-                    Text(binding.command.displayName)
-                    if binding.command.layoutCompatibility != .shared {
-                        Text(binding.command.layoutCompatibility.rawValue)
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(binding.command.layoutCompatibility == .niri ? Color.blue.opacity(0.2) : Color
-                                .purple.opacity(0.2))
-                            .foregroundColor(binding.command.layoutCompatibility == .niri ? .blue : .purple)
-                            .cornerRadius(4)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
+        LabeledContent {
+            HStack(spacing: 8) {
                 if let failureReason {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
+                    Label("Registration issue", systemImage: "exclamationmark.triangle.fill")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(.orange)
                         .help(failureMessage(for: failureReason))
+                        .accessibilityLabel("Registration issue")
+                        .accessibilityValue(failureMessage(for: failureReason))
                 }
 
-                Button("Reset") {
-                    hideHotkeyHelp()
+                HotkeyBindingControl(
+                    binding: binding.binding,
+                    commandName: binding.command.displayName,
+                    isRecording: recordingActionId == binding.id,
+                    onStartRecording: {
+                        onStartRecording(binding.id)
+                    },
+                    onCaptured: { newBinding in
+                        onBindingCaptured(binding.id, newBinding)
+                    },
+                    onCancel: {
+                        recordingActionId = nil
+                    },
+                    onRemove: {
+                        onClearBinding(binding.id)
+                    }
+                )
+
+                ResetIconButton(title: "Reset \(binding.command.displayName) to default") {
                     recordingActionId = nil
                     onResetBindings(binding.id)
                 }
-                .buttonStyle(.link)
             }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(binding.command.displayName)
+                    .font(.body)
 
-            HotkeyBindingChip(
-                binding: binding.binding,
-                isRecording: recordingActionId == binding.id,
-                onStartRecording: {
-                    hideHotkeyHelp()
-                    onStartRecording(binding.id)
-                },
-                onCaptured: { newBinding in
-                    onBindingCaptured(binding.id, newBinding)
-                },
-                onCancel: {
-                    recordingActionId = nil
-                },
-                onRemove: {
-                    hideHotkeyHelp()
-                    onClearBinding(binding.id)
-                },
-                showHotkeyHelp: $showHotkeyHelp,
-                hoverHelpDelayNs: hoverHelpDelayNs
-            )
+                HStack(spacing: 6) {
+                    HotkeyScopeText(compatibility: binding.command.layoutCompatibility)
+
+                    if let failureReason {
+                        Text(failureMessage(for: failureReason))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
-        .padding(.vertical, 2)
-        .zIndex(showHotkeyHelp ? 1 : 0)
-        .animation(motionPolicy.animationsEnabled ? .easeOut(duration: 0.1) : nil, value: showHotkeyHelp)
-        .onDisappear {
-            cancelHotkeyHelpTask()
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        var parts = [
+            "Shortcut \(binding.binding.humanReadableString)",
+            "Scope \(binding.command.layoutCompatibility.rawValue)"
+        ]
+        if let failureReason {
+            parts.append(failureMessage(for: failureReason))
         }
+        return parts.joined(separator: ", ")
     }
 
     private func failureMessage(for reason: HotkeyRegistrationFailureReason) -> String {
@@ -299,119 +285,66 @@ struct HotkeyBindingRow: View {
             return "Failed to register: this key combination may be reserved by the system"
         }
     }
+}
 
-    private func hideHotkeyHelp() {
-        cancelHotkeyHelpTask()
-        showHotkeyHelp = false
-    }
+private struct HotkeyScopeText: View {
+    let compatibility: LayoutCompatibility
 
-    private func cancelHotkeyHelpTask() {
-        hotkeyHelpTask?.cancel()
-        hotkeyHelpTask = nil
+    var body: some View {
+        Text("Scope: \(compatibility.rawValue)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.10), in: Capsule())
     }
 }
 
-struct HotkeyBindingChip: View {
+private struct HotkeyBindingControl: View {
     let binding: KeyBinding
+    let commandName: String
     let isRecording: Bool
     let onStartRecording: () -> Void
     let onCaptured: (KeyBinding) -> Void
     let onCancel: () -> Void
     let onRemove: () -> Void
-    @Binding var showHotkeyHelp: Bool
-    let hoverHelpDelayNs: UInt64
-
-    @State private var hotkeyHelpTask: Task<Void, Never>?
 
     var body: some View {
-        let helpText = binding.humanReadableString
-
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if isRecording {
-                KeyRecorderView(onCapture: onCaptured, onCancel: onCancel)
-                    .frame(width: 100, height: 24)
+                KeyRecorderView(
+                    accessibilityLabel: "Recording hotkey for \(commandName)",
+                    onCapture: onCaptured,
+                    onCancel: onCancel
+                )
+                .frame(minWidth: 180, idealWidth: 210, minHeight: 34)
+                .accessibilityHint("Press Escape to cancel recording")
             } else {
-                Button(action: {
-                    hideHotkeyHelp()
+                Button {
                     onStartRecording()
-                }) {
+                } label: {
                     Text(binding.displayString)
                         .font(.system(.body, design: .monospaced))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(4)
+                        .lineLimit(1)
+                        .frame(minWidth: 112, alignment: .center)
                 }
-                .buttonStyle(.plain)
-                .overlay(alignment: .top) {
-                    if showHotkeyHelp {
-                        HotkeyHoverTooltip(text: helpText)
-                            .offset(y: -34)
-                            .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .bottom)))
-                    }
-                }
-                .onHover(perform: updateHotkeyHover)
+                .buttonStyle(.bordered)
+                .help("Change hotkey for \(commandName). Current shortcut: \(binding.humanReadableString)")
+                .accessibilityLabel("Change hotkey for \(commandName)")
+                .accessibilityValue(binding.humanReadableString)
 
                 if !binding.isUnassigned {
-                    Button(action: {
-                        hideHotkeyHelp()
+                    Button {
                         onRemove()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                    } label: {
+                        Label("Clear hotkey for \(commandName)", systemImage: "xmark.circle")
+                            .labelStyle(.iconOnly)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     .help("Clear this hotkey")
+                    .accessibilityLabel("Clear hotkey for \(commandName)")
                 }
             }
         }
-        .onDisappear {
-            cancelHotkeyHelpTask()
-        }
-    }
-
-    private func updateHotkeyHover(_ hovering: Bool) {
-        cancelHotkeyHelpTask()
-
-        guard hovering else {
-            showHotkeyHelp = false
-            return
-        }
-
-        hotkeyHelpTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: hoverHelpDelayNs)
-            guard !Task.isCancelled else { return }
-            showHotkeyHelp = true
-        }
-    }
-
-    private func hideHotkeyHelp() {
-        cancelHotkeyHelpTask()
-        showHotkeyHelp = false
-    }
-
-    private func cancelHotkeyHelpTask() {
-        hotkeyHelpTask?.cancel()
-        hotkeyHelpTask = nil
-    }
-}
-
-private struct HotkeyHoverTooltip: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
     }
 }

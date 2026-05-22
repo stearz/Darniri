@@ -8,51 +8,16 @@ struct WorkspaceBarSettingsTab: View {
     @State private var connectedMonitors: [Monitor] = Monitor.current()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Configuration Scope")
-
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Configure settings for:", selection: $selectedMonitor) {
-                    Text("Global Defaults").tag(nil as Monitor.ID?)
-                    if !connectedMonitors.isEmpty {
-                        Divider()
-                        ForEach(connectedMonitors, id: \.id) { monitor in
-                            HStack {
-                                Text(monitor.name)
-                                if monitor.isMain {
-                                    Text("(Main)")
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .tag(monitor.id as Monitor.ID?)
-                        }
-                    }
+        Form {
+            MonitorScopeSection(
+                selectedMonitor: $selectedMonitor,
+                monitors: connectedMonitors,
+                hasOverrides: { settings.barSettings(for: $0) != nil },
+                reset: { monitor in
+                    settings.removeBarSettings(for: monitor)
+                    controller.updateWorkspaceBarSettings()
                 }
-
-                if let monitorId = selectedMonitor,
-                   let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-                {
-                    HStack {
-                        if settings.barSettings(for: monitor) != nil {
-                            Text("Has custom overrides")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Using global defaults")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button("Reset to Global") {
-                            settings.removeBarSettings(for: monitor)
-                            controller.updateWorkspaceBarSettings()
-                        }
-                        .disabled(settings.barSettings(for: monitor) == nil)
-                    }
-                }
-            }
-
-            Divider()
+            )
 
             if let monitorId = selectedMonitor,
                let monitor = connectedMonitors.first(where: { $0.id == monitorId })
@@ -69,6 +34,7 @@ struct WorkspaceBarSettingsTab: View {
                 )
             }
         }
+        .formStyle(.grouped)
         .onAppear {
             connectedMonitors = Monitor.current()
         }
@@ -80,168 +46,118 @@ private struct GlobalBarSettingsSection: View {
     @Bindable var controller: WMController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Workspace Bar")
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Enable Workspace Bar", isOn: $settings.workspaceBarEnabled)
-                    .onChange(of: settings.workspaceBarEnabled) { _, newValue in
-                        controller.setWorkspaceBarEnabled(newValue)
+        Section("Workspace Bar") {
+            Toggle("Enable Workspace Bar", isOn: $settings.workspaceBarEnabled)
+                .onChange(of: settings.workspaceBarEnabled) { _, newValue in
+                    controller.setWorkspaceBarEnabled(newValue)
+                }
+
+            if settings.workspaceBarEnabled {
+                Toggle("Show Workspace Labels", isOn: $settings.workspaceBarShowLabels)
+                    .onChange(of: settings.workspaceBarShowLabels) { _, _ in
+                        controller.updateWorkspaceBarSettings()
                     }
 
-                if settings.workspaceBarEnabled {
-                    Toggle("Show Workspace Labels", isOn: $settings.workspaceBarShowLabels)
-                        .onChange(of: settings.workspaceBarShowLabels) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
+                Toggle("Show Floating Windows", isOn: $settings.workspaceBarShowFloatingWindows)
+                    .onChange(of: settings.workspaceBarShowFloatingWindows) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
 
-                    Toggle("Show Floating Windows", isOn: $settings.workspaceBarShowFloatingWindows)
-                        .onChange(of: settings.workspaceBarShowFloatingWindows) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
+                Toggle("Deduplicate App Icons", isOn: $settings.workspaceBarDeduplicateAppIcons)
+                    .onChange(of: settings.workspaceBarDeduplicateAppIcons) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                    .help("Group windows by app with badge count")
 
-                    Toggle("Deduplicate App Icons", isOn: $settings.workspaceBarDeduplicateAppIcons)
-                        .onChange(of: settings.workspaceBarDeduplicateAppIcons) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
-                        .help("Group windows by app with badge count")
+                Toggle("Hide Empty Workspaces", isOn: $settings.workspaceBarHideEmptyWorkspaces)
+                    .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
 
-                    Toggle("Hide Empty Workspaces", isOn: $settings.workspaceBarHideEmptyWorkspaces)
-                        .onChange(of: settings.workspaceBarHideEmptyWorkspaces) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
+                Toggle("Reserve Space for Workspace Bar", isOn: $settings.workspaceBarReserveLayoutSpace)
+                    .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                    .help(
+                        "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
+                    )
 
-                    Toggle("Reserve Space for Workspace Bar", isOn: $settings.workspaceBarReserveLayoutSpace)
-                        .onChange(of: settings.workspaceBarReserveLayoutSpace) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
-                        .help(
-                            "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
-                        )
+                Toggle("Notch-Aware Positioning", isOn: $settings.workspaceBarNotchAware)
+                    .onChange(of: settings.workspaceBarNotchAware) { _, _ in
+                        controller.updateWorkspaceBarSettings()
+                    }
+                    .help("Shift bar to the right of the notch on MacBook Pro")
+            }
+        }
 
-                    Toggle("Notch-Aware Positioning", isOn: $settings.workspaceBarNotchAware)
-                        .onChange(of: settings.workspaceBarNotchAware) { _, _ in
-                            controller.updateWorkspaceBarSettings()
-                        }
-                        .help("Shift bar to the right of the notch on MacBook Pro")
+        if settings.workspaceBarEnabled {
+            Section("Position & Level") {
+                Picker("Position", selection: $settings.workspaceBarPosition) {
+                    ForEach(WorkspaceBarPosition.allCases) { position in
+                        Text(position.displayName).tag(position)
+                    }
+                }
+                .onChange(of: settings.workspaceBarPosition) { _, _ in
+                    controller.updateWorkspaceBarSettings()
+                }
+
+                Picker("Window Level", selection: $settings.workspaceBarWindowLevel) {
+                    ForEach(WorkspaceBarWindowLevel.allCases) { level in
+                        Text(level.displayName).tag(level)
+                    }
+                }
+                .onChange(of: settings.workspaceBarWindowLevel) { _, _ in
+                    controller.updateWorkspaceBarSettings()
                 }
             }
 
-            if settings.workspaceBarEnabled {
-                Divider()
-
-                SectionHeader("Position & Level")
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Position", selection: $settings.workspaceBarPosition) {
-                        ForEach(WorkspaceBarPosition.allCases) { position in
-                            Text(position.displayName).tag(position)
-                        }
-                    }
-                    .onChange(of: settings.workspaceBarPosition) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-
-                    Picker("Window Level", selection: $settings.workspaceBarWindowLevel) {
-                        ForEach(WorkspaceBarWindowLevel.allCases) { level in
-                            Text(level.displayName).tag(level)
-                        }
-                    }
-                    .onChange(of: settings.workspaceBarWindowLevel) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
+            Section("Position Offset") {
+                SettingsNumberStepperRow(
+                    label: "X Offset",
+                    value: $settings.workspaceBarXOffset,
+                    range: -500 ... 500,
+                    step: 10,
+                    valueText: "\(Int(settings.workspaceBarXOffset)) px"
+                )
+                .help("Horizontal offset (negative = left, positive = right)")
+                .onChange(of: settings.workspaceBarXOffset) { _, _ in
+                    controller.updateWorkspaceBarSettings()
                 }
 
-                Divider()
+                SettingsNumberStepperRow(
+                    label: "Y Offset",
+                    value: $settings.workspaceBarYOffset,
+                    range: -500 ... 500,
+                    step: 10,
+                    valueText: "\(Int(settings.workspaceBarYOffset)) px"
+                )
+                .help("Vertical offset (negative = down, positive = up)")
+                .onChange(of: settings.workspaceBarYOffset) { _, _ in
+                    controller.updateWorkspaceBarSettings()
+                }
+            }
 
-                SectionHeader("Position Offset")
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("X Offset")
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Button {
-                                settings.workspaceBarXOffset = max(-500, settings.workspaceBarXOffset - 10)
-                            } label: {
-                                Image(systemName: "minus")
-                            }
-                            .buttonStyle(.bordered)
-
-                            TextField("", value: $settings.workspaceBarXOffset, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 60)
-                                .multilineTextAlignment(.center)
-
-                            Button {
-                                settings.workspaceBarXOffset = min(500, settings.workspaceBarXOffset + 10)
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        Text("\(Int(settings.workspaceBarXOffset)) px")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .frame(width: 48, alignment: .trailing)
-                    }
-                    .onChange(of: settings.workspaceBarXOffset) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-
-                    HStack {
-                        Text("Y Offset")
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Button {
-                                settings.workspaceBarYOffset = max(-500, settings.workspaceBarYOffset - 10)
-                            } label: {
-                                Image(systemName: "minus")
-                            }
-                            .buttonStyle(.bordered)
-
-                            TextField("", value: $settings.workspaceBarYOffset, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 60)
-                                .multilineTextAlignment(.center)
-
-                            Button {
-                                settings.workspaceBarYOffset = min(500, settings.workspaceBarYOffset + 10)
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        Text("\(Int(settings.workspaceBarYOffset)) px")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .frame(width: 48, alignment: .trailing)
-                    }
-                    .onChange(of: settings.workspaceBarYOffset) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
+            Section("Appearance") {
+                SettingsSliderRow(
+                    label: "Bar Height",
+                    value: $settings.workspaceBarHeight,
+                    range: 20 ... 40,
+                    step: 2,
+                    valueText: "\(Int(settings.workspaceBarHeight)) px"
+                )
+                .onChange(of: settings.workspaceBarHeight) { _, _ in
+                    controller.updateWorkspaceBarSettings()
                 }
 
-                Divider()
-
-                SectionHeader("Appearance")
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Bar Height")
-                        Slider(value: $settings.workspaceBarHeight, in: 20 ... 40, step: 2)
-                        Text("\(Int(settings.workspaceBarHeight)) px")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .frame(width: 48, alignment: .trailing)
-                    }
-                    .onChange(of: settings.workspaceBarHeight) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
-
-                    HStack {
-                        Text("Background Opacity")
-                        Slider(value: $settings.workspaceBarBackgroundOpacity, in: 0 ... 0.5, step: 0.05)
-                        Text("\(Int(settings.workspaceBarBackgroundOpacity * 100))%")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .frame(width: 48, alignment: .trailing)
-                    }
-                    .onChange(of: settings.workspaceBarBackgroundOpacity) { _, _ in
-                        controller.updateWorkspaceBarSettings()
-                    }
+                SettingsSliderRow(
+                    label: "Background Opacity",
+                    value: $settings.workspaceBarBackgroundOpacity,
+                    range: 0 ... 0.5,
+                    step: 0.05,
+                    valueText: "\(Int(settings.workspaceBarBackgroundOpacity * 100))%"
+                )
+                .onChange(of: settings.workspaceBarBackgroundOpacity) { _, _ in
+                    controller.updateWorkspaceBarSettings()
                 }
             }
         }
@@ -272,151 +188,139 @@ private struct MonitorBarSettingsSection: View {
     var body: some View {
         let ms = monitorSettings
 
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Workspace Bar")
-            VStack(alignment: .leading, spacing: 8) {
-                OverridableToggle(
-                    label: "Enable Workspace Bar",
-                    value: ms.enabled,
-                    globalValue: settings.workspaceBarEnabled,
-                    onChange: { newValue in updateSetting { $0.enabled = newValue } },
-                    onReset: { updateSetting { $0.enabled = nil } }
-                )
+        Section("Workspace Bar") {
+            OverridableToggle(
+                label: "Enable Workspace Bar",
+                value: ms.enabled,
+                globalValue: settings.workspaceBarEnabled,
+                onChange: { newValue in updateSetting { $0.enabled = newValue } },
+                onReset: { updateSetting { $0.enabled = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Show Workspace Labels",
-                    value: ms.showLabels,
-                    globalValue: settings.workspaceBarShowLabels,
-                    onChange: { newValue in updateSetting { $0.showLabels = newValue } },
-                    onReset: { updateSetting { $0.showLabels = nil } }
-                )
+            OverridableToggle(
+                label: "Show Workspace Labels",
+                value: ms.showLabels,
+                globalValue: settings.workspaceBarShowLabels,
+                onChange: { newValue in updateSetting { $0.showLabels = newValue } },
+                onReset: { updateSetting { $0.showLabels = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Show Floating Windows",
-                    value: ms.showFloatingWindows,
-                    globalValue: settings.workspaceBarShowFloatingWindows,
-                    onChange: { newValue in updateSetting { $0.showFloatingWindows = newValue } },
-                    onReset: { updateSetting { $0.showFloatingWindows = nil } }
-                )
+            OverridableToggle(
+                label: "Show Floating Windows",
+                value: ms.showFloatingWindows,
+                globalValue: settings.workspaceBarShowFloatingWindows,
+                onChange: { newValue in updateSetting { $0.showFloatingWindows = newValue } },
+                onReset: { updateSetting { $0.showFloatingWindows = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Deduplicate App Icons",
-                    value: ms.deduplicateAppIcons,
-                    globalValue: settings.workspaceBarDeduplicateAppIcons,
-                    onChange: { newValue in updateSetting { $0.deduplicateAppIcons = newValue } },
-                    onReset: { updateSetting { $0.deduplicateAppIcons = nil } }
-                )
-                .help("Group windows by app with badge count")
+            OverridableToggle(
+                label: "Deduplicate App Icons",
+                value: ms.deduplicateAppIcons,
+                globalValue: settings.workspaceBarDeduplicateAppIcons,
+                onChange: { newValue in updateSetting { $0.deduplicateAppIcons = newValue } },
+                onReset: { updateSetting { $0.deduplicateAppIcons = nil } }
+            )
+            .help("Group windows by app with badge count")
 
-                OverridableToggle(
-                    label: "Hide Empty Workspaces",
-                    value: ms.hideEmptyWorkspaces,
-                    globalValue: settings.workspaceBarHideEmptyWorkspaces,
-                    onChange: { newValue in updateSetting { $0.hideEmptyWorkspaces = newValue } },
-                    onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
-                )
+            OverridableToggle(
+                label: "Hide Empty Workspaces",
+                value: ms.hideEmptyWorkspaces,
+                globalValue: settings.workspaceBarHideEmptyWorkspaces,
+                onChange: { newValue in updateSetting { $0.hideEmptyWorkspaces = newValue } },
+                onReset: { updateSetting { $0.hideEmptyWorkspaces = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Reserve Space for Workspace Bar",
-                    value: ms.reserveLayoutSpace,
-                    globalValue: settings.workspaceBarReserveLayoutSpace,
-                    onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
-                    onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
-                )
-                .help(
-                    "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
-                )
+            OverridableToggle(
+                label: "Reserve Space for Workspace Bar",
+                value: ms.reserveLayoutSpace,
+                globalValue: settings.workspaceBarReserveLayoutSpace,
+                onChange: { newValue in updateSetting { $0.reserveLayoutSpace = newValue } },
+                onReset: { updateSetting { $0.reserveLayoutSpace = nil } }
+            )
+            .help(
+                "Reserve tiled layout space for the workspace bar. Overlapping Menu Bar uses the configured bar height; bars placed below the menu bar use the rendered bar height."
+            )
 
-                OverridableToggle(
-                    label: "Notch-Aware Positioning",
-                    value: ms.notchAware,
-                    globalValue: settings.workspaceBarNotchAware,
-                    onChange: { newValue in updateSetting { $0.notchAware = newValue } },
-                    onReset: { updateSetting { $0.notchAware = nil } }
-                )
-                .help("Shift bar to the right of the notch on MacBook Pro")
-            }
+            OverridableToggle(
+                label: "Notch-Aware Positioning",
+                value: ms.notchAware,
+                globalValue: settings.workspaceBarNotchAware,
+                onChange: { newValue in updateSetting { $0.notchAware = newValue } },
+                onReset: { updateSetting { $0.notchAware = nil } }
+            )
+            .help("Shift bar to the right of the notch on MacBook Pro")
+        }
 
-            Divider()
+        Section("Position & Level") {
+            OverridablePicker(
+                label: "Position",
+                value: ms.position,
+                globalValue: settings.workspaceBarPosition,
+                options: WorkspaceBarPosition.allCases,
+                displayName: { $0.displayName },
+                onChange: { newValue in updateSetting { $0.position = newValue } },
+                onReset: { updateSetting { $0.position = nil } }
+            )
 
-            SectionHeader("Position & Level")
-            VStack(alignment: .leading, spacing: 8) {
-                OverridablePicker(
-                    label: "Position",
-                    value: ms.position,
-                    globalValue: settings.workspaceBarPosition,
-                    options: WorkspaceBarPosition.allCases,
-                    displayName: { $0.displayName },
-                    onChange: { newValue in updateSetting { $0.position = newValue } },
-                    onReset: { updateSetting { $0.position = nil } }
-                )
+            OverridablePicker(
+                label: "Window Level",
+                value: ms.windowLevel,
+                globalValue: settings.workspaceBarWindowLevel,
+                options: WorkspaceBarWindowLevel.allCases,
+                displayName: { $0.displayName },
+                onChange: { newValue in updateSetting { $0.windowLevel = newValue } },
+                onReset: { updateSetting { $0.windowLevel = nil } }
+            )
+        }
 
-                OverridablePicker(
-                    label: "Window Level",
-                    value: ms.windowLevel,
-                    globalValue: settings.workspaceBarWindowLevel,
-                    options: WorkspaceBarWindowLevel.allCases,
-                    displayName: { $0.displayName },
-                    onChange: { newValue in updateSetting { $0.windowLevel = newValue } },
-                    onReset: { updateSetting { $0.windowLevel = nil } }
-                )
-            }
+        Section("Position Offset") {
+            OverridableStepper(
+                label: "X Offset",
+                value: ms.xOffset,
+                globalValue: settings.workspaceBarXOffset,
+                range: -500 ... 500,
+                step: 10,
+                formatter: { "\(Int($0)) px" },
+                onChange: { newValue in updateSetting { $0.xOffset = newValue } },
+                onReset: { updateSetting { $0.xOffset = nil } }
+            )
+            .help("Horizontal offset (negative = left, positive = right)")
 
-            Divider()
+            OverridableStepper(
+                label: "Y Offset",
+                value: ms.yOffset,
+                globalValue: settings.workspaceBarYOffset,
+                range: -500 ... 500,
+                step: 10,
+                formatter: { "\(Int($0)) px" },
+                onChange: { newValue in updateSetting { $0.yOffset = newValue } },
+                onReset: { updateSetting { $0.yOffset = nil } }
+            )
+            .help("Vertical offset (negative = down, positive = up)")
+        }
 
-            SectionHeader("Position Offset")
-            VStack(alignment: .leading, spacing: 8) {
-                OverridableStepper(
-                    label: "X Offset",
-                    value: ms.xOffset,
-                    globalValue: settings.workspaceBarXOffset,
-                    range: -500 ... 500,
-                    step: 10,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.xOffset = newValue } },
-                    onReset: { updateSetting { $0.xOffset = nil } }
-                )
-                .help("Horizontal offset (negative = left, positive = right)")
+        Section("Appearance") {
+            OverridableSlider(
+                label: "Bar Height",
+                value: ms.height,
+                globalValue: settings.workspaceBarHeight,
+                range: 20 ... 40,
+                step: 2,
+                formatter: { "\(Int($0)) px" },
+                onChange: { newValue in updateSetting { $0.height = newValue } },
+                onReset: { updateSetting { $0.height = nil } }
+            )
 
-                OverridableStepper(
-                    label: "Y Offset",
-                    value: ms.yOffset,
-                    globalValue: settings.workspaceBarYOffset,
-                    range: -500 ... 500,
-                    step: 10,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.yOffset = newValue } },
-                    onReset: { updateSetting { $0.yOffset = nil } }
-                )
-                .help("Vertical offset (negative = down, positive = up)")
-            }
-
-            Divider()
-
-            SectionHeader("Appearance")
-            VStack(alignment: .leading, spacing: 8) {
-                OverridableSlider(
-                    label: "Bar Height",
-                    value: ms.height,
-                    globalValue: settings.workspaceBarHeight,
-                    range: 20 ... 40,
-                    step: 2,
-                    formatter: { "\(Int($0)) px" },
-                    onChange: { newValue in updateSetting { $0.height = newValue } },
-                    onReset: { updateSetting { $0.height = nil } }
-                )
-
-                OverridableSlider(
-                    label: "Background Opacity",
-                    value: ms.backgroundOpacity,
-                    globalValue: settings.workspaceBarBackgroundOpacity,
-                    range: 0 ... 0.5,
-                    step: 0.05,
-                    formatter: { "\(Int($0 * 100))%" },
-                    onChange: { newValue in updateSetting { $0.backgroundOpacity = newValue } },
-                    onReset: { updateSetting { $0.backgroundOpacity = nil } }
-                )
-            }
+            OverridableSlider(
+                label: "Background Opacity",
+                value: ms.backgroundOpacity,
+                globalValue: settings.workspaceBarBackgroundOpacity,
+                range: 0 ... 0.5,
+                step: 0.05,
+                formatter: { "\(Int($0 * 100))%" },
+                onChange: { newValue in updateSetting { $0.backgroundOpacity = newValue } },
+                onReset: { updateSetting { $0.backgroundOpacity = nil } }
+            )
         }
     }
 }

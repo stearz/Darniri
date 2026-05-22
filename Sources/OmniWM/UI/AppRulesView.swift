@@ -14,6 +14,7 @@ struct AppRulesView: View {
 
     @State private var selectedRuleId: AppRule.ID?
     @State private var addDraft: AppRuleDraft?
+    @State private var pendingDeleteRule: AppRule?
 
     var body: some View {
         NavigationSplitView {
@@ -21,7 +22,7 @@ struct AppRulesView: View {
                 rules: settings.appRules,
                 selection: $selectedRuleId,
                 onAdd: { presentNewRule() },
-                onDelete: deleteRule
+                onDelete: { pendingDeleteRule = $0 }
             )
         } detail: {
             if let ruleId = selectedRuleId,
@@ -33,8 +34,7 @@ struct AppRulesView: View {
                     controller: controller,
                     onCreateRuleFromSnapshot: presentNewRule(from:),
                     onDelete: {
-                        deleteRule(settings.appRules[ruleIndex])
-                        selectedRuleId = nil
+                        pendingDeleteRule = settings.appRules[ruleIndex]
                     }
                 )
                 .id(ruleId)
@@ -63,11 +63,34 @@ struct AppRulesView: View {
                 onCancel: { addDraft = nil }
             )
         }
+        .confirmationDialog(
+            "Delete app rule?",
+            isPresented: isConfirmingDelete,
+            presenting: pendingDeleteRule
+        ) { rule in
+            Button("Delete Rule", role: .destructive) {
+                deleteRule(rule)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { rule in
+            Text("Delete the rule for \(rule.bundleId)?")
+        }
         .frame(minWidth: 580, minHeight: 400)
     }
 
     private var workspaceNames: [String] {
         settings.workspaceConfigurations.map(\.name)
+    }
+
+    private var isConfirmingDelete: Binding<Bool> {
+        Binding(
+            get: { pendingDeleteRule != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteRule = nil
+                }
+            }
+        )
     }
 
     private func deleteRule(_ rule: AppRule) {
@@ -113,9 +136,11 @@ struct AppRulesSidebar: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onAdd) {
-                    Image(systemName: "plus")
+                    Label("Add app rule", systemImage: "plus")
+                        .labelStyle(.iconOnly)
                 }
                 .help("Add app rule")
+                .accessibilityLabel("Add app rule")
             }
         }
     }
@@ -218,103 +243,96 @@ struct AppRuleDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            Form {
-                Section("Application") {
-                    LabeledContent("Bundle ID") {
-                        Text(draft.bundleId)
-                            .font(.system(.body, design: .monospaced))
+        Form {
+            Section("Application") {
+                LabeledContent("Bundle ID") {
+                    Text(draft.bundleId)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Window Behavior") {
+                Picker("Layout", selection: $draft.layoutAction) {
+                    ForEach(WindowRuleLayoutAction.allCases) { action in
+                        Text(action.displayName).tag(action)
+                    }
+                }
+                .onChange(of: draft.layoutAction) { _, _ in
+                    draft.usesLegacyAlwaysFloat = false
+                }
+
+                Toggle("Assign to Workspace", isOn: $draft.assignToWorkspaceEnabled)
+                    .onChange(of: draft.assignToWorkspaceEnabled) { _, enabled in
+                        guard enabled else { return }
+                        seedWorkspaceIfNeeded()
+                    }
+
+                if draft.assignToWorkspaceEnabled {
+                    Picker("Workspace", selection: $draft.assignToWorkspace) {
+                        ForEach(workspaceNames, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .disabled(workspaceNames.isEmpty)
+
+                    if workspaceNames.isEmpty {
+                        SettingsCaption("No workspaces configured. Add workspaces in Settings.")
+                    }
+                }
+            }
+
+            Section("Minimum Size (Layout Constraint)") {
+                Toggle("Minimum Width", isOn: $draft.minWidthEnabled)
+
+                if draft.minWidthEnabled {
+                    HStack {
+                        TextField("Width", value: $draft.minWidth, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                        Text("px")
                             .foregroundColor(.secondary)
                     }
                 }
 
-                Section("Window Behavior") {
-                    Picker("Layout", selection: $draft.layoutAction) {
-                        ForEach(WindowRuleLayoutAction.allCases) { action in
-                            Text(action.displayName).tag(action)
-                        }
-                    }
-                    .onChange(of: draft.layoutAction) { _, _ in
-                        draft.usesLegacyAlwaysFloat = false
-                    }
+                Toggle("Minimum Height", isOn: $draft.minHeightEnabled)
 
-                    Toggle("Assign to Workspace", isOn: $draft.assignToWorkspaceEnabled)
-                        .onChange(of: draft.assignToWorkspaceEnabled) { _, enabled in
-                            guard enabled else { return }
-                            seedWorkspaceIfNeeded()
-                        }
-
-                    if draft.assignToWorkspaceEnabled {
-                        Picker("Workspace", selection: $draft.assignToWorkspace) {
-                            ForEach(workspaceNames, id: \.self) { name in
-                                Text(name).tag(name)
-                            }
-                        }
-                        .disabled(workspaceNames.isEmpty)
-
-                        if workspaceNames.isEmpty {
-                            Text("No workspaces configured. Add workspaces in Settings.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                if draft.minHeightEnabled {
+                    HStack {
+                        TextField("Height", value: $draft.minHeight, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                        Text("px")
+                            .foregroundColor(.secondary)
                     }
                 }
 
-                Section("Minimum Size (Layout Constraint)") {
-                    Toggle("Minimum Width", isOn: $draft.minWidthEnabled)
+                SettingsCaption("Prevents layout engine from sizing window smaller than these values.")
+            }
 
-                    if draft.minWidthEnabled {
-                        HStack {
-                            TextField("Width", value: $draft.minWidth, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 100)
-                            Text("px")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Toggle("Minimum Height", isOn: $draft.minHeightEnabled)
-
-                    if draft.minHeightEnabled {
-                        HStack {
-                            TextField("Height", value: $draft.minHeight, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 100)
-                            Text("px")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Text("Prevents layout engine from sizing window smaller than these values.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Section {
-                    DisclosureGroup("Advanced Matchers", isExpanded: $isAdvancedMatchersExpanded) {
-                        AdvancedMatchersEditor(
-                            draft: $draft,
-                            regexError: titleRegexError
-                        )
-                    }
-                }
-
-                Section {
-                    FocusedWindowInspectorView(
-                        controller: controller,
-                        onCreateRuleFromSnapshot: onCreateRuleFromSnapshot
+            Section {
+                DisclosureGroup("Advanced Matchers", isExpanded: $isAdvancedMatchersExpanded) {
+                    AdvancedMatchersEditor(
+                        draft: $draft,
+                        regexError: titleRegexError
                     )
                 }
+            }
 
-                Section {
-                    Button(role: .destructive, action: onDelete) {
-                        Label("Delete Rule", systemImage: "trash")
-                    }
+            Section {
+                FocusedWindowInspectorView(
+                    controller: controller,
+                    onCreateRuleFromSnapshot: onCreateRuleFromSnapshot
+                )
+            }
+
+            Section {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete Rule", systemImage: "trash")
                 }
             }
-            .formStyle(.grouped)
-            .padding()
         }
+        .formStyle(.grouped)
         .onChange(of: draft) { _, newValue in
             rule = newValue.makeRule(id: rule.id)
             controller.updateAppRules()

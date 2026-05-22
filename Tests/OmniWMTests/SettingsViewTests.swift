@@ -31,6 +31,13 @@ private func makeSettingsWorkflowTestStore(directory: URL) -> SettingsStore {
         #expect(SettingsFileStatus.opened.message == "Settings file opened")
     }
 
+    @Test func settingsSidebarGroupsCoverEverySectionOnce() {
+        let groupedSections = SettingsSectionGroup.allCases.flatMap(\.sections)
+
+        #expect(groupedSections == SettingsSection.allCases)
+        #expect(Set(groupedSections).count == groupedSections.count)
+    }
+
     @Test func revealActionCreatesCanonicalTomlAndReportsRevealed() throws {
         let directory = makeSettingsWorkflowTestDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

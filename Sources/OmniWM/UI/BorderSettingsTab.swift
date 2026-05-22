@@ -15,13 +15,14 @@ struct BorderSettingsTab: View {
                     }
 
                 if settings.bordersEnabled {
-                    HStack {
-                        Text("Border Width")
-                        Slider(value: $settings.borderWidth, in: 1 ... 12, step: 0.5)
-                        Text("\(settings.borderWidth, specifier: "%.1f") px")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .frame(width: 50, alignment: .trailing)
-                    }
+                    SettingsSliderRow(
+                        label: "Border Width",
+                        value: $settings.borderWidth,
+                        range: 1 ... 12,
+                        step: 0.5,
+                        valueText: String(format: "%.1f px", settings.borderWidth),
+                        valueWidth: 56
+                    )
                     .onChange(of: settings.borderWidth) { _, _ in
                         syncBorderConfig()
                     }

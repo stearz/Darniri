@@ -7,13 +7,11 @@ struct SettingsDetailView: View {
     let updateCoordinator: (any AppUpdateCoordinating)?
 
     var body: some View {
-        ScrollView {
-            contentView
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .omniBackgroundExtensionEffect()
+        contentView
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(section.displayName)
+            .omniBackgroundExtensionEffect()
     }
 
     @ViewBuilder

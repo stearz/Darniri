@@ -18,7 +18,7 @@ struct SettingsView: View {
             )
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 680, minHeight: 500)
+        .frame(minWidth: 760, minHeight: 560)
     }
 }
 
@@ -44,15 +44,10 @@ struct GeneralSettingsTab: View {
                     controller.applyCurrentAppearanceMode()
                 }
 
-                Text("Controls the appearance of menus and workspace bar")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                SettingsCaption("Controls the appearance of menus and workspace bar")
 
                 Toggle("Enable Animations", isOn: animationsEnabled)
-
-                Text("Turns OmniWM-authored animations on or off live without relaunching.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                SettingsCaption("Turns OmniWM-authored animations on or off live without relaunching.")
             }
 
             Section("Status Bar") {
@@ -70,9 +65,7 @@ struct GeneralSettingsTab: View {
                         controller.refreshStatusBar()
                     }
                     .disabled(!settings.statusBarShowWorkspaceName)
-                Text("Shows the active workspace and focused app beside the menu bar icon")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                SettingsCaption("Shows the active workspace and focused app beside the menu bar icon")
             }
 
             Section("Updates") {
@@ -83,85 +76,87 @@ struct GeneralSettingsTab: View {
                 }
                 .disabled(updateCoordinator == nil)
 
-                Text(
-                    "OmniWM checks the latest GitHub release once per day on launch. "
-                        + "Updates stay manual and the popup includes both the GitHub page and the Homebrew command."
+                SettingsCaption(
+                    "OmniWM checks the latest GitHub release once per day on launch. Updates stay manual and the popup includes both the GitHub page and the Homebrew command."
                 )
-                .font(.caption)
-                .foregroundColor(.secondary)
             }
 
             Section("Layout") {
-                HStack {
-                    Text("Inner Gaps")
-                    Slider(value: $settings.gapSize, in: 0 ... 32, step: 1)
-                    Text("\(Int(settings.gapSize)) px")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 64, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Inner Gaps",
+                    value: $settings.gapSize,
+                    range: 0 ... 32,
+                    step: 1,
+                    valueText: "\(Int(settings.gapSize)) px",
+                    valueWidth: 64
+                )
                 .onChange(of: settings.gapSize) { _, newValue in
                     controller.setGapSize(newValue)
                 }
 
-                Divider()
-                Text("Outer Margins").font(.subheadline).foregroundColor(.secondary)
+                Text("Outer Margins")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-                HStack {
-                    Text("Left")
-                    Slider(value: $settings.outerGapLeft, in: 0 ... 64, step: 1)
-                    Text("\(Int(settings.outerGapLeft)) px")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 64, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Left",
+                    value: $settings.outerGapLeft,
+                    range: 0 ... 64,
+                    step: 1,
+                    valueText: "\(Int(settings.outerGapLeft)) px",
+                    valueWidth: 64
+                )
                 .onChange(of: settings.outerGapLeft) { _, _ in
                     syncOuterGaps()
                 }
 
-                HStack {
-                    Text("Right")
-                    Slider(value: $settings.outerGapRight, in: 0 ... 64, step: 1)
-                    Text("\(Int(settings.outerGapRight)) px")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 64, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Right",
+                    value: $settings.outerGapRight,
+                    range: 0 ... 64,
+                    step: 1,
+                    valueText: "\(Int(settings.outerGapRight)) px",
+                    valueWidth: 64
+                )
                 .onChange(of: settings.outerGapRight) { _, _ in
                     syncOuterGaps()
                 }
 
-                HStack {
-                    Text("Top")
-                    Slider(value: $settings.outerGapTop, in: 0 ... 64, step: 1)
-                    Text("\(Int(settings.outerGapTop)) px")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 64, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Top",
+                    value: $settings.outerGapTop,
+                    range: 0 ... 64,
+                    step: 1,
+                    valueText: "\(Int(settings.outerGapTop)) px",
+                    valueWidth: 64
+                )
                 .onChange(of: settings.outerGapTop) { _, _ in
                     syncOuterGaps()
                 }
 
-                HStack {
-                    Text("Bottom")
-                    Slider(value: $settings.outerGapBottom, in: 0 ... 64, step: 1)
-                    Text("\(Int(settings.outerGapBottom)) px")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 64, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Bottom",
+                    value: $settings.outerGapBottom,
+                    range: 0 ... 64,
+                    step: 1,
+                    valueText: "\(Int(settings.outerGapBottom)) px",
+                    valueWidth: 64
+                )
                 .onChange(of: settings.outerGapBottom) { _, _ in
                     syncOuterGaps()
                 }
+            }
 
-                Divider()
-                Text("Scroll Gestures").font(.subheadline).foregroundColor(.secondary)
-
+            Section("Scroll Gestures") {
                 Toggle("Enable Scroll Gestures", isOn: $settings.scrollGestureEnabled)
 
-                HStack {
-                    Text("Scroll Sensitivity")
-                    Slider(value: $settings.scrollSensitivity, in: 0.1 ... 100.0, step: 0.1)
-                    Text(String(format: "%.1f", settings.scrollSensitivity) + "x")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 56, alignment: .trailing)
-                }
+                SettingsSliderRow(
+                    label: "Scroll Sensitivity",
+                    value: $settings.scrollSensitivity,
+                    range: 0.1 ... 100.0,
+                    step: 0.1,
+                    valueText: String(format: "%.1f", settings.scrollSensitivity) + "x"
+                )
 
                 Picker("Trackpad Gesture Fingers", selection: $settings.gestureFingerCount) {
                     ForEach(GestureFingerCount.allCases, id: \.self) { count in
@@ -173,11 +168,7 @@ struct GeneralSettingsTab: View {
                 Toggle("Invert Direction (Natural)", isOn: $settings.gestureInvertDirection)
                     .disabled(!settings.scrollGestureEnabled)
 
-                Text(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Divider()
+                SettingsCaption(settings.gestureInvertDirection ? "Swipe right = scroll right" : "Swipe right = scroll left")
 
                 Picker("Mouse Scroll Modifier", selection: $settings.scrollModifierKey) {
                     ForEach(ScrollModifierKey.allCases, id: \.self) { key in
@@ -186,22 +177,17 @@ struct GeneralSettingsTab: View {
                 }
                 .disabled(!settings.scrollGestureEnabled)
 
-                Text("Hold this key + scroll wheel to navigate workspaces")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                SettingsCaption("Hold this key + scroll wheel to navigate workspaces")
+            }
 
-                Divider()
-                Text("Mouse Resize").font(.subheadline).foregroundColor(.secondary)
-
+            Section("Mouse Resize") {
                 Picker("Right Mouse Resize Modifier", selection: $settings.mouseResizeModifierKey) {
                     ForEach(MouseResizeModifierKey.allCases, id: \.self) { key in
                         Text(key.displayName).tag(key)
                     }
                 }
 
-                Text("Hold this modifier combo + right mouse drag to resize tiled windows")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                SettingsCaption("Hold this modifier combo + right mouse drag to resize tiled windows")
             }
         }
         .formStyle(.grouped)
@@ -225,51 +211,16 @@ struct NiriSettingsTab: View {
     @State private var connectedMonitors: [Monitor] = Monitor.current()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Configuration Scope")
-
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Configure settings for:", selection: $selectedMonitor) {
-                    Text("Global Defaults").tag(nil as Monitor.ID?)
-                    if !connectedMonitors.isEmpty {
-                        Divider()
-                        ForEach(connectedMonitors, id: \.id) { monitor in
-                            HStack {
-                                Text(monitor.name)
-                                if monitor.isMain {
-                                    Text("(Main)")
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .tag(monitor.id as Monitor.ID?)
-                        }
-                    }
+        Form {
+            MonitorScopeSection(
+                selectedMonitor: $selectedMonitor,
+                monitors: connectedMonitors,
+                hasOverrides: { settings.niriSettings(for: $0) != nil },
+                reset: { monitor in
+                    settings.removeNiriSettings(for: monitor)
+                    controller.updateMonitorNiriSettings()
                 }
-
-                if let monitorId = selectedMonitor,
-                   let monitor = connectedMonitors.first(where: { $0.id == monitorId })
-                {
-                    HStack {
-                        if settings.niriSettings(for: monitor) != nil {
-                            Text("Has custom overrides")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Using global defaults")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button("Reset to Global") {
-                            settings.removeNiriSettings(for: monitor)
-                            controller.updateMonitorNiriSettings()
-                        }
-                        .disabled(settings.niriSettings(for: monitor) == nil)
-                    }
-                }
-            }
-
-            Divider()
+            )
 
             if let monitorId = selectedMonitor,
                let monitor = connectedMonitors.first(where: { $0.id == monitorId })
@@ -286,6 +237,7 @@ struct NiriSettingsTab: View {
                 )
             }
         }
+        .formStyle(.grouped)
         .onAppear {
             connectedMonitors = Monitor.current()
         }
@@ -311,109 +263,102 @@ private struct GlobalNiriSettingsSection: View {
                 controller.updateNiriConfig(defaultColumnWidth: settings.niriDefaultColumnWidth)
             }
         )
+        let presets = settings.niriColumnWidthPresets
 
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Niri Layout")
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Windows per Column")
-                    Slider(value: .init(
-                        get: { Double(settings.niriMaxWindowsPerColumn) },
-                        set: { settings.niriMaxWindowsPerColumn = Int($0) }
-                    ), in: 1 ... 10, step: 1)
-                    Text("\(settings.niriMaxWindowsPerColumn)")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 24, alignment: .trailing)
-                }
-                .onChange(of: settings.niriMaxWindowsPerColumn) { _, newValue in
-                    controller.updateNiriConfig(maxWindowsPerColumn: newValue)
-                }
-
-                HStack {
-                    Text("Visible Columns")
-                    Slider(value: .init(
-                        get: { Double(settings.niriMaxVisibleColumns) },
-                        set: { settings.niriMaxVisibleColumns = Int($0) }
-                    ), in: 1 ... 5, step: 1)
-                    Text("\(settings.niriMaxVisibleColumns)")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .frame(width: 24, alignment: .trailing)
-                }
-                .onChange(of: settings.niriMaxVisibleColumns) { _, newValue in
-                    controller.updateNiriConfig(maxVisibleColumns: newValue)
-                }
-
-                Toggle("Infinite Loop Navigation", isOn: $settings.niriInfiniteLoop)
-                    .onChange(of: settings.niriInfiniteLoop) { _, newValue in
-                        controller.updateNiriConfig(infiniteLoop: newValue)
-                    }
-
-                Picker("Center Focused Column", selection: $settings.niriCenterFocusedColumn) {
-                    ForEach(CenterFocusedColumn.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .onChange(of: settings.niriCenterFocusedColumn) { _, newValue in
-                    controller.updateNiriConfig(centerFocusedColumn: newValue)
-                }
-
-                Toggle("Always Center Single Column", isOn: $settings.niriAlwaysCenterSingleColumn)
-                    .onChange(of: settings.niriAlwaysCenterSingleColumn) { _, newValue in
-                        controller.updateNiriConfig(alwaysCenterSingleColumn: newValue)
-                    }
-
-                Picker("Single Window Ratio", selection: $settings.niriSingleWindowAspectRatio) {
-                    ForEach(SingleWindowAspectRatio.allCases, id: \.self) { ratio in
-                        Text(ratio.displayName).tag(ratio)
-                    }
-                }
-                .onChange(of: settings.niriSingleWindowAspectRatio) { _, newValue in
-                    controller.updateNiriConfig(singleWindowAspectRatio: newValue)
-                }
+        Section("Niri Layout") {
+            SettingsSliderRow(
+                label: "Windows per Column",
+                value: Binding(
+                    get: { Double(settings.niriMaxWindowsPerColumn) },
+                    set: { settings.niriMaxWindowsPerColumn = Int($0) }
+                ),
+                range: 1 ... 10,
+                step: 1,
+                valueText: "\(settings.niriMaxWindowsPerColumn)",
+                valueWidth: 32
+            )
+            .onChange(of: settings.niriMaxWindowsPerColumn) { _, newValue in
+                controller.updateNiriConfig(maxWindowsPerColumn: newValue)
             }
 
-            Divider()
+            SettingsSliderRow(
+                label: "Visible Columns",
+                value: Binding(
+                    get: { Double(settings.niriMaxVisibleColumns) },
+                    set: { settings.niriMaxVisibleColumns = Int($0) }
+                ),
+                range: 1 ... 5,
+                step: 1,
+                valueText: "\(settings.niriMaxVisibleColumns)",
+                valueWidth: 32
+            )
+            .onChange(of: settings.niriMaxVisibleColumns) { _, newValue in
+                controller.updateNiriConfig(maxVisibleColumns: newValue)
+            }
 
-            SectionHeader("Default New Column Width")
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Width Mode")
-                    Picker("", selection: useAutoDefaultColumnWidth) {
-                        Text("Auto").tag(true)
-                        Text("Custom").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220)
+            Toggle("Infinite Loop Navigation", isOn: $settings.niriInfiniteLoop)
+                .onChange(of: settings.niriInfiniteLoop) { _, newValue in
+                    controller.updateNiriConfig(infiniteLoop: newValue)
                 }
 
-                if settings.niriDefaultColumnWidth != nil {
+            Picker("Center Focused Column", selection: $settings.niriCenterFocusedColumn) {
+                ForEach(CenterFocusedColumn.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .onChange(of: settings.niriCenterFocusedColumn) { _, newValue in
+                controller.updateNiriConfig(centerFocusedColumn: newValue)
+            }
+
+            Toggle("Always Center Single Column", isOn: $settings.niriAlwaysCenterSingleColumn)
+                .onChange(of: settings.niriAlwaysCenterSingleColumn) { _, newValue in
+                    controller.updateNiriConfig(alwaysCenterSingleColumn: newValue)
+                }
+
+            Picker("Single Window Ratio", selection: $settings.niriSingleWindowAspectRatio) {
+                ForEach(SingleWindowAspectRatio.allCases, id: \.self) { ratio in
+                    Text(ratio.displayName).tag(ratio)
+                }
+            }
+            .onChange(of: settings.niriSingleWindowAspectRatio) { _, newValue in
+                controller.updateNiriConfig(singleWindowAspectRatio: newValue)
+            }
+        }
+
+        Section("Default New Column Width") {
+            Picker("Width Mode", selection: useAutoDefaultColumnWidth) {
+                Text("Auto").tag(true)
+                Text("Custom").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 220)
+
+            if settings.niriDefaultColumnWidth != nil {
+                LabeledContent("Custom Width") {
                     HStack {
-                        Text("Custom Width")
-                        TextField("", value: defaultColumnWidthPercent, format: .number)
-                            .frame(width: 40)
+                        TextField("Custom Width", value: defaultColumnWidthPercent, format: .number)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 48)
                             .multilineTextAlignment(.trailing)
                         Text("%")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
                 }
-
-                Text(
-                    settings.niriDefaultColumnWidth == nil
-                        ? "Auto uses the balanced width for the current Visible Columns setting."
-                        : "New or claimed columns start at this width until you resize them."
-                )
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
             }
 
-            Divider()
+            SettingsCaption(
+                settings.niriDefaultColumnWidth == nil
+                    ? "Auto uses the balanced width for the current Visible Columns setting."
+                    : "New or claimed columns start at this width until you resize them."
+            )
+        }
 
-            SectionHeader("Column Width Cycle Presets")
-            let presets = settings.niriColumnWidthPresets
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(presets.indices, id: \.self) { index in
+        Section("Column Width Cycle Presets") {
+            ForEach(presets.indices, id: \.self) { index in
+                LabeledContent("Preset \(index + 1)") {
                     HStack {
-                        TextField("", value: Binding(
+                        TextField("Preset \(index + 1)", value: Binding(
                             get: { Int(presets[index] * 100) },
                             set: { newPercent in
                                 var current = settings.niriColumnWidthPresets
@@ -422,41 +367,44 @@ private struct GlobalNiriSettingsSection: View {
                                 controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                             }
                         ), format: .number)
-                            .frame(width: 40)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 48)
                             .multilineTextAlignment(.trailing)
+                            .accessibilityLabel("Preset \(index + 1) width")
                         Text("%")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
                         Button(role: .destructive) {
                             var presets = settings.niriColumnWidthPresets
                             presets.remove(at: index)
                             settings.niriColumnWidthPresets = presets
                             controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
                         } label: {
-                            Image(systemName: "minus.circle")
+                            Label("Remove preset \(index + 1)", systemImage: "minus.circle")
+                                .labelStyle(.iconOnly)
                         }
                         .buttonStyle(.borderless)
+                        .help("Remove preset \(index + 1)")
                         .disabled(settings.niriColumnWidthPresets.count <= 2)
                     }
                 }
-
-                HStack {
-                    Button("Add Preset") {
-                        var presets = settings.niriColumnWidthPresets
-                        presets.append(0.5)
-                        settings.niriColumnWidthPresets = presets
-                        controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
-                    }
-                    Button("Reset Cycle Presets") {
-                        settings.niriColumnWidthPresets = SettingsStore.defaultColumnWidthPresets
-                        controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
-                    }
-                }
-                Text("Resize commands cycle through these presets in order. Duplicates are allowed.")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
             }
-            .id(settings.niriColumnWidthPresets.count)
+
+            HStack {
+                Button("Add Preset") {
+                    var presets = settings.niriColumnWidthPresets
+                    presets.append(0.5)
+                    settings.niriColumnWidthPresets = presets
+                    controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
+                }
+                Button("Reset Cycle Presets") {
+                    settings.niriColumnWidthPresets = SettingsStore.defaultColumnWidthPresets
+                    controller.updateNiriConfig(columnWidthPresets: settings.niriColumnWidthPresets)
+                }
+            }
+            SettingsCaption("Resize commands cycle through these presets in order. Duplicates are allowed.")
         }
+        .id(settings.niriColumnWidthPresets.count)
     }
 }
 
@@ -484,67 +432,64 @@ private struct MonitorNiriSettingsSection: View {
     var body: some View {
         let ms = monitorSettings
 
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader("Niri Layout")
-            VStack(alignment: .leading, spacing: 8) {
-                OverridableSlider(
-                    label: "Windows per Column",
-                    value: ms.maxWindowsPerColumn.map { Double($0) },
-                    globalValue: Double(settings.niriMaxWindowsPerColumn),
-                    range: 1 ... 10,
-                    step: 1,
-                    formatter: { "\(Int($0))" },
-                    onChange: { newValue in updateSetting { $0.maxWindowsPerColumn = Int(newValue) } },
-                    onReset: { updateSetting { $0.maxWindowsPerColumn = nil } }
-                )
+        Section("Niri Layout") {
+            OverridableSlider(
+                label: "Windows per Column",
+                value: ms.maxWindowsPerColumn.map { Double($0) },
+                globalValue: Double(settings.niriMaxWindowsPerColumn),
+                range: 1 ... 10,
+                step: 1,
+                formatter: { "\(Int($0))" },
+                onChange: { newValue in updateSetting { $0.maxWindowsPerColumn = Int(newValue) } },
+                onReset: { updateSetting { $0.maxWindowsPerColumn = nil } }
+            )
 
-                OverridableSlider(
-                    label: "Visible Columns",
-                    value: ms.maxVisibleColumns.map { Double($0) },
-                    globalValue: Double(settings.niriMaxVisibleColumns),
-                    range: 1 ... 5,
-                    step: 1,
-                    formatter: { "\(Int($0))" },
-                    onChange: { newValue in updateSetting { $0.maxVisibleColumns = Int(newValue) } },
-                    onReset: { updateSetting { $0.maxVisibleColumns = nil } }
-                )
+            OverridableSlider(
+                label: "Visible Columns",
+                value: ms.maxVisibleColumns.map { Double($0) },
+                globalValue: Double(settings.niriMaxVisibleColumns),
+                range: 1 ... 5,
+                step: 1,
+                formatter: { "\(Int($0))" },
+                onChange: { newValue in updateSetting { $0.maxVisibleColumns = Int(newValue) } },
+                onReset: { updateSetting { $0.maxVisibleColumns = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Infinite Loop Navigation",
-                    value: ms.infiniteLoop,
-                    globalValue: settings.niriInfiniteLoop,
-                    onChange: { newValue in updateSetting { $0.infiniteLoop = newValue } },
-                    onReset: { updateSetting { $0.infiniteLoop = nil } }
-                )
+            OverridableToggle(
+                label: "Infinite Loop Navigation",
+                value: ms.infiniteLoop,
+                globalValue: settings.niriInfiniteLoop,
+                onChange: { newValue in updateSetting { $0.infiniteLoop = newValue } },
+                onReset: { updateSetting { $0.infiniteLoop = nil } }
+            )
 
-                OverridablePicker(
-                    label: "Center Focused Column",
-                    value: ms.centerFocusedColumn,
-                    globalValue: settings.niriCenterFocusedColumn,
-                    options: CenterFocusedColumn.allCases,
-                    displayName: { $0.displayName },
-                    onChange: { newValue in updateSetting { $0.centerFocusedColumn = newValue } },
-                    onReset: { updateSetting { $0.centerFocusedColumn = nil } }
-                )
+            OverridablePicker(
+                label: "Center Focused Column",
+                value: ms.centerFocusedColumn,
+                globalValue: settings.niriCenterFocusedColumn,
+                options: CenterFocusedColumn.allCases,
+                displayName: { $0.displayName },
+                onChange: { newValue in updateSetting { $0.centerFocusedColumn = newValue } },
+                onReset: { updateSetting { $0.centerFocusedColumn = nil } }
+            )
 
-                OverridableToggle(
-                    label: "Always Center Single Column",
-                    value: ms.alwaysCenterSingleColumn,
-                    globalValue: settings.niriAlwaysCenterSingleColumn,
-                    onChange: { newValue in updateSetting { $0.alwaysCenterSingleColumn = newValue } },
-                    onReset: { updateSetting { $0.alwaysCenterSingleColumn = nil } }
-                )
+            OverridableToggle(
+                label: "Always Center Single Column",
+                value: ms.alwaysCenterSingleColumn,
+                globalValue: settings.niriAlwaysCenterSingleColumn,
+                onChange: { newValue in updateSetting { $0.alwaysCenterSingleColumn = newValue } },
+                onReset: { updateSetting { $0.alwaysCenterSingleColumn = nil } }
+            )
 
-                OverridablePicker(
-                    label: "Single Window Ratio",
-                    value: ms.singleWindowAspectRatio,
-                    globalValue: settings.niriSingleWindowAspectRatio,
-                    options: SingleWindowAspectRatio.allCases,
-                    displayName: { $0.displayName },
-                    onChange: { newValue in updateSetting { $0.singleWindowAspectRatio = newValue } },
-                    onReset: { updateSetting { $0.singleWindowAspectRatio = nil } }
-                )
-            }
+            OverridablePicker(
+                label: "Single Window Ratio",
+                value: ms.singleWindowAspectRatio,
+                globalValue: settings.niriSingleWindowAspectRatio,
+                options: SingleWindowAspectRatio.allCases,
+                displayName: { $0.displayName },
+                onChange: { newValue in updateSetting { $0.singleWindowAspectRatio = newValue } },
+                onReset: { updateSetting { $0.singleWindowAspectRatio = nil } }
+            )
         }
     }
 }

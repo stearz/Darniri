@@ -3,22 +3,29 @@ import Carbon
 import SwiftUI
 
 struct KeyRecorderView: NSViewRepresentable {
+    let accessibilityLabel: String
     let onCapture: (KeyBinding) -> Void
     let onCancel: () -> Void
 
     func makeNSView(context _: Context) -> KeyRecorderNSView {
         let view = KeyRecorderNSView()
+        view.recordingAccessibilityLabel = accessibilityLabel
         view.onCapture = onCapture
         view.onCancel = onCancel
+        view.updateAccessibility()
         return view
     }
 
-    func updateNSView(_: KeyRecorderNSView, context _: Context) {}
+    func updateNSView(_ nsView: KeyRecorderNSView, context _: Context) {
+        nsView.recordingAccessibilityLabel = accessibilityLabel
+        nsView.updateAccessibility()
+    }
 }
 
 class KeyRecorderNSView: NSView {
     var onCapture: ((KeyBinding) -> Void)?
     var onCancel: (() -> Void)?
+    var recordingAccessibilityLabel = "Recording hotkey"
 
     private let label = NSTextField(labelWithString: "Press keys...")
 
@@ -36,17 +43,39 @@ class KeyRecorderNSView: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.2).cgColor
         layer?.cornerRadius = 4
+        focusRingType = .exterior
 
         label.translatesAutoresizingMaskIntoConstraints = false
         label.alignment = .center
-        label.font = .systemFont(ofSize: 11)
+        label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         label.textColor = .labelColor
         addSubview(label)
+
+        updateAccessibility()
 
         NSLayoutConstraint.activate([
             label.centerXAnchor.constraint(equalTo: centerXAnchor),
             label.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+    }
+
+    func updateAccessibility() {
+        setAccessibilityRole(.group)
+        setAccessibilityLabel(recordingAccessibilityLabel)
+        setAccessibilityValue("Recording. Press a key combination.")
+        setAccessibilityHelp("Press a key combination. Press Escape to cancel recording.")
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        needsDisplay = true
+        return accepted
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        needsDisplay = true
+        return resigned
     }
 
     override func viewDidMoveToWindow() {
@@ -62,7 +91,9 @@ class KeyRecorderNSView: NSView {
         guard let window else { return }
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, self.window === window else { return }
-            _ = window.makeFirstResponder(self)
+            if window.makeFirstResponder(self) {
+                NSAccessibility.post(element: self, notification: .focusedUIElementChanged)
+            }
         }
     }
 
