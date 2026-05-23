@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import GhosttyKit
 @testable import OmniWM
 import Testing
 
@@ -36,6 +37,39 @@ private func makeManagedRestoreTarget(
     .managed(WindowToken(pid: pid, windowId: windowId))
 }
 
+private func makeQuakeGhosttyConfigTestDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("omniwm-quake-ghostty-tests", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+}
+
+private final class QuakeGhosttyConfigRecorder: @unchecked Sendable {
+    let config = UnsafeMutableRawPointer(bitPattern: 0x1234)!
+    var steps: [QuakeGhosttyConfigLoadStep] = []
+    var loadedOverridePaths: [String] = []
+    var loadedOverrideContents: [String] = []
+    var freedConfigCount = 0
+
+    var operations: QuakeGhosttyConfigOperations {
+        QuakeGhosttyConfigOperations(
+            makeConfig: { self.config },
+            loadDefaultFiles: { _ in },
+            loadRecursiveFiles: { _ in },
+            loadFile: { _, path in
+                self.loadedOverridePaths.append(path)
+                self.loadedOverrideContents.append(
+                    (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+                )
+            },
+            finalize: { _ in },
+            freeConfig: { _ in self.freedConfigCount += 1 },
+            recordStep: { self.steps.append($0) }
+        )
+    }
+}
+
 private final class QuakeTerminalFocusBox<Value>: @unchecked Sendable {
     var value: Value
 
@@ -48,6 +82,67 @@ private final class QuakeTerminalFocusBox<Value>: @unchecked Sendable {
 private func settleQuakeTerminalFocusUpdates() async {
     for _ in 0 ..< 5 {
         await Task.yield()
+    }
+}
+
+@Suite struct QuakeGhosttyConfigTests {
+    @Test func overrideContentUsesGhosttyConfigSyntax() {
+        #expect(QuakeGhosttyConfigBuilder.overrideContent(opacity: 0.75) == "background-opacity = 0.75\n")
+    }
+
+    @Test func loadsGhosttyDefaultsBeforeQuakeOverride() throws {
+        let directory = try makeQuakeGhosttyConfigTestDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recorder = QuakeGhosttyConfigRecorder()
+        let builder = QuakeGhosttyConfigBuilder(
+            temporaryDirectory: directory,
+            operations: recorder.operations
+        )
+
+        let config = try #require(builder.build(opacity: 0.75))
+
+        #expect(config == recorder.config)
+        #expect(recorder.steps == [.makeConfig, .loadDefaultFiles, .loadRecursiveFiles, .loadFile, .finalize])
+        #expect(recorder.loadedOverrideContents == ["background-opacity = 0.75\n"])
+        #expect(recorder.loadedOverridePaths.count == 1)
+        #expect(recorder.loadedOverridePaths.first?.hasPrefix(directory.path) == true)
+        #expect(FileManager.default.fileExists(atPath: try #require(recorder.loadedOverridePaths.first)) == false)
+        #expect(recorder.freedConfigCount == 0)
+    }
+
+    @Test func doesNotMutateGhosttyUserConfig() throws {
+        let directory = try makeQuakeGhosttyConfigTestDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let ghosttyConfigDirectory = directory
+            .appendingPathComponent(".config", isDirectory: true)
+            .appendingPathComponent("ghostty", isDirectory: true)
+        let ghosttyConfigFile = ghosttyConfigDirectory.appendingPathComponent("config", isDirectory: false)
+        let original = """
+        font-family = JetBrainsMono Nerd Font
+        background-opacity = 0.90
+        theme = light:Catppuccin Latte,dark:Catppuccin Mocha
+
+        """
+        try FileManager.default.createDirectory(at: ghosttyConfigDirectory, withIntermediateDirectories: true)
+        try original.write(to: ghosttyConfigFile, atomically: true, encoding: .utf8)
+
+        let recorder = QuakeGhosttyConfigRecorder()
+        let builder = QuakeGhosttyConfigBuilder(
+            temporaryDirectory: directory.appendingPathComponent("omniwm", isDirectory: true),
+            operations: recorder.operations
+        )
+        _ = try #require(builder.build(opacity: 1.0))
+
+        #expect(try String(contentsOf: ghosttyConfigFile, encoding: .utf8) == original)
+        #expect(recorder.loadedOverrideContents == ["background-opacity = 1.00\n"])
+    }
+
+    @Test @MainActor func colorSchemeFollowsEffectiveAppearance() throws {
+        let dark = try #require(NSAppearance(named: .darkAqua))
+        let light = try #require(NSAppearance(named: .aqua))
+
+        #expect(QuakeTerminalController.ghosttyColorScheme(for: dark) == GHOSTTY_COLOR_SCHEME_DARK)
+        #expect(QuakeTerminalController.ghosttyColorScheme(for: light) == GHOSTTY_COLOR_SCHEME_LIGHT)
     }
 }
 

@@ -52,7 +52,7 @@ struct QuakeTerminalSettingsTab: View {
 
                 Section("Appearance") {
                     SettingsSliderRow(
-                        label: "Background Opacity",
+                        label: "Quake Background Opacity",
                         value: $settings.quakeTerminalOpacity,
                         range: 0.1 ... 1.0,
                         step: 0.05,

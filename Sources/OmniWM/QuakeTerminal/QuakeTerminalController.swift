@@ -42,9 +42,12 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
     private var isHandlingResize: Bool = false
     private var isTransitioning = false
     private var animationGeneration: UInt64 = 0
+    private var appearanceObserver: NSKeyValueObservation?
+    private var appliedColorScheme: ghostty_color_scheme_e?
 
     private let settings: SettingsStore
     private let motionPolicy: MotionPolicy
+    private let ghosttyConfigBuilder: QuakeGhosttyConfigBuilder
     private let surfaceCoordinator = SurfaceCoordinator.shared
     private let captureRestoreTarget: @MainActor () -> QuakeTerminalRestoreTarget?
     private let restoreFocusTarget: @MainActor (QuakeTerminalRestoreTarget) -> Void
@@ -59,10 +62,12 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         captureRestoreTarget: @escaping @MainActor () -> QuakeTerminalRestoreTarget? = { nil },
         restoreFocusTarget: @escaping @MainActor (QuakeTerminalRestoreTarget) -> Void = { _ in },
         isWindowFocused: @escaping @MainActor (NSWindow) -> Bool = { $0.isKeyWindow },
-        focusedWindowScreenProvider: @escaping @MainActor () -> NSScreen? = { nil }
+        focusedWindowScreenProvider: @escaping @MainActor () -> NSScreen? = { nil },
+        ghosttyConfigBuilder: QuakeGhosttyConfigBuilder = QuakeGhosttyConfigBuilder()
     ) {
         self.settings = settings
         self.motionPolicy = motionPolicy
+        self.ghosttyConfigBuilder = ghosttyConfigBuilder
         self.captureRestoreTarget = captureRestoreTarget
         self.restoreFocusTarget = restoreFocusTarget
         self.isWindowFocused = isWindowFocused
@@ -89,16 +94,11 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
             return
         }
 
-        ghosttyConfig = ghostty_config_new()
-        guard ghosttyConfig != nil else {
+        guard let config = makeGhosttyConfig() else {
             print("QuakeTerminal: Failed to create ghostty config")
             return
         }
-
-        updateGhosttyOpacityConfig()
-        ghostty_config_load_default_files(ghosttyConfig)
-        ghostty_config_load_recursive_files(ghosttyConfig)
-        ghostty_config_finalize(ghosttyConfig)
+        ghosttyConfig = config
 
         var runtimeConfig = ghostty_runtime_config_s()
         runtimeConfig.userdata = Unmanaged.passUnretained(self).toOpaque()
@@ -146,16 +146,21 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
             }
         }
 
-        ghosttyApp = ghostty_app_new(&runtimeConfig, ghosttyConfig)
+        ghosttyApp = ghostty_app_new(&runtimeConfig, config)
         guard ghosttyApp != nil else {
             print("QuakeTerminal: Failed to create ghostty app")
+            ghostty_config_free(config)
+            ghosttyConfig = nil
             return
         }
 
+        startGhosttyAppearanceSync()
+        applyCurrentGhosttyColorScheme()
         createWindow()
     }
 
     func cleanup() {
+        stopGhosttyAppearanceSync()
         for tab in tabs {
             for (surface, _) in tab.allSurfaces() {
                 ghostty_surface_free(surface)
@@ -181,60 +186,53 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         pendingRestoreTarget = nil
     }
 
-    private func updateGhosttyOpacityConfig() {
-        let opacity = settings.quakeTerminalOpacity
-        let configDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/ghostty")
-        let configFile = configDir.appendingPathComponent("config")
-
-        do {
-            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-
-            var lines: [String] = []
-            if FileManager.default.fileExists(atPath: configFile.path) {
-                let content = try String(contentsOf: configFile, encoding: .utf8)
-                lines = content.components(separatedBy: .newlines)
-            }
-
-            let opacityLine = String(format: "background-opacity = %.2f", opacity)
-            var found = false
-            for (index, line) in lines.enumerated() {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("background-opacity") {
-                    lines[index] = opacityLine
-                    found = true
-                    break
-                }
-            }
-
-            if !found {
-                if !lines.isEmpty && !lines.last!.isEmpty {
-                    lines.append("")
-                }
-                lines.append(opacityLine)
-            }
-
-            let newContent = lines.joined(separator: "\n")
-            let existingContent = try? String(contentsOf: configFile, encoding: .utf8)
-            guard newContent != existingContent else { return }
-            try newContent.write(to: configFile, atomically: true, encoding: .utf8)
-        } catch {
-            print("QuakeTerminal: Failed to update ghostty config: \(error)")
-        }
+    private func makeGhosttyConfig() -> ghostty_config_t? {
+        ghosttyConfigBuilder.build(opacity: settings.quakeTerminalOpacity)
     }
 
     func reloadOpacityConfig() {
         guard let ghosttyApp else { return }
-
-        updateGhosttyOpacityConfig()
-
-        guard let newConfig = ghostty_config_new() else { return }
-        ghostty_config_load_default_files(newConfig)
-        ghostty_config_load_recursive_files(newConfig)
-        ghostty_config_finalize(newConfig)
+        guard let newConfig = makeGhosttyConfig() else { return }
 
         ghostty_app_update_config(ghosttyApp, newConfig)
         ghostty_config_free(newConfig)
+        applyCurrentGhosttyColorScheme()
+    }
+
+    private func startGhosttyAppearanceSync() {
+        appearanceObserver = NSApplication.shared.observe(
+            \.effectiveAppearance,
+             options: [.new, .initial]
+        ) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.applyCurrentGhosttyColorScheme()
+            }
+        }
+    }
+
+    private func stopGhosttyAppearanceSync() {
+        appearanceObserver?.invalidate()
+        appearanceObserver = nil
+        appliedColorScheme = nil
+    }
+
+    private func applyCurrentGhosttyColorScheme() {
+        applyGhosttyColorScheme(for: NSApplication.shared.effectiveAppearance)
+    }
+
+    private func applyGhosttyColorScheme(for appearance: NSAppearance) {
+        guard let ghosttyApp else { return }
+        let scheme = Self.ghosttyColorScheme(for: appearance)
+        guard appliedColorScheme != scheme else { return }
+        ghostty_app_set_color_scheme(ghosttyApp, scheme)
+        appliedColorScheme = scheme
+    }
+
+    static func ghosttyColorScheme(for appearance: NSAppearance) -> ghostty_color_scheme_e {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? GHOSTTY_COLOR_SCHEME_DARK
+            : GHOSTTY_COLOR_SCHEME_LIGHT
     }
 
     func applyGeometryToVisibleWindow() {
