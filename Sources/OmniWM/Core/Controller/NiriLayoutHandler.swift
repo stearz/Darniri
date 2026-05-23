@@ -170,9 +170,10 @@ enum NiriWindowMoveResult {
         }
 
         if controller.moveMouseToFocusedWindowEnabled,
+           controller.workspaceManager.pendingFocusedToken == nil,
            let token = controller.workspaceManager.focusedToken
         {
-            controller.moveMouseToWindow(token)
+            controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
         }
     }
 

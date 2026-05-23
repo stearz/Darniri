@@ -190,6 +190,8 @@ final class WMController {
     @ObservationIgnored
     var workspaceBarRefreshExecutionHookForTests: (() -> Void)?
     @ObservationIgnored
+    var warpMouseCursorPosition: (CGPoint) -> Void = { CGWarpMouseCursorPosition($0) }
+    @ObservationIgnored
     weak var ipcApplicationBridge: IPCApplicationBridge?
 
     let animationClock = AnimationClock()
@@ -2674,19 +2676,19 @@ final class WMController {
         focusWindow(nextFocusToken)
     }
 
-    func moveMouseToWindow(_ handle: WindowHandle) {
-        moveMouseToWindow(handle.id)
+    func moveMouseToWindow(_ handle: WindowHandle, preferredFrame: CGRect? = nil) {
+        moveMouseToWindow(handle.id, preferredFrame: preferredFrame)
     }
 
-    func moveMouseToWindow(_ token: WindowToken) {
+    func moveMouseToWindow(_ token: WindowToken, preferredFrame: CGRect? = nil) {
         guard let entry = workspaceManager.entry(for: token) else { return }
-        guard let frame = AXWindowService.framePreferFast(entry.axRef) else { return }
+        guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else { return }
 
         let center = frame.center
 
         guard NSScreen.screens.contains(where: { $0.frame.contains(center) }) else { return }
 
-        CGWarpMouseCursorPosition(center)
+        warpMouseCursorPosition(ScreenCoordinateSpace.toWindowServer(point: center))
     }
 
     func runningAppsWithWindows() -> [RunningAppInfo] {

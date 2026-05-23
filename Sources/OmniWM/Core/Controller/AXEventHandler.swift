@@ -1392,10 +1392,13 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         let target = controller.keyboardFocusTarget(for: entry.token, axRef: entry.axRef)
+        var preferredMouseFrame: CGRect?
         if let engine = controller.niriEngine,
            let node = engine.findNode(for: entry.handle),
            let _ = controller.workspaceManager.monitor(for: wsId)
         {
+            let preferredFrame = node.renderedFrame ?? node.frame
+            preferredMouseFrame = preferredFrame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
             let preserveActiveViewport = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
             controller.niriLayoutHandler.activateNode(
@@ -1420,7 +1423,7 @@ final class AXEventHandler: CGSEventDelegate {
 
             _ = controller.focusBorderController.focusChanged(
                 to: target,
-                preferredFrame: node.renderedFrame ?? node.frame,
+                preferredFrame: preferredFrame,
                 forceOrdering: true
             )
         } else {
@@ -1439,7 +1442,7 @@ final class AXEventHandler: CGSEventDelegate {
            controller.workspaceManager.focusedToken == entry.token,
            !controller.workspaceManager.isNonManagedFocusActive
         {
-            controller.moveMouseToWindow(entry.token)
+            controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame)
         }
     }
 

@@ -213,6 +213,41 @@ private func waitForFocusRefresh(on controller: WMController) async {
 }
 
 @Suite(.serialized) struct WMControllerFocusTests {
+    @Test @MainActor func moveMouseToWindowConvertsAppKitCenterBeforeWarping() async {
+        await withAXFrameProviderIsolationForTests {
+            let operations = WindowFocusOperations(
+                activateApp: { _ in },
+                focusSpecificWindow: { _, _, _ in },
+                raiseWindow: { _ in }
+            )
+            let (controller, _, handle) = makeFocusTestController(windowFocusOperations: operations)
+            guard let screen = NSScreen.screens.first else {
+                Issue.record("Expected at least one screen for cursor warp coordinate test")
+                return
+            }
+
+            let frame = CGRect(
+                x: screen.frame.midX - 120,
+                y: screen.frame.midY - 80,
+                width: 240,
+                height: 160
+            )
+            AXWindowService.fastFrameProviderForTests = { axRef in
+                axRef.windowId == handle.id.windowId ? frame : nil
+            }
+            defer { AXWindowService.fastFrameProviderForTests = nil }
+
+            var warpedPoints: [CGPoint] = []
+            controller.warpMouseCursorPosition = { point in
+                warpedPoints.append(point)
+            }
+
+            controller.moveMouseToWindow(handle.id)
+
+            #expect(warpedPoints == [ScreenCoordinateSpace.toWindowServer(point: frame.center)])
+        }
+    }
+
     @Test @MainActor func toggleHiddenBarUpdatesCollapsedStateWithoutEnableGate() {
         let settings = SettingsStore(defaults: makeFocusTestDefaults())
         let controller = WMController(settings: settings)

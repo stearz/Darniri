@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Foundation
 @testable import OmniWM
@@ -3379,6 +3380,105 @@ private func makeCenteredCrossMonitorFixture(
         #expect(fixture.controller.workspaceManager.preferredFocusToken(in: fixture.workspaceId) == fixture.middleToken)
         #expect(fixture.controller.workspaceManager.niriViewportState(for: fixture.workspaceId)
             .selectedNodeId == fixture.middleWindow.id)
+    }
+
+    @Test @MainActor func moveMouseToFocusedWindowUsesFocusedNiriFrameInStackedColumn() async {
+        await withAXFrameProviderIsolationForTests {
+            let fixture = await makeSingleColumnFocusFixture(displayMode: .normal)
+            guard let screen = NSScreen.screens.first else {
+                Issue.record("Expected at least one screen for Niri cursor warp regression test")
+                return
+            }
+
+            let windowWidth = min(screen.frame.width / 3, 360)
+            let windowHeight = min(screen.frame.height / 6, 120)
+            let gap = min(screen.frame.height / 40, 24)
+            let totalHeight = windowHeight * 3 + gap * 2
+            let x = screen.frame.midX - windowWidth / 2
+            let y = screen.frame.midY - totalHeight / 2
+            let bottomFrame = CGRect(x: x, y: y, width: windowWidth, height: windowHeight)
+            let middleFrame = bottomFrame.offsetBy(dx: 0, dy: windowHeight + gap)
+            let topFrame = bottomFrame.offsetBy(dx: 0, dy: (windowHeight + gap) * 2)
+
+            fixture.bottomWindow.frame = bottomFrame
+            fixture.middleWindow.frame = middleFrame
+            fixture.topWindow.frame = topFrame
+
+            fixture.controller.setMoveMouseToFocusedWindow(true)
+            fixture.controller.setFocusFollowsMouse(false)
+            var warpedPoints: [CGPoint] = []
+            fixture.controller.warpMouseCursorPosition = { point in
+                warpedPoints.append(point)
+            }
+
+            AXWindowService.fastFrameProviderForTests = { axRef in
+                axRef.windowId == fixture.topToken.windowId ? bottomFrame : nil
+            }
+            defer { AXWindowService.fastFrameProviderForTests = nil }
+
+            guard let topEntry = fixture.controller.workspaceManager.entry(for: fixture.topToken) else {
+                Issue.record("Expected top stacked Niri window entry")
+                return
+            }
+
+            fixture.controller.axEventHandler.handleManagedAppActivation(
+                entry: topEntry,
+                isWorkspaceActive: true,
+                appFullscreen: false,
+                source: .focusedWindowChanged,
+                confirmRequest: true
+            )
+
+            #expect(fixture.controller.workspaceManager.focusedToken == fixture.topToken)
+            #expect(warpedPoints == [ScreenCoordinateSpace.toWindowServer(point: topFrame.center)])
+        }
+    }
+
+    @Test @MainActor func niriAnimationSettleDoesNotWarpMouseWhileFocusRequestPending() async {
+        await withAXFrameProviderIsolationForTests {
+            let fixture = await makeSingleColumnFocusFixture(displayMode: .normal)
+            guard let screen = NSScreen.screens.first else {
+                Issue.record("Expected at least one screen for pending-focus cursor warp regression test")
+                return
+            }
+
+            let middleFrame = CGRect(
+                x: screen.frame.midX - 120,
+                y: screen.frame.midY - 80,
+                width: 240,
+                height: 160
+            )
+            AXWindowService.fastFrameProviderForTests = { axRef in
+                axRef.windowId == fixture.middleToken.windowId ? middleFrame : nil
+            }
+            defer { AXWindowService.fastFrameProviderForTests = nil }
+
+            fixture.controller.setMoveMouseToFocusedWindow(true)
+            var warpedPoints: [CGPoint] = []
+            fixture.controller.warpMouseCursorPosition = { point in
+                warpedPoints.append(point)
+            }
+
+            _ = fixture.controller.workspaceManager.beginManagedFocusRequest(
+                fixture.topToken,
+                in: fixture.workspaceId,
+                onMonitor: fixture.monitor.id
+            )
+            #expect(fixture.controller.workspaceManager.focusedToken == fixture.middleToken)
+            #expect(fixture.controller.workspaceManager.pendingFocusedToken == fixture.topToken)
+            #expect(fixture.controller.niriLayoutHandler.registerScrollAnimation(
+                fixture.workspaceId,
+                on: fixture.monitor.displayId
+            ))
+
+            fixture.controller.niriLayoutHandler.tickScrollAnimation(
+                targetTime: 100,
+                displayId: fixture.monitor.displayId
+            )
+
+            #expect(warpedPoints.isEmpty)
+            #expect(fixture.controller.niriLayoutHandler.scrollAnimationByDisplay[fixture.monitor.displayId] == nil)
+        }
     }
 
     @Test @MainActor func focusWindowInColumnUsesNiriVisualOneBasedClamping() async {
