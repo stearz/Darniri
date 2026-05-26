@@ -45,7 +45,7 @@ This document is for contributors who want to understand OmniWM's internals. It 
 
 ### SwiftPM Targets
 
-OmniWM is built with Swift Package Manager (Swift 6.2, strict concurrency). There are four targets with a clear dependency graph:
+OmniWM is built with Swift Package Manager (Swift 6.3.2, strict concurrency). There are four targets with a clear dependency graph:
 
 ```
 OmniWMIPC          (zero dependencies — shared IPC protocol models)
@@ -800,7 +800,7 @@ OmniWM utility windows such as Settings, App Rules, Sponsors, and the updater po
 
 ### 5.1 Hotkey Command Flow
 
-User presses a hotkey (e.g., Option+Left to focus left):
+User presses a hotkey (e.g., Hyper+Left to focus left):
 
 ```
 Carbon EventHandler callback

@@ -175,6 +175,7 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 
 - macOS 15+ (Sequoia)
 - Accessibility permissions (prompted on launch)
+- Input Monitoring permission for leader-key, multi-key sequence, or custom Hyper key shortcuts
 - Displays have separate spaces **OFF**
 
 ## Installation
@@ -193,6 +194,7 @@ brew install omniwm
 3. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 4. Log out of macOS and log back in for that change to take effect unless you had it off already
 5. Launch OmniWM and grant Accessibility permissions when prompted
+6. For leader-key, multi-key sequence, or custom Hyper key shortcuts, grant Input Monitoring from Settings > Hotkeys
 
 ## Updates
 
@@ -248,7 +250,7 @@ Use the `Toggle Workspace Layout` shortcut below to switch layouts per workspace
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. The tables below list all the hotkeys:
+All shortcuts are customizable in Settings > Hotkeys. Single-key chords, `Hyper` chords, leader-key sequences, and presets are configured there. `Hyper` defaults to Control + Option + Shift + Command, the leader key defaults to `Hyper + Space`, and Caps Lock can be enabled as a power-user Hyper preset. Vim Navigation is opt-in because leader-key sequences need Input Monitoring permission. The tables below list all the default hotkeys:
 
 Layout legend:
 - `Shared` works in any active layout.
@@ -259,7 +261,7 @@ Layout legend:
 
 | Action | Default Shortcut | Layout |
 |--------|------------------|--------|
-| Switch to Workspace 1-9 | `Option + 1-9` | `Shared` |
+| Switch to Workspace 1-9 | `Hyper + 1-9` | `Shared` |
 | Move Window to Workspace 1-9 | `Option + Shift + 1-9` | `Shared` |
 | Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab` | `Shared` |
 | Switch to Next Workspace | `Unassigned` | `Shared` |
@@ -436,7 +438,7 @@ Configure per-application behavior in Settings > App Rules:
 ## Building from Source
 
 Requirements:
-- SwiftPM with Swift 6.2+
+- SwiftPM with Swift 6.3.2+
 - macOS 15.0+
 - Ghostty's universal `libghostty.a` (build Ghostty and copy it to `Frameworks/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a` so it includes both `arm64` and `x86_64`)
 

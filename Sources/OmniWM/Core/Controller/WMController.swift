@@ -686,8 +686,14 @@ final class WMController {
         )
     }
 
-    func updateHotkeyBindings(_ bindings: [HotkeyBinding]) {
-        hotkeys.updateBindings(bindings)
+    func updateHotkeyBindings(_ bindings: [HotkeyBinding], force: Bool = false) {
+        hotkeys.updateBindings(
+            bindings,
+            hyperTrigger: settings.hyperTrigger,
+            leaderKey: settings.effectiveLeaderKey,
+            sequenceTimeoutMilliseconds: settings.sequenceTimeoutMilliseconds,
+            force: force
+        )
     }
 
     func updateWorkspaceConfig() {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import AppKit
+import Carbon
 import Foundation
 import OmniWMIPC
 
@@ -146,6 +147,22 @@ final class SettingsStore {
 
     var hotkeyBindings = SettingsStore.defaultExport.hotkeyBindings {
         didSet { scheduleSave() }
+    }
+
+    var hyperTrigger = SettingsStore.defaultExport.hyperTrigger {
+        didSet { scheduleSave() }
+    }
+
+    var leaderKey = SettingsStore.defaultExport.leaderKey {
+        didSet { scheduleSave() }
+    }
+
+    var sequenceTimeoutMilliseconds = SettingsStore.defaultExport.sequenceTimeoutMilliseconds {
+        didSet { scheduleSave() }
+    }
+
+    var effectiveLeaderKey: KeyBinding {
+        leaderKey.isUnassigned ? KeyBinding.defaultLeader : leaderKey
     }
 
     var workspaceBarEnabled = SettingsStore.defaultExport.workspaceBarEnabled {
@@ -530,6 +547,9 @@ final class SettingsStore {
             borderColorBlue: borderColorBlue,
             borderColorAlpha: borderColorAlpha,
             hotkeyBindings: hotkeyBindings,
+            hyperTrigger: hyperTrigger,
+            leaderKey: leaderKey,
+            sequenceTimeoutMilliseconds: sequenceTimeoutMilliseconds,
             workspaceBarEnabled: workspaceBarEnabled,
             workspaceBarShowLabels: workspaceBarShowLabels,
             workspaceBarShowFloatingWindows: workspaceBarShowFloatingWindows,
@@ -633,6 +653,9 @@ final class SettingsStore {
         borderColorAlpha = export.borderColorAlpha
 
         hotkeyBindings = export.hotkeyBindings
+        hyperTrigger = export.hyperTrigger
+        leaderKey = export.leaderKey
+        sequenceTimeoutMilliseconds = max(100, export.sequenceTimeoutMilliseconds)
 
         workspaceBarEnabled = export.workspaceBarEnabled
         workspaceBarShowLabels = export.workspaceBarShowLabels
@@ -718,14 +741,52 @@ final class SettingsStore {
 
     func resetHotkeysToDefaults() {
         hotkeyBindings = HotkeyBindingRegistry.defaults()
+        hyperTrigger = SettingsStore.defaultExport.hyperTrigger
+        leaderKey = SettingsStore.defaultExport.leaderKey
+        sequenceTimeoutMilliseconds = SettingsStore.defaultExport.sequenceTimeoutMilliseconds
+    }
+
+    func applyCapsLockHyperPreset() {
+        hyperTrigger = .key(UInt32(kVK_CapsLock))
+        leaderKey = KeyBinding.defaultLeader
+    }
+
+    func hotkeyBindings(applyingPreset mappings: [(id: String, trigger: HotkeyTrigger)]) -> [HotkeyBinding] {
+        var proposed = hotkeyBindings
+        for mapping in mappings {
+            for index in proposed.indices where proposed[index].id != mapping.id &&
+                proposed[index].binding.conflicts(
+                    with: mapping.trigger,
+                    leaderKey: effectiveLeaderKey,
+                    hyperTrigger: hyperTrigger
+                )
+            {
+                proposed[index] = HotkeyBinding(
+                    id: proposed[index].id,
+                    command: proposed[index].command,
+                    trigger: .unassigned
+                )
+            }
+            guard let index = proposed.firstIndex(where: { $0.id == mapping.id }) else { continue }
+            proposed[index] = HotkeyBinding(
+                id: proposed[index].id,
+                command: proposed[index].command,
+                trigger: mapping.trigger
+            )
+        }
+        return proposed
     }
 
     func updateBinding(for commandId: String, newBinding: KeyBinding) {
+        updateTrigger(for: commandId, newTrigger: newBinding.isUnassigned ? .unassigned : .chord(newBinding))
+    }
+
+    func updateTrigger(for commandId: String, newTrigger: HotkeyTrigger) {
         guard let index = hotkeyBindings.firstIndex(where: { $0.id == commandId }) else { return }
         hotkeyBindings[index] = HotkeyBinding(
             id: hotkeyBindings[index].id,
             command: hotkeyBindings[index].command,
-            binding: newBinding
+            trigger: newTrigger
         )
     }
 
@@ -741,9 +802,32 @@ final class SettingsStore {
     }
 
     func findConflicts(for binding: KeyBinding, excluding commandId: String) -> [HotkeyBinding] {
+        findConflicts(for: binding.isUnassigned ? .unassigned : .chord(binding), excluding: commandId)
+    }
+
+    func findConflicts(for trigger: HotkeyTrigger, excluding commandId: String) -> [HotkeyBinding] {
         hotkeyBindings.filter { hotkeyBinding in
-            hotkeyBinding.id != commandId && hotkeyBinding.binding.conflicts(with: binding)
+            hotkeyBinding.id != commandId &&
+                hotkeyBinding.binding.conflicts(with: trigger, leaderKey: effectiveLeaderKey, hyperTrigger: hyperTrigger)
         }
+    }
+
+    func findLeaderRootConflicts(for newLeaderKey: KeyBinding) -> [HotkeyBinding] {
+        let resolvedLeader = newLeaderKey.isUnassigned ? KeyBinding.defaultLeader : newLeaderKey
+        let hasLeaderSequence = hotkeyBindings.contains { binding in
+            guard case let .sequence(steps) = binding.binding else { return false }
+            return steps.first == .leader
+        }
+        guard hasLeaderSequence else { return [] }
+        return hotkeyBindings.filter {
+            $0.binding.chordBinding?.conflicts(with: resolvedLeader, hyperTrigger: hyperTrigger) == true
+        }
+    }
+
+    func leaderKey(_ key: KeyBinding, conflictsWith hyperTrigger: HyperKeyTrigger) -> Bool {
+        let resolvedLeader = key.isUnassigned ? KeyBinding.defaultLeader : key
+        guard !resolvedLeader.isUnassigned else { return false }
+        return hyperTrigger.matchesPhysicalKeyCode(resolvedLeader.keyCode)
     }
 
     func configuredWorkspaceNames() -> [String] {

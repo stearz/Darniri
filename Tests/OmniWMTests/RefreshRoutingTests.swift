@@ -1425,6 +1425,9 @@ private func syncNiriWorkspaceStatesForRefreshTests(
             return handle
         }
         guard handles.count == windowIds.count else { return }
+        for handle in handles {
+            controller.workspaceManager.setCachedConstraints(.unconstrained, for: handle.id)
+        }
 
         guard let engine = controller.niriEngine,
               let sourceMonitor = controller.workspaceManager.monitor(for: sourceWorkspaceId),

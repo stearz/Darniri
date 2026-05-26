@@ -74,17 +74,34 @@ enum KeySymbolMapper {
         UInt32(kVK_F10): descriptor("F10"),
         UInt32(kVK_F11): descriptor("F11"),
         UInt32(kVK_F12): descriptor("F12"),
-        UInt32(kVK_ANSI_Equal): descriptor("="),
-        UInt32(kVK_ANSI_Minus): descriptor("-"),
-        UInt32(kVK_ANSI_LeftBracket): descriptor("["),
-        UInt32(kVK_ANSI_RightBracket): descriptor("]"),
-        UInt32(kVK_ANSI_Semicolon): descriptor(";"),
-        UInt32(kVK_ANSI_Quote): descriptor("'"),
-        UInt32(kVK_ANSI_Comma): descriptor(","),
-        UInt32(kVK_ANSI_Period): descriptor("."),
-        UInt32(kVK_ANSI_Slash): descriptor("/"),
-        UInt32(kVK_ANSI_Backslash): descriptor("\\"),
-        UInt32(kVK_ANSI_Grave): descriptor("`"),
+        UInt32(kVK_F13): descriptor("F13"),
+        UInt32(kVK_F14): descriptor("F14"),
+        UInt32(kVK_F15): descriptor("F15"),
+        UInt32(kVK_F16): descriptor("F16"),
+        UInt32(kVK_F17): descriptor("F17"),
+        UInt32(kVK_F18): descriptor("F18"),
+        UInt32(kVK_F19): descriptor("F19"),
+        UInt32(kVK_F20): descriptor("F20"),
+        UInt32(kVK_CapsLock): descriptor("CapsLock", "Caps Lock"),
+        UInt32(kVK_Shift): descriptor("Shift"),
+        UInt32(kVK_RightShift): descriptor("RightShift", "Right Shift"),
+        UInt32(kVK_Control): descriptor("Control"),
+        UInt32(kVK_RightControl): descriptor("RightControl", "Right Control"),
+        UInt32(kVK_Option): descriptor("Option"),
+        UInt32(kVK_RightOption): descriptor("RightOption", "Right Option"),
+        UInt32(kVK_Command): descriptor("Command"),
+        UInt32(kVK_RightCommand): descriptor("RightCommand", "Right Command"),
+        UInt32(kVK_ANSI_Equal): descriptor("=", "Equal"),
+        UInt32(kVK_ANSI_Minus): descriptor("-", "Minus"),
+        UInt32(kVK_ANSI_LeftBracket): descriptor("[", "Left Bracket"),
+        UInt32(kVK_ANSI_RightBracket): descriptor("]", "Right Bracket"),
+        UInt32(kVK_ANSI_Semicolon): descriptor(";", "Semicolon"),
+        UInt32(kVK_ANSI_Quote): descriptor("'", "Quote"),
+        UInt32(kVK_ANSI_Comma): descriptor(",", "Comma"),
+        UInt32(kVK_ANSI_Period): descriptor(".", "Period"),
+        UInt32(kVK_ANSI_Slash): descriptor("/", "Slash"),
+        UInt32(kVK_ANSI_Backslash): descriptor("\\", "Backslash"),
+        UInt32(kVK_ANSI_Grave): descriptor("`", "Grave"),
         UInt32(kVK_ANSI_Keypad0): descriptor("KP0", "Keypad 0"),
         UInt32(kVK_ANSI_Keypad1): descriptor("KP1", "Keypad 1"),
         UInt32(kVK_ANSI_Keypad2): descriptor("KP2", "Keypad 2"),
@@ -105,8 +122,11 @@ enum KeySymbolMapper {
         UInt32(kVK_ANSI_KeypadEquals): descriptor("KP=", "Keypad Equals")
     ]
 
-    static func modifierSymbols(_ modifiers: UInt32) -> String {
+    static let hyperModifiers = UInt32(controlKey | optionKey | shiftKey | cmdKey)
+
+    static func modifierSymbols(_ modifiers: UInt32, usesHyper: Bool = false) -> String {
         var symbols = ""
+        if usesHyper { symbols += "Hyper+" }
         if modifiers & UInt32(controlKey) != 0 { symbols += "⌃" }
         if modifiers & UInt32(optionKey) != 0 { symbols += "⌥" }
         if modifiers & UInt32(shiftKey) != 0 { symbols += "⇧" }
@@ -118,12 +138,13 @@ enum KeySymbolMapper {
         keyDescriptors[keyCode]?.compact ?? "?"
     }
 
-    static func displayString(keyCode: UInt32, modifiers: UInt32) -> String {
-        modifierSymbols(modifiers) + keySymbol(keyCode)
+    static func displayString(keyCode: UInt32, modifiers: UInt32, usesHyper: Bool = false) -> String {
+        modifierSymbols(modifiers, usesHyper: usesHyper) + keySymbol(keyCode)
     }
 
-    static func modifierNames(_ modifiers: UInt32) -> String {
+    static func modifierNames(_ modifiers: UInt32, usesHyper: Bool = false) -> String {
         var names: [String] = []
+        if usesHyper { names.append("Hyper") }
         if modifiers & UInt32(controlKey) != 0 { names.append("Control") }
         if modifiers & UInt32(optionKey) != 0 { names.append("Option") }
         if modifiers & UInt32(shiftKey) != 0 { names.append("Shift") }
@@ -135,32 +156,64 @@ enum KeySymbolMapper {
         keyDescriptors[keyCode]?.name ?? "?"
     }
 
-    static func humanReadableString(keyCode: UInt32, modifiers: UInt32) -> String {
-        let mods = modifierNames(modifiers)
+    static func humanReadableString(keyCode: UInt32, modifiers: UInt32, usesHyper: Bool = false) -> String {
+        let mods = modifierNames(modifiers, usesHyper: usesHyper)
         let key = keyName(keyCode)
         return mods.isEmpty ? key : mods + "+" + key
     }
 
     static let nameToKeyCode: [String: UInt32] = {
-        Dictionary(uniqueKeysWithValues: keyDescriptors.map { ($0.value.name, $0.key) })
+        var names = Dictionary(uniqueKeysWithValues: keyDescriptors.map { ($0.value.name, $0.key) })
+        for (keyCode, descriptor) in keyDescriptors {
+            names[descriptor.compact] = keyCode
+        }
+        return names
     }()
+
+    private static let normalizedNameToKeyCode: [String: UInt32] = {
+        Dictionary(nameToKeyCode.map { (normalizeName($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+    }()
+
+    static func keyCode(named name: String) -> UInt32? {
+        nameToKeyCode[name] ?? normalizedNameToKeyCode[normalizeName(name)]
+    }
 
     static let nameToModifier: [String: UInt32] = [
         "Control": UInt32(controlKey),
         "Option": UInt32(optionKey),
         "Shift": UInt32(shiftKey),
-        "Command": UInt32(cmdKey)
+        "Command": UInt32(cmdKey),
+        "Hyper": hyperModifiers
     ]
 
+    private static let normalizedNameToModifier: [String: UInt32] = {
+        Dictionary(uniqueKeysWithValues: nameToModifier.map { (normalizeName($0.key), $0.value) })
+    }()
+
     static func fromHumanReadable(_ string: String) -> KeyBinding? {
-        if string == "Unassigned" { return .unassigned }
-        let parts = string.components(separatedBy: "+")
-        guard let keyPart = parts.last, let keyCode = nameToKeyCode[keyPart] else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.localizedCaseInsensitiveCompare("Unassigned") == .orderedSame { return .unassigned }
+        let parts = trimmed.components(separatedBy: "+").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard let keyPart = parts.last, let keyCode = keyCode(named: keyPart) else { return nil }
         var modifiers: UInt32 = 0
+        var usesHyper = false
         for part in parts.dropLast() {
-            guard let flag = nameToModifier[part] else { return nil }
+            if part.localizedCaseInsensitiveCompare("Hyper") == .orderedSame {
+                usesHyper = true
+                continue
+            }
+            guard let flag = nameToModifier[part] ?? normalizedNameToModifier[normalizeName(part)] else { return nil }
             modifiers |= flag
         }
-        return KeyBinding(keyCode: keyCode, modifiers: modifiers)
+        return KeyBinding(keyCode: keyCode, modifiers: modifiers, usesHyper: usesHyper)
+    }
+
+    private static func normalizeName(_ name: String) -> String {
+        name
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
     }
 }

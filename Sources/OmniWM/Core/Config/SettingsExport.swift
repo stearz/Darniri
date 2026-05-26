@@ -70,6 +70,9 @@ struct SettingsExport: Equatable {
     var borderColorAlpha: Double
 
     var hotkeyBindings: [HotkeyBinding]
+    var hyperTrigger: HyperKeyTrigger
+    var leaderKey: KeyBinding
+    var sequenceTimeoutMilliseconds: Int
 
     var workspaceBarEnabled: Bool
     var workspaceBarShowLabels: Bool
@@ -171,6 +174,9 @@ extension SettingsExport {
             borderColorBlue: 0.97930003794467602,
             borderColorAlpha: 1.0,
             hotkeyBindings: HotkeyBindingRegistry.defaults(),
+            hyperTrigger: .default,
+            leaderKey: .defaultLeader,
+            sequenceTimeoutMilliseconds: 800,
             workspaceBarEnabled: true,
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,

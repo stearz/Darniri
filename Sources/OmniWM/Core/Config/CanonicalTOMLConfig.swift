@@ -29,6 +29,9 @@ struct CanonicalTOMLConfig: Codable, Equatable {
 
     struct General: Codable, Equatable {
         var hotkeysEnabled: Bool
+        var hyperTrigger: HyperKeyTrigger
+        var leaderKey: KeyBinding
+        var sequenceTimeoutMilliseconds: Int
         var defaultLayoutType: String
         var preventSleepEnabled: Bool
         var updateChecksEnabled: Bool
@@ -300,6 +303,19 @@ extension CanonicalTOMLConfig.General {
         let defaults = CanonicalTOMLConfig.recoveryDefaults().general
 
         hotkeysEnabled = try container.decode(Bool.self, forKey: .hotkeysEnabled, default: defaults.hotkeysEnabled, recovering: recovering)
+        hyperTrigger = try container.decode(
+            HyperKeyTrigger.self,
+            forKey: .hyperTrigger,
+            default: defaults.hyperTrigger,
+            recovering: recovering
+        )
+        leaderKey = try container.decode(KeyBinding.self, forKey: .leaderKey, default: defaults.leaderKey, recovering: recovering)
+        sequenceTimeoutMilliseconds = try container.decode(
+            Int.self,
+            forKey: .sequenceTimeoutMilliseconds,
+            default: defaults.sequenceTimeoutMilliseconds,
+            recovering: recovering
+        )
         defaultLayoutType = try container.decode(String.self, forKey: .defaultLayoutType, default: defaults.defaultLayoutType, recovering: recovering)
         preventSleepEnabled = try container.decode(Bool.self, forKey: .preventSleepEnabled, default: defaults.preventSleepEnabled, recovering: recovering)
         updateChecksEnabled = try container.decode(Bool.self, forKey: .updateChecksEnabled, default: defaults.updateChecksEnabled, recovering: recovering)
@@ -612,6 +628,9 @@ extension CanonicalTOMLConfig {
     init(export: SettingsExport) {
         general = General(
             hotkeysEnabled: export.hotkeysEnabled,
+            hyperTrigger: export.hyperTrigger,
+            leaderKey: export.leaderKey,
+            sequenceTimeoutMilliseconds: export.sequenceTimeoutMilliseconds,
             defaultLayoutType: export.defaultLayoutType,
             preventSleepEnabled: export.preventSleepEnabled,
             updateChecksEnabled: export.updateChecksEnabled,
@@ -761,7 +780,10 @@ extension CanonicalTOMLConfig {
             borderColorGreen: borders.color.green,
             borderColorBlue: borders.color.blue,
             borderColorAlpha: borders.color.alpha,
-            hotkeyBindings: hotkeys,
+            hotkeyBindings: HotkeyBindingRegistry.migrateLegacyDefaultWorkspaceBindings(hotkeys),
+            hyperTrigger: general.hyperTrigger,
+            leaderKey: general.leaderKey,
+            sequenceTimeoutMilliseconds: general.sequenceTimeoutMilliseconds,
             workspaceBarEnabled: workspaceBar.enabled,
             workspaceBarShowLabels: workspaceBar.showLabels,
             workspaceBarShowFloatingWindows: workspaceBar.showFloatingWindows,
