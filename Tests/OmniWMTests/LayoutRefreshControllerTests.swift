@@ -286,7 +286,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
         }
     }
 
-    @Test @MainActor func executeLayoutPlanIgnoresSizeOnlyVerificationMismatchForResizePlaceholder() async {
+    @Test @MainActor func executeLayoutPlanCreatesResizePlaceholderAfterAXVerificationMismatchSizeRefusal() async {
         await withAXFrameProviderIsolationForTests {
             let controller = makeLayoutPlanTestController()
             guard let monitor = controller.workspaceManager.monitors.first,
@@ -299,6 +299,16 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
             let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 115)
             let targetFrame = CGRect(x: 40, y: 50, width: 300, height: 240)
             let observedFrame = CGRect(x: 40, y: 50, width: 780, height: 560)
+            controller.axManager.confirmFrameWrite(
+                for: token.windowId,
+                frame: CGRect(x: 420, y: 460, width: targetFrame.width, height: targetFrame.height)
+            )
+            AXWindowService.fastFrameProviderForTests = { window in
+                window.windowId == token.windowId ? nil : fallbackFastFrameForTests(window)
+            }
+            defer {
+                AXWindowService.fastFrameProviderForTests = nil
+            }
 
             controller.axManager.frameApplyOverrideForTests = { requests in
                 requests.map { request in
@@ -332,13 +342,92 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
                 )
             )
 
-            let completedRetry = await waitForConditionForTests {
-                controller.axManager.recentFrameWriteFailure(for: token.windowId) == .verificationMismatch
+            let createdPlaceholder = await waitForConditionForTests {
+                controller.resizePlaceholderManager.snapshotForTests()[token]?.frame == targetFrame
+                    && controller.workspaceManager.resizePlaceholderState(for: token)?.frame == targetFrame
             }
 
-            #expect(completedRetry)
-            #expect(controller.resizePlaceholderManager.snapshotForTests()[token] == nil)
-            #expect(controller.workspaceManager.resizePlaceholderState(for: token) == nil)
+            #expect(createdPlaceholder)
+            #expect(controller.workspaceManager.resizePlaceholderState(for: token)?.minimumSize == CGSize(
+                width: observedFrame.width,
+                height: observedFrame.height
+            ))
+            #expect(controller.axManager.lastAppliedFrame(for: token.windowId) != targetFrame)
+        }
+    }
+
+    @Test @MainActor func niriLayoutPlanCreatesResizePlaceholderAfterAXVerificationMismatchSizeRefusal() async throws {
+        try await withAXFrameProviderIsolationForTests {
+            let controller = makeLayoutPlanTestController()
+            guard let monitor = controller.workspaceManager.monitors.first,
+                  let workspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id
+            else {
+                Issue.record("Missing monitor or active workspace for Niri verification mismatch fallback test")
+                return
+            }
+
+            controller.enableNiriLayout()
+            await waitForLayoutPlanRefreshWork(on: controller)
+            controller.syncMonitorsToNiriEngine()
+
+            let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 122)
+            _ = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 123)
+            _ = controller.workspaceManager.setManagedFocus(token, in: workspaceId, onMonitor: monitor.id)
+
+            let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+                activeWorkspaces: [workspaceId]
+            )
+            guard let plan = plans.first,
+                  let targetFrame = plan.diff.frameChanges.first(where: { $0.token == token })?.frame
+            else {
+                Issue.record("Expected a Niri layout plan with a frame change")
+                return
+            }
+
+            let observedFrame = CGRect(
+                x: targetFrame.minX,
+                y: targetFrame.minY,
+                width: targetFrame.width + 240,
+                height: targetFrame.height
+            )
+            controller.axManager.confirmFrameWrite(
+                for: token.windowId,
+                frame: CGRect(
+                    x: targetFrame.minX + 180,
+                    y: targetFrame.minY + 120,
+                    width: targetFrame.width,
+                    height: targetFrame.height
+                )
+            )
+            controller.axManager.frameApplyOverrideForTests = { requests in
+                requests.map { request in
+                    let isRefusedWindow = request.windowId == token.windowId
+                    return AXFrameApplyResult(
+                        requestId: request.requestId,
+                        pid: request.pid,
+                        windowId: request.windowId,
+                        targetFrame: request.frame,
+                        currentFrameHint: request.currentFrameHint,
+                        writeResult: layoutRefreshControllerTestWriteResult(
+                            targetFrame: request.frame,
+                            currentFrameHint: request.currentFrameHint,
+                            observedFrame: isRefusedWindow ? observedFrame : request.frame,
+                            failureReason: isRefusedWindow ? .verificationMismatch : nil
+                        )
+                    )
+                }
+            }
+
+            controller.layoutRefreshController.executeLayoutPlan(plan)
+
+            let createdPlaceholder = await waitForConditionForTests {
+                controller.resizePlaceholderManager.snapshotForTests()[token]?.frame == targetFrame
+                    && controller.workspaceManager.resizePlaceholderState(for: token)?.frame == targetFrame
+            }
+
+            #expect(createdPlaceholder)
+            #expect(controller.workspaceManager.resizePlaceholderState(for: token)?.minimumSize.width == observedFrame.width)
+            #expect(controller.axManager.lastAppliedFrame(for: token.windowId) != targetFrame)
         }
     }
 
@@ -580,7 +669,7 @@ private func makeUnavailableLayoutPlanTestWindow(windowId: Int) -> AXWindowRef {
 
             let token = addLayoutPlanTestWindow(on: controller, workspaceId: workspaceId, windowId: 116)
             let targetFrame = CGRect(x: 40, y: 50, width: 300, height: 240)
-            let observedFrame = CGRect(x: 400, y: 450, width: 780, height: 560)
+            let observedFrame = CGRect(x: 400, y: 450, width: 300, height: 240)
             var applyCount = 0
 
             controller.axManager.frameApplyOverrideForTests = { requests in

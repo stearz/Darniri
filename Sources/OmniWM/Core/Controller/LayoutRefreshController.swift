@@ -2937,24 +2937,11 @@ import QuartzCore
 
     func shouldObserveResizePlaceholderFallback(
         entry: WindowModel.Entry,
-        targetFrame: CGRect
+        targetFrame _: CGRect
     ) -> Bool {
         guard controller?.workspaceManager.resizePlaceholderState(for: entry.token) == nil else { return false }
         guard entry.layoutReason == .standard else { return false }
         guard controller?.workspaceManager.hiddenState(for: entry.token) == nil else { return false }
-        if let constraints = controller?.workspaceManager.cachedConstraints(for: entry.token),
-           targetFrameIsBelowMinimumSize(targetFrame, minimumSize: constraints.minSize)
-        {
-            return true
-        }
-        if let currentFrame = fastFrame(for: entry.token, axRef: entry.axRef) {
-            return targetSizeIsSmallerThanObservedSize(targetFrame.size, observedSize: currentFrame.size)
-        }
-        if let lastAppliedFrame = controller?.axManager.lastAppliedFrame(for: entry.windowId),
-           !targetSizeIsSmallerThanObservedSize(targetFrame.size, observedSize: lastAppliedFrame.size)
-        {
-            return false
-        }
         return true
     }
 
@@ -3040,14 +3027,22 @@ import QuartzCore
                 constraints: constraints
             )
         case .verificationMismatch:
-            if let observedSize = result.writeResult.observedFrame?.size,
-               targetSizeIsSmallerThanObservedSize(result.targetFrame.size, observedSize: observedSize),
-               let constraints = controller?.workspaceManager.cachedConstraints(for: entry.token),
+            guard let observedSize = result.writeResult.observedFrame?.size,
+                  targetSizeIsSmallerThanObservedSize(result.targetFrame.size, observedSize: observedSize)
+            else {
+                return nil
+            }
+            if let constraints = controller?.workspaceManager.cachedConstraints(for: entry.token),
                targetFrameIsBelowMinimumSize(result.targetFrame, minimumSize: constraints.minSize)
             {
                 return constraints.minSize
             }
-            return nil
+            let constraints = resizePlaceholderFallbackConstraints(for: entry, observedFrame: result.writeResult.observedFrame)
+            return fallbackResizeMinimumSize(
+                targetSize: result.targetFrame.size,
+                observedSize: observedSize,
+                constraints: constraints
+            )
         default:
             return nil
         }
