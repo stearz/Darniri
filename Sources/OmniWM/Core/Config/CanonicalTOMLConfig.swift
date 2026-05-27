@@ -171,15 +171,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var autoHide: Bool
         var opacity: Double?
         var monitorMode: String?
-        var useCustomFrame: Bool
-        var customFrame: Frame?
-
-        struct Frame: Codable, Equatable {
-            var x: Double
-            var y: Double
-            var width: Double
-            var height: Double
-        }
     }
 
     struct Appearance: Codable, Equatable {
@@ -588,8 +579,6 @@ extension CanonicalTOMLConfig.QuakeTerminal {
         autoHide = try container.decode(Bool.self, forKey: .autoHide, default: defaults.autoHide, recovering: recovering)
         opacity = try container.decodeIfPresent(Double.self, forKey: .opacity)
         monitorMode = try container.decodeIfPresent(String.self, forKey: .monitorMode)
-        useCustomFrame = try container.decode(Bool.self, forKey: .useCustomFrame, default: defaults.useCustomFrame, recovering: recovering)
-        customFrame = try container.decodeIfPresent(Frame.self, forKey: .customFrame)
     }
 }
 
@@ -700,9 +689,6 @@ extension CanonicalTOMLConfig {
             maxItemBytes: export.clipboardMaxItemBytes,
             maxTotalBytes: export.clipboardMaxTotalBytes
         )
-        let customFrame: QuakeTerminal.Frame? = export.quakeTerminalCustomFrame.map { frame in
-            QuakeTerminal.Frame(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
-        }
         quakeTerminal = QuakeTerminal(
             enabled: export.quakeTerminalEnabled,
             position: export.quakeTerminalPosition,
@@ -711,9 +697,7 @@ extension CanonicalTOMLConfig {
             animationDuration: export.quakeTerminalAnimationDuration,
             autoHide: export.quakeTerminalAutoHide,
             opacity: export.quakeTerminalOpacity,
-            monitorMode: export.quakeTerminalMonitorMode,
-            useCustomFrame: export.quakeTerminalUseCustomFrame,
-            customFrame: customFrame
+            monitorMode: export.quakeTerminalMonitorMode
         )
         appearance = Appearance(mode: export.appearanceMode)
         hotkeys = export.hotkeyBindings
@@ -726,9 +710,6 @@ extension CanonicalTOMLConfig {
     }
 
     func toSettingsExport() -> SettingsExport {
-        let customFrame: QuakeTerminalFrameExport? = quakeTerminal.customFrame.map { frame in
-            QuakeTerminalFrameExport(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
-        }
         return SettingsExport(
             hotkeysEnabled: general.hotkeysEnabled,
             focusFollowsMouse: focus.followsMouse,
@@ -814,8 +795,6 @@ extension CanonicalTOMLConfig {
             quakeTerminalAutoHide: quakeTerminal.autoHide,
             quakeTerminalOpacity: quakeTerminal.opacity,
             quakeTerminalMonitorMode: quakeTerminal.monitorMode,
-            quakeTerminalUseCustomFrame: quakeTerminal.useCustomFrame,
-            quakeTerminalCustomFrame: customFrame,
             appearanceMode: appearance.mode
         )
     }

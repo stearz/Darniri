@@ -197,22 +197,6 @@ private extension String {
         }
     }
 
-    @Test func recoveryStillRejectsIncompletePresentOptionalTables() throws {
-        let data = try SettingsTOMLCodec.encode(SettingsExport.defaults())
-        let output = try #require(String(data: data, encoding: .utf8))
-        let edited = try output.removingKey("animationsEnabled") + """
-
-        [quakeTerminal.customFrame]
-        x = 10.0
-        y = 20.0
-        width = 30.0
-        """
-
-        #expect(throws: (any Error).self) {
-            _ = try SettingsTOMLCodec.decode(Data(edited.utf8))
-        }
-    }
-
     @Test func encodeProducesSectionedToml() throws {
         let data = try SettingsTOMLCodec.encode(SettingsExport.defaults())
         let output = try #require(String(data: data, encoding: .utf8))
@@ -245,32 +229,12 @@ private extension String {
         #expect(output.contains("outerGapLeft") == false)
     }
 
-    @Test func roundTripsWithQuakeCustomFrameSet() throws {
-        var export = SettingsExport.defaults()
-        export.quakeTerminalUseCustomFrame = true
-        export.quakeTerminalCustomFrame = QuakeTerminalFrameExport(
-            x: 120, y: 80, width: 1680, height: 900
-        )
-
-        let data = try SettingsTOMLCodec.encode(export)
+    @Test func quakeRuntimeStateIsExcludedFromTOML() throws {
+        let data = try SettingsTOMLCodec.encode(SettingsExport.defaults())
         let output = try #require(String(data: data, encoding: .utf8))
-        #expect(output.contains("[quakeTerminal.customFrame]"))
 
-        let decoded = try SettingsTOMLCodec.decode(data)
-        #expect(decoded == export)
-    }
-
-    @Test func quakeCustomFrameIsOmittedWhenNil() throws {
-        var export = SettingsExport.defaults()
-        export.quakeTerminalUseCustomFrame = false
-        export.quakeTerminalCustomFrame = nil
-
-        let data = try SettingsTOMLCodec.encode(export)
-        let output = try #require(String(data: data, encoding: .utf8))
+        #expect(output.contains("useCustomFrame") == false)
         #expect(output.contains("customFrame") == false)
-
-        let decoded = try SettingsTOMLCodec.decode(data)
-        #expect(decoded.quakeTerminalCustomFrame == nil)
     }
 
     @Test func roundTripsWorkspaceWithMainMonitorAssignment() throws {
@@ -536,6 +500,8 @@ private extension String {
         let actual = try #require(String(data: data, encoding: .utf8))
         #expect(!actual.contains("hiddenBarIsCollapsed"))
         #expect(!actual.contains("commandPaletteLastMode"))
+        #expect(!actual.contains("useCustomFrame"))
+        #expect(!actual.contains("customFrame"))
 
         if expected != actual {
             let diffURL = FileManager.default.temporaryDirectory

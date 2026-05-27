@@ -88,15 +88,11 @@ struct OmniWMStoragePathsTests {
         var export = SettingsExport.defaults()
         export.quakeTerminalWidthPercent = Double.nan
         export.quakeTerminalHeightPercent = 150
-        export.quakeTerminalUseCustomFrame = true
-        export.quakeTerminalCustomFrame = QuakeTerminalFrameExport(x: 0, y: 0, width: 199, height: 700)
 
         settings.applyExport(export, monitors: [])
 
         #expect(settings.quakeTerminalWidthPercent == 50)
         #expect(settings.quakeTerminalHeightPercent == 100)
-        #expect(settings.quakeTerminalUseCustomFrame == false)
-        #expect(settings.quakeTerminalCustomFrame == nil)
     }
 }
 
@@ -413,8 +409,6 @@ struct SettingsExportTests {
         #expect(defaults.quakeTerminalHeightPercent == 50.0)
         #expect(defaults.quakeTerminalAutoHide == false)
         #expect(defaults.quakeTerminalMonitorMode == QuakeTerminalMonitorMode.focusedWindow.rawValue)
-        #expect(defaults.quakeTerminalUseCustomFrame == false)
-        #expect(defaults.quakeTerminalCustomFrame == nil)
         #expect(defaults.appearanceMode == AppearanceMode.dark.rawValue)
     }
 }
@@ -849,8 +843,6 @@ struct HotkeySurfaceTests {
         settings.quakeTerminalAutoHide = false
         settings.quakeTerminalOpacity = 0.75
         settings.quakeTerminalMonitorMode = .focusedWindow
-        settings.quakeTerminalUseCustomFrame = true
-        settings.quakeTerminalCustomFrame = CGRect(x: 10, y: 20, width: 1200, height: 700)
         settings.flushNow()
 
         let reloaded = SettingsStore(defaults: defaults)
@@ -874,8 +866,6 @@ struct HotkeySurfaceTests {
         #expect(reloaded.quakeTerminalAutoHide == false)
         #expect(reloaded.quakeTerminalOpacity == 0.75)
         #expect(reloaded.quakeTerminalMonitorMode == .focusedWindow)
-        #expect(reloaded.quakeTerminalUseCustomFrame == true)
-        #expect(reloaded.quakeTerminalCustomFrame == CGRect(x: 10, y: 20, width: 1200, height: 700))
     }
 
     @Test func tomlSettingsFileRoundTripsMonitorOverridesAndAppRules() {
@@ -1436,6 +1426,24 @@ struct SettingsSectionTests {
         #expect(reloaded.commandPaletteLastMode == .clipboard)
     }
 
+    @Test func quakeTerminalCustomFrameRoundTripsThroughRuntimeStateStore() {
+        let defaults = makeTestDefaults()
+        let directory = configurationDirectoryForTests(defaults: defaults)
+        let store = RuntimeStateStore(directory: directory)
+        let frame = CGRect(x: 10, y: 20, width: 1200, height: 700)
+
+        #expect(store.quakeTerminalUseCustomFrame == RuntimeStateStore.defaultQuakeTerminalUseCustomFrame)
+        #expect(store.quakeTerminalCustomFrame == nil)
+
+        store.quakeTerminalUseCustomFrame = true
+        store.quakeTerminalCustomFrame = frame
+        store.flushNow()
+
+        let reloaded = RuntimeStateStore(directory: directory)
+        #expect(reloaded.quakeTerminalUseCustomFrame == true)
+        #expect(reloaded.quakeTerminalCustomFrame == frame)
+    }
+
     @Test func missingHiddenBarRuntimeKeyPreservesExistingRuntimeState() throws {
         let defaults = makeTestDefaults()
         let directory = configurationDirectoryForTests(defaults: defaults)
@@ -1645,6 +1653,49 @@ struct SettingsSectionTests {
         #expect(reloaded)
         #expect(settings.commandPaletteLastMode == .clipboard)
         #expect(settings.hiddenBarIsCollapsed == false)
+    }
+}
+
+@MainActor struct QuakeTerminalRuntimeStateSettingsTests {
+    @Test func quakeCustomFrameChangesWriteRuntimeStateWithoutRewritingSettingsFile() throws {
+        let defaults = makeTestDefaults()
+        let settings = SettingsStore(defaults: defaults)
+        let frame = CGRect(x: 10, y: 20, width: 1200, height: 700)
+        let beforeSettings = try settingsFileSnapshot(settings.settingsFileURL)
+
+        settings.quakeTerminalUseCustomFrame = true
+        settings.quakeTerminalCustomFrame = frame
+        settings.flushNow()
+
+        let afterSettings = try settingsFileSnapshot(settings.settingsFileURL)
+        let runtimeState = RuntimeStateStore(directory: runtimeStateDirectoryForTests(defaults: defaults))
+
+        #expect(afterSettings == beforeSettings)
+        #expect(runtimeState.quakeTerminalUseCustomFrame == true)
+        #expect(runtimeState.quakeTerminalCustomFrame == frame)
+
+        let reloaded = SettingsStore(defaults: defaults)
+        #expect(reloaded.quakeTerminalUseCustomFrame == true)
+        #expect(reloaded.quakeTerminalCustomFrame == frame)
+    }
+
+    @Test func quakeCustomFrameResetWritesRuntimeStateWithoutRewritingSettingsFile() throws {
+        let defaults = makeTestDefaults()
+        let runtimeState = RuntimeStateStore(directory: runtimeStateDirectoryForTests(defaults: defaults), deferSaves: false)
+        runtimeState.quakeTerminalUseCustomFrame = true
+        runtimeState.quakeTerminalCustomFrame = CGRect(x: 10, y: 20, width: 1200, height: 700)
+        let settings = SettingsStore(defaults: defaults)
+        let beforeSettings = try settingsFileSnapshot(settings.settingsFileURL)
+
+        settings.resetQuakeTerminalCustomFrame()
+        settings.flushNow()
+
+        let afterSettings = try settingsFileSnapshot(settings.settingsFileURL)
+        let reloadedRuntimeState = RuntimeStateStore(directory: runtimeStateDirectoryForTests(defaults: defaults))
+
+        #expect(afterSettings == beforeSettings)
+        #expect(reloadedRuntimeState.quakeTerminalUseCustomFrame == false)
+        #expect(reloadedRuntimeState.quakeTerminalCustomFrame == nil)
     }
 }
 

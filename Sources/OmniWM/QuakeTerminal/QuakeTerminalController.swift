@@ -539,8 +539,8 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
             return
         }
 
-        settings.quakeTerminalCustomFrame = customFrame
         settings.quakeTerminalUseCustomFrame = true
+        settings.quakeTerminalCustomFrame = customFrame
     }
 
     private func animateWindowIn(window: NSWindow) {

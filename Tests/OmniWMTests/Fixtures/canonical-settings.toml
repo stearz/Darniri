@@ -86,7 +86,6 @@ heightPercent = 50.0
 monitorMode = "focusedWindow"
 opacity = 1.0
 position = "center"
-useCustomFrame = false
 widthPercent = 50.0
 
 [statusBar]

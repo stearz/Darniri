@@ -12,6 +12,7 @@ final class SettingsStore {
     private let runtimeState: RuntimeStateStore
     private let autosaveEnabled: Bool
     private var isApplyingExport = false
+    private var isApplyingRuntimeState = false
 
     var onIPCEnabledChanged: (@MainActor (Bool) -> Void)?
     var onExternalSettingsReloaded: (@MainActor () -> Void)?
@@ -411,48 +412,26 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var quakeTerminalUseCustomFrame = SettingsStore.defaultExport.quakeTerminalUseCustomFrame {
-        didSet { scheduleSave() }
+    var quakeTerminalUseCustomFrame = RuntimeStateStore.defaultQuakeTerminalUseCustomFrame {
+        didSet {
+            if !quakeTerminalUseCustomFrame, quakeTerminalCustomFrameStorage != nil {
+                quakeTerminalCustomFrameStorage = nil
+            }
+            syncQuakeTerminalCustomFrameToRuntimeState()
+        }
     }
 
-    private var quakeTerminalCustomFrameX: Double? = SettingsStore.defaultExport.quakeTerminalCustomFrame?.x {
-        didSet { scheduleSave() }
-    }
-
-    private var quakeTerminalCustomFrameY: Double? = SettingsStore.defaultExport.quakeTerminalCustomFrame?.y {
-        didSet { scheduleSave() }
-    }
-
-    private var quakeTerminalCustomFrameWidth: Double? = SettingsStore.defaultExport.quakeTerminalCustomFrame?.width {
-        didSet { scheduleSave() }
-    }
-
-    private var quakeTerminalCustomFrameHeight: Double? = SettingsStore.defaultExport.quakeTerminalCustomFrame?.height {
-        didSet { scheduleSave() }
+    private var quakeTerminalCustomFrameStorage: NSRect? = nil {
+        didSet { syncQuakeTerminalCustomFrameToRuntimeState() }
     }
 
     var quakeTerminalCustomFrame: NSRect? {
-        get {
-            guard let x = quakeTerminalCustomFrameX,
-                  let y = quakeTerminalCustomFrameY,
-                  let width = quakeTerminalCustomFrameWidth,
-                  let height = quakeTerminalCustomFrameHeight
-            else {
-                return nil
-            }
-            return NSRect(x: x, y: y, width: width, height: height)
-        }
+        get { quakeTerminalCustomFrameStorage }
         set {
             if let frame = QuakeTerminalGeometryPolicy.normalizedCustomFrame(newValue) {
-                quakeTerminalCustomFrameX = frame.origin.x
-                quakeTerminalCustomFrameY = frame.origin.y
-                quakeTerminalCustomFrameWidth = frame.size.width
-                quakeTerminalCustomFrameHeight = frame.size.height
+                quakeTerminalCustomFrameStorage = frame
             } else {
-                quakeTerminalCustomFrameX = nil
-                quakeTerminalCustomFrameY = nil
-                quakeTerminalCustomFrameWidth = nil
-                quakeTerminalCustomFrameHeight = nil
+                quakeTerminalCustomFrameStorage = nil
                 quakeTerminalUseCustomFrame = false
             }
         }
@@ -488,6 +467,13 @@ final class SettingsStore {
         runtimeState.importWindowRestoreCatalogIfMissing(fromLegacyDirectory: persistence.directoryURL)
         commandPaletteLastMode = runtimeState.commandPaletteLastMode
         hiddenBarIsCollapsed = runtimeState.hiddenBarIsCollapsed
+        isApplyingRuntimeState = true
+        quakeTerminalCustomFrameStorage = QuakeTerminalGeometryPolicy.normalizedCustomFrame(
+            runtimeState.quakeTerminalCustomFrame
+        )
+        quakeTerminalUseCustomFrame = runtimeState.quakeTerminalUseCustomFrame && quakeTerminalCustomFrameStorage != nil
+        isApplyingRuntimeState = false
+        syncQuakeTerminalCustomFrameToRuntimeState()
 
         applyExport(
             persistence.load(),
@@ -602,8 +588,6 @@ final class SettingsStore {
             quakeTerminalAutoHide: quakeTerminalAutoHide,
             quakeTerminalOpacity: quakeTerminalOpacity,
             quakeTerminalMonitorMode: quakeTerminalMonitorMode.rawValue,
-            quakeTerminalUseCustomFrame: quakeTerminalUseCustomFrame,
-            quakeTerminalCustomFrame: quakeTerminalCustomFrame.map(QuakeTerminalFrameExport.init(frame:)),
             appearanceMode: appearanceMode.rawValue,
             capabilityOverrides: []
         )
@@ -721,10 +705,19 @@ final class SettingsStore {
         quakeTerminalMonitorMode = QuakeTerminalMonitorMode(
             rawValue: export.quakeTerminalMonitorMode ?? baseline.quakeTerminalMonitorMode ?? ""
         ) ?? .focusedWindow
-        quakeTerminalCustomFrame = export.quakeTerminalCustomFrame?.frame
-        quakeTerminalUseCustomFrame = export.quakeTerminalUseCustomFrame && quakeTerminalCustomFrame != nil
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
+    }
+
+    private func syncQuakeTerminalCustomFrameToRuntimeState() {
+        guard !isApplyingRuntimeState else { return }
+        if let quakeTerminalCustomFrameStorage, quakeTerminalUseCustomFrame {
+            runtimeState.quakeTerminalCustomFrame = quakeTerminalCustomFrameStorage
+            runtimeState.quakeTerminalUseCustomFrame = true
+        } else {
+            runtimeState.quakeTerminalUseCustomFrame = false
+            runtimeState.quakeTerminalCustomFrame = nil
+        }
     }
 
     private func handleExternalReload(_ export: SettingsExport) {

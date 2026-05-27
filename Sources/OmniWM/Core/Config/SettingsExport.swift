@@ -1,33 +1,7 @@
-import CoreGraphics
 import Foundation
 import OmniWMIPC
 
 // MARK: - SettingsExport
-
-struct QuakeTerminalFrameExport: Equatable {
-    var x: Double
-    var y: Double
-    var width: Double
-    var height: Double
-
-    init(x: Double, y: Double, width: Double, height: Double) {
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-    }
-
-    init(frame: CGRect) {
-        x = frame.origin.x
-        y = frame.origin.y
-        width = frame.size.width
-        height = frame.size.height
-    }
-
-    var frame: CGRect {
-        CGRect(x: x, y: y, width: width, height: height)
-    }
-}
 
 struct SettingsColor: Codable, Equatable {
     var red: Double
@@ -131,8 +105,6 @@ struct SettingsExport: Equatable {
     var quakeTerminalAutoHide: Bool
     var quakeTerminalOpacity: Double?
     var quakeTerminalMonitorMode: String?
-    var quakeTerminalUseCustomFrame: Bool
-    var quakeTerminalCustomFrame: QuakeTerminalFrameExport?
 
     var appearanceMode: String
 
@@ -228,8 +200,6 @@ extension SettingsExport {
             quakeTerminalAutoHide: false,
             quakeTerminalOpacity: 1.0,
             quakeTerminalMonitorMode: QuakeTerminalMonitorMode.focusedWindow.rawValue,
-            quakeTerminalUseCustomFrame: false,
-            quakeTerminalCustomFrame: nil,
             appearanceMode: AppearanceMode.dark.rawValue,
             capabilityOverrides: []
         )
