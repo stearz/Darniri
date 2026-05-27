@@ -507,9 +507,9 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
         )
 
         #expect(frame.minX == 330)
-        #expect(frame.minY == 744)
+        #expect(frame.minY == 748)
         #expect(frame.width == 340)
-        #expect(frame.height == 28)
+        #expect(frame.height == 24)
     }
 
     @Test func notchDisabledKeepsOverlappingPlacementOnNotchedDisplays() {
@@ -523,6 +523,7 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
 
         #expect(frame.minX == 330)
         #expect(frame.minY == 772)
+        #expect(frame.height == 24)
     }
 
     @Test func nonNotchedDisplaysKeepLegacyOverlappingPlacement() {
@@ -536,9 +537,71 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
 
         #expect(frame.minX == 330)
         #expect(frame.minY == 772)
+        #expect(frame.height == 24)
     }
 
-    @Test func belowMenuBarReservationMatchesEffectiveBarHeight() {
+    @Test func barFrameUsesConfiguredHeightWhenMenuBarIsTaller() {
+        let monitor = makeMonitorForBarTests(hasNotch: false)
+
+        for height in [CGFloat(20), 24, 36] {
+            let frame = WorkspaceBarManager.barFrame(
+                fittingWidth: 340,
+                monitor: monitor,
+                resolved: makeBarSettings(position: .overlappingMenuBar, height: Double(height)),
+                menuBarHeight: 32
+            )
+
+            #expect(frame.minX == 330)
+            #expect(frame.minY == 772)
+            #expect(frame.height == height)
+        }
+    }
+
+    @Test func belowMenuBarFrameUsesConfiguredHeightWhenMenuBarIsTaller() {
+        let monitor = makeMonitorForBarTests(hasNotch: false)
+        let frame = WorkspaceBarManager.barFrame(
+            fittingWidth: 340,
+            monitor: monitor,
+            resolved: makeBarSettings(position: .belowMenuBar, height: 20),
+            menuBarHeight: 32
+        )
+
+        #expect(frame.minX == 330)
+        #expect(frame.minY == 752)
+        #expect(frame.height == 20)
+    }
+
+    @Test func reservationUsesConfiguredHeightAcrossRange() {
+        let monitor = makeMonitorForBarTests(hasNotch: false)
+
+        for height in [CGFloat(20), 24, 36] {
+            let overlappingInset = WorkspaceBarManager.reservedTopInset(
+                for: monitor,
+                resolved: makeBarSettings(
+                    position: .overlappingMenuBar,
+                    reserveLayoutSpace: true,
+                    height: Double(height)
+                ),
+                isVisible: true,
+                menuBarHeight: 32
+            )
+            let belowInset = WorkspaceBarManager.reservedTopInset(
+                for: monitor,
+                resolved: makeBarSettings(
+                    position: .belowMenuBar,
+                    reserveLayoutSpace: true,
+                    height: Double(height)
+                ),
+                isVisible: true,
+                menuBarHeight: 32
+            )
+
+            #expect(overlappingInset == height)
+            #expect(belowInset == height)
+        }
+    }
+
+    @Test func belowMenuBarReservationUsesConfiguredBarHeight() {
         let monitor = makeMonitorForBarTests(hasNotch: false)
         let inset = WorkspaceBarManager.reservedTopInset(
             for: monitor,
@@ -547,7 +610,7 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
             menuBarHeight: 28
         )
 
-        #expect(inset == 28)
+        #expect(inset == 24)
     }
 
     @Test func overlappingPlacementReservesConfiguredHeightWhenMenuBarIsTaller() {
@@ -574,7 +637,7 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
         #expect(inset == 36)
     }
 
-    @Test func notchAwareOverlapReservationUsesRuntimeBelowMenuBarHeight() {
+    @Test func notchAwareOverlapReservationUsesConfiguredHeight() {
         let monitor = makeMonitorForBarTests(hasNotch: true)
         let inset = WorkspaceBarManager.reservedTopInset(
             for: monitor,
@@ -583,6 +646,6 @@ private func makeMonitorForBarTests(hasNotch: Bool) -> Monitor {
             menuBarHeight: 28
         )
 
-        #expect(inset == 28)
+        #expect(inset == 24)
     }
 }

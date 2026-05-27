@@ -240,6 +240,37 @@ private func makeRecordingPanelFactory(
         #expect(updatedFrame.height == 48)
     }
 
+    @Test @MainActor func updateSettingsKeepsConfiguredHeightBelowMenuBarFloor() throws {
+        let monitor = makeLayoutPlanTestMonitor(displayId: 791)
+        let controller = makeLayoutPlanTestController(monitors: [monitor])
+        let manager = WorkspaceBarManager()
+        let panelStore = RecordingPanelStore()
+        let frameRecorder = FrameApplyRecorder()
+
+        manager.monitorProvider = { [monitor] }
+        manager.screenProvider = { _ in nil }
+        manager.panelFactory = makeRecordingPanelFactory(store: panelStore)
+        manager.frameApplier = { panel, frame in
+            frameRecorder.apply(frame: frame, to: panel)
+        }
+
+        manager.setup(controller: controller, settings: controller.settings)
+        defer { manager.cleanup() }
+
+        let panel = try #require(panelStore.panels.first)
+        let initialHostingView = try #require(manager.hostingViewIdentifierForTests(on: monitor.id))
+
+        controller.settings.workspaceBarHeight = 20
+        manager.updateSettings()
+
+        let updatedFrame = try #require(manager.lastAppliedFrameForTests(on: monitor.id))
+        let snapshot = try #require(manager.snapshotForTests(on: monitor.id))
+        #expect(manager.hostingViewIdentifierForTests(on: monitor.id) == initialHostingView)
+        #expect(frameRecorder.setFrameCallCount(for: panel) == 2)
+        #expect(updatedFrame.height == 20)
+        #expect(snapshot.barHeight == 20)
+    }
+
     @Test @MainActor func colorOnlyUpdateRefreshesSnapshotWithoutReplacingHostOrFrame() throws {
         let monitor = makeLayoutPlanTestMonitor(displayId: 790)
         let controller = makeLayoutPlanTestController(monitors: [monitor])

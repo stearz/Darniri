@@ -134,7 +134,7 @@ private struct WorkspaceBarContentView: View {
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private var itemHeight: CGFloat {
-        max(20, snapshot.barHeight - 4)
+        max(16, snapshot.barHeight - 4)
     }
 
     private var iconSize: CGFloat {
@@ -382,7 +382,7 @@ private struct FloatingWindowsGroupView: View {
             }
         }
         .padding(.horizontal, 5)
-        .frame(height: max(20, itemHeight - 2))
+        .frame(height: max(16, itemHeight - 2))
         .background {
             Capsule(style: .continuous)
                 .fill(.thinMaterial)
@@ -530,7 +530,7 @@ private struct WindowIconView: View {
                         .offset(x: iconSize * 0.2, y: -iconSize * 0.1)
                 }
             }
-            .frame(minWidth: max(20, iconSize + 4), minHeight: max(20, iconSize + 4))
+            .frame(minWidth: max(16, iconSize + 4), minHeight: max(16, iconSize + 4))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

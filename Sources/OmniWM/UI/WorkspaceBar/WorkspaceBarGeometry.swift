@@ -14,25 +14,8 @@ struct WorkspaceBarGeometry: Equatable {
     ) -> WorkspaceBarGeometry {
         let resolvedMenuBarHeight = menuBarHeight ?? self.menuBarHeight(for: monitor)
         let effectivePosition = effectivePosition(for: monitor, resolved: resolved)
-        let configuredBarHeight = max(0, CGFloat(resolved.height))
-        let barHeight = max(resolvedMenuBarHeight, configuredBarHeight)
-        let reservedTopInset: CGFloat
-
-        guard isVisible, resolved.reserveLayoutSpace else {
-            reservedTopInset = 0
-            return WorkspaceBarGeometry(
-                effectivePosition: effectivePosition,
-                menuBarHeight: resolvedMenuBarHeight,
-                barHeight: barHeight,
-                reservedTopInset: reservedTopInset
-            )
-        }
-
-        if effectivePosition == .belowMenuBar {
-            reservedTopInset = barHeight
-        } else {
-            reservedTopInset = configuredBarHeight
-        }
+        let barHeight = max(0, CGFloat(resolved.height))
+        let reservedTopInset = isVisible && resolved.reserveLayoutSpace ? barHeight : 0
 
         return WorkspaceBarGeometry(
             effectivePosition: effectivePosition,

@@ -66,6 +66,18 @@ private func prepareIPCQueryRouterNiriState(
 }
 
 @Suite(.serialized) @MainActor struct IPCQueryRouterTests {
+    @Test func workspaceBarQueryReportsConfiguredRenderedHeightBelowMenuBarFloor() throws {
+        let controller = makeLayoutPlanTestController()
+        defer { resetSharedControllerStateForTests() }
+        controller.settings.workspaceBarHeight = 20
+
+        let router = IPCQueryRouter(controller: controller, sessionToken: ipcQueryRouterSessionToken)
+        let result = router.workspaceBarResult()
+        let monitor = try #require(result.monitors.first)
+
+        #expect(monitor.barHeight == 20)
+    }
+
     @Test func workspaceBarQueryKeepsLegacyTiledOnlyProjectionWhenFloatingWindowsAreDisabled() throws {
         let controller = makeLayoutPlanTestController()
         defer { resetSharedControllerStateForTests() }
