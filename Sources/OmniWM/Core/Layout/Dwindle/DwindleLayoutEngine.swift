@@ -50,7 +50,7 @@ final class DwindleLayoutEngine {
         return effective
     }
 
-    var windowMovementAnimationConfig: CubicConfig = CubicConfig(duration: 0.3)
+    var windowMovementAnimationConfig: CubicConfig = .hyprlandDwindle
 
     func root(for workspaceId: WorkspaceDescriptor.ID) -> DwindleNode? {
         roots[workspaceId]
@@ -879,15 +879,8 @@ final class DwindleLayoutEngine {
         current.cachedFrame = neighbor.cachedFrame
         neighbor.cachedFrame = currentCachedFrame
 
-        current.moveXAnimation = nil
-        current.moveYAnimation = nil
-        current.sizeWAnimation = nil
-        current.sizeHAnimation = nil
-
-        neighbor.moveXAnimation = nil
-        neighbor.moveYAnimation = nil
-        neighbor.sizeWAnimation = nil
-        neighbor.sizeHAnimation = nil
+        current.clearAnimations()
+        neighbor.clearAnimations()
 
         tokenToNode[ch] = neighbor
         if let nh {

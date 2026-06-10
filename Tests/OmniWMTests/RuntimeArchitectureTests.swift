@@ -3,6 +3,118 @@ import ApplicationServices
 import XCTest
 
 final class RuntimeArchitectureTests: XCTestCase {
+    func testHyprlandDwindleBezierStartsAndEndsAtBounds() {
+        let config = CubicConfig.hyprlandDwindle
+        let startTime = 4.0
+        let animation = CubicAnimation(
+            from: 0.0,
+            to: 1.0,
+            startTime: startTime,
+            config: config
+        )
+
+        XCTAssertEqual(animation.value(at: startTime), 0.0, accuracy: 0.000001)
+        XCTAssertEqual(animation.value(at: startTime + config.duration), 1.0, accuracy: 0.000001)
+        XCTAssertTrue(animation.isComplete(at: startTime + config.duration))
+    }
+
+    func testHyprlandDwindleBezierIsMonotonicAndSnappy() {
+        let config = CubicConfig.hyprlandDwindle
+        let startTime = 9.0
+        let animation = CubicAnimation(
+            from: 0.0,
+            to: 1.0,
+            startTime: startTime,
+            config: config
+        )
+        var previous = -Double.infinity
+
+        for step in 0 ... 40 {
+            let time = startTime + config.duration * Double(step) / 40.0
+            let value = animation.value(at: time)
+            XCTAssertGreaterThanOrEqual(value + 0.000001, previous)
+            previous = value
+        }
+
+        let quarterValue = animation.value(at: startTime + config.duration * 0.25)
+        XCTAssertGreaterThan(quarterValue, 0.65)
+        XCTAssertLessThan(quarterValue, 1.0)
+    }
+
+    func testDwindleRectAnimationRetargetsFromPresentedFrame() throws {
+        let config = CubicConfig.hyprlandDwindle
+        let node = DwindleNode(kind: .leaf(handle: WindowToken(pid: 10, windowId: 20), fullscreen: false))
+        let firstStart = CGRect(x: 10, y: 20, width: 320, height: 180)
+        let firstTarget = CGRect(x: 200, y: 80, width: 480, height: 240)
+        let secondTarget = CGRect(x: 60, y: 140, width: 360, height: 420)
+        let retargetTime = config.duration * 0.35
+
+        node.cachedFrame = firstTarget
+        node.animateFrom(
+            oldFrame: firstStart,
+            newFrame: firstTarget,
+            startTime: 0,
+            config: config,
+            animated: true
+        )
+
+        let visibleFrame = try XCTUnwrap(node.presentedFrame(at: retargetTime))
+        node.cachedFrame = secondTarget
+        node.animateFrom(
+            oldFrame: visibleFrame,
+            newFrame: secondTarget,
+            startTime: retargetTime,
+            config: config,
+            animated: true
+        )
+
+        Self.assertFrame(
+            try XCTUnwrap(node.presentedFrame(at: retargetTime)),
+            equals: visibleFrame
+        )
+    }
+
+    func testDwindleRectAnimationUsesSingleProgressForFrameComponents() throws {
+        let config = CubicConfig.hyprlandDwindle
+        let node = DwindleNode(kind: .leaf(handle: WindowToken(pid: 11, windowId: 21), fullscreen: false))
+        let startFrame = CGRect(x: 20, y: 40, width: 300, height: 200)
+        let targetFrame = CGRect(x: 220, y: 160, width: 500, height: 440)
+        let sampleTime = config.duration * 0.5
+        let progress = CGFloat(CubicAnimation(
+            from: 0.0,
+            to: 1.0,
+            startTime: 0,
+            config: config
+        ).value(at: sampleTime))
+
+        node.cachedFrame = targetFrame
+        node.animateFrom(
+            oldFrame: startFrame,
+            newFrame: targetFrame,
+            startTime: 0,
+            config: config,
+            animated: true
+        )
+
+        let expectedFrame = CGRect(
+            x: startFrame.origin.x + (targetFrame.origin.x - startFrame.origin.x) * progress,
+            y: startFrame.origin.y + (targetFrame.origin.y - startFrame.origin.y) * progress,
+            width: startFrame.width + (targetFrame.width - startFrame.width) * progress,
+            height: startFrame.height + (targetFrame.height - startFrame.height) * progress
+        )
+        Self.assertFrame(
+            try XCTUnwrap(node.presentedFrame(at: sampleTime)),
+            equals: expectedFrame
+        )
+
+        node.tickAnimations(at: config.duration)
+        XCTAssertFalse(node.hasActiveAnimations(at: config.duration))
+        Self.assertFrame(
+            try XCTUnwrap(node.presentedFrame(at: config.duration)),
+            equals: targetFrame
+        )
+    }
+
     func testRuntimeRevisionDomainsRejectOnlyRelevantChanges() {
         let baseline = RuntimeRevision(
             runtime: 1,
@@ -2475,6 +2587,19 @@ final class RuntimeArchitectureTests: XCTestCase {
             parentId: 0,
             title: nil
         )
+    }
+
+    private static func assertFrame(
+        _ actual: CGRect,
+        equals expected: CGRect,
+        accuracy: CGFloat = 0.000001,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.origin.x, expected.origin.x, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.origin.y, expected.origin.y, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.width, expected.width, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(actual.height, expected.height, accuracy: accuracy, file: file, line: line)
     }
 
     @MainActor

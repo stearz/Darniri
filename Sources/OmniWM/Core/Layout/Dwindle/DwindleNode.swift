@@ -41,6 +41,26 @@ enum DwindleNodeKind {
     case leaf(handle: WindowToken?, fullscreen: Bool)
 }
 
+struct CubicRectAnimation {
+    let animation: CubicAnimation
+    let fromFrame: CGRect
+    let toFrame: CGRect
+
+    func currentFrame(at time: TimeInterval) -> CGRect {
+        let progress = CGFloat(animation.value(at: time))
+        return CGRect(
+            x: fromFrame.origin.x + (toFrame.origin.x - fromFrame.origin.x) * progress,
+            y: fromFrame.origin.y + (toFrame.origin.y - fromFrame.origin.y) * progress,
+            width: fromFrame.width + (toFrame.width - fromFrame.width) * progress,
+            height: fromFrame.height + (toFrame.height - fromFrame.height) * progress
+        )
+    }
+
+    func isComplete(at time: TimeInterval) -> Bool {
+        animation.isComplete(at: time)
+    }
+}
+
 final class DwindleNode {
     let id: DwindleNodeId
     weak var parent: DwindleNode?
@@ -50,10 +70,7 @@ final class DwindleNode {
 
     var cachedMinSize: CGSize?
 
-    var moveXAnimation: CubicMoveAnimation?
-    var moveYAnimation: CubicMoveAnimation?
-    var sizeWAnimation: CubicMoveAnimation?
-    var sizeHAnimation: CubicMoveAnimation?
+    var frameAnimation: CubicRectAnimation?
 
     init(kind: DwindleNodeKind) {
         id = UUID()
@@ -194,126 +211,46 @@ final class DwindleNode {
             return
         }
 
-        let velX = moveXAnimation?.currentVelocity(at: startTime) ?? 0
-        let velY = moveYAnimation?.currentVelocity(at: startTime) ?? 0
-        let velW = sizeWAnimation?.currentVelocity(at: startTime) ?? 0
-        let velH = sizeHAnimation?.currentVelocity(at: startTime) ?? 0
-
-        let displacementX = oldFrame.origin.x - newFrame.origin.x
-        let displacementY = oldFrame.origin.y - newFrame.origin.y
-        let displacementW = oldFrame.width - newFrame.width
-        let displacementH = oldFrame.height - newFrame.height
-
-        if abs(displacementX) > 0.5 {
-            let normalizedVel = abs(displacementX) > 0.001 ? Double(velX / displacementX) : 0
-            let anim = CubicAnimation(
-                from: 1.0,
-                to: 0.0,
-                startTime: startTime,
-                initialVelocity: normalizedVel,
-                config: config
-            )
-            moveXAnimation = CubicMoveAnimation(animation: anim, fromOffset: displacementX)
-        } else {
-            moveXAnimation = nil
+        guard Self.frameChanged(oldFrame, newFrame, tolerance: 0.5) else {
+            clearAnimations()
+            return
         }
 
-        if abs(displacementY) > 0.5 {
-            let normalizedVel = abs(displacementY) > 0.001 ? Double(velY / displacementY) : 0
-            let anim = CubicAnimation(
-                from: 1.0,
-                to: 0.0,
+        frameAnimation = CubicRectAnimation(
+            animation: CubicAnimation(
+                from: 0.0,
+                to: 1.0,
                 startTime: startTime,
-                initialVelocity: normalizedVel,
                 config: config
-            )
-            moveYAnimation = CubicMoveAnimation(animation: anim, fromOffset: displacementY)
-        } else {
-            moveYAnimation = nil
-        }
-
-        if abs(displacementW) > 0.5 {
-            let normalizedVel = abs(displacementW) > 0.001 ? Double(velW / displacementW) : 0
-            let anim = CubicAnimation(
-                from: 1.0,
-                to: 0.0,
-                startTime: startTime,
-                initialVelocity: normalizedVel,
-                config: config
-            )
-            sizeWAnimation = CubicMoveAnimation(animation: anim, fromOffset: displacementW)
-        } else {
-            sizeWAnimation = nil
-        }
-
-        if abs(displacementH) > 0.5 {
-            let normalizedVel = abs(displacementH) > 0.001 ? Double(velH / displacementH) : 0
-            let anim = CubicAnimation(
-                from: 1.0,
-                to: 0.0,
-                startTime: startTime,
-                initialVelocity: normalizedVel,
-                config: config
-            )
-            sizeHAnimation = CubicMoveAnimation(animation: anim, fromOffset: displacementH)
-        } else {
-            sizeHAnimation = nil
-        }
-    }
-
-    func renderOffset(at time: TimeInterval) -> CGPoint {
-        CGPoint(
-            x: moveXAnimation?.currentOffset(at: time) ?? 0,
-            y: moveYAnimation?.currentOffset(at: time) ?? 0
+            ),
+            fromFrame: oldFrame,
+            toFrame: newFrame
         )
     }
 
-    func renderSizeOffset(at time: TimeInterval) -> CGSize {
-        CGSize(
-            width: sizeWAnimation?.currentOffset(at: time) ?? 0,
-            height: sizeHAnimation?.currentOffset(at: time) ?? 0
-        )
+    private static func frameChanged(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) > tolerance ||
+            abs(lhs.origin.y - rhs.origin.y) > tolerance ||
+            abs(lhs.width - rhs.width) > tolerance ||
+            abs(lhs.height - rhs.height) > tolerance
     }
 
     func presentedFrame(at time: TimeInterval) -> CGRect? {
-        guard let cachedFrame else { return nil }
-        let posOffset = renderOffset(at: time)
-        let sizeOffset = renderSizeOffset(at: time)
-        return CGRect(
-            x: cachedFrame.origin.x + posOffset.x,
-            y: cachedFrame.origin.y + posOffset.y,
-            width: cachedFrame.width + sizeOffset.width,
-            height: cachedFrame.height + sizeOffset.height
-        )
+        frameAnimation?.currentFrame(at: time) ?? cachedFrame
     }
 
     func tickAnimations(at time: TimeInterval) {
-        if let anim = moveXAnimation, anim.isComplete(at: time) {
-            moveXAnimation = nil
-        }
-        if let anim = moveYAnimation, anim.isComplete(at: time) {
-            moveYAnimation = nil
-        }
-        if let anim = sizeWAnimation, anim.isComplete(at: time) {
-            sizeWAnimation = nil
-        }
-        if let anim = sizeHAnimation, anim.isComplete(at: time) {
-            sizeHAnimation = nil
+        if let anim = frameAnimation, anim.isComplete(at: time) {
+            frameAnimation = nil
         }
     }
 
     func hasActiveAnimations(at time: TimeInterval) -> Bool {
-        if let anim = moveXAnimation, !anim.isComplete(at: time) { return true }
-        if let anim = moveYAnimation, !anim.isComplete(at: time) { return true }
-        if let anim = sizeWAnimation, !anim.isComplete(at: time) { return true }
-        if let anim = sizeHAnimation, !anim.isComplete(at: time) { return true }
+        if let anim = frameAnimation, !anim.isComplete(at: time) { return true }
         return false
     }
 
     func clearAnimations() {
-        moveXAnimation = nil
-        moveYAnimation = nil
-        sizeWAnimation = nil
-        sizeHAnimation = nil
+        frameAnimation = nil
     }
 }
