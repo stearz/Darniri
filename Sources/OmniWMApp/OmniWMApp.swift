@@ -1,5 +1,5 @@
 import AppKit
-@testable import OmniWM
+import OmniWM
 import SwiftUI
 
 @main

@@ -119,21 +119,16 @@ final class MouseWarpHandler: NSObject {
         state.debugCounters = .init()
     }
 
-    func flushPendingWarpEventsForTests() {
-        flushPendingWarpEvents()
+    func resetTransientState() {
+        state.cooldownTimer?.invalidate()
+        state.cooldownTimer = nil
+        state.isWarping = false
+        state.lastMonitorId = nil
+        state.pendingWarpEvents.clear()
     }
 
     func mouseWarpDebugSnapshot() -> State.DebugCounters {
         state.debugCounters
-    }
-
-    func resetDebugStateForTests() {
-        state.debugCounters = .init()
-        state.pendingWarpEvents.clear()
-    }
-
-    func handleTapCallbackForTests(event: CGEvent, isMainThread: Bool) -> Bool {
-        Self.processTapCallback(event: event, isMainThread: isMainThread)
     }
 
     func receiveTapMouseWarpMoved(at location: CGPoint) {

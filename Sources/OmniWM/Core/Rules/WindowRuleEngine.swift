@@ -122,6 +122,19 @@ struct WindowRuleReevaluationOutcome: Equatable, Sendable {
     let resolvedAnyTarget: Bool
     let evaluatedAnyWindow: Bool
     let relayoutNeeded: Bool
+    let stale: Bool
+
+    init(
+        resolvedAnyTarget: Bool,
+        evaluatedAnyWindow: Bool,
+        relayoutNeeded: Bool,
+        stale: Bool = false
+    ) {
+        self.resolvedAnyTarget = resolvedAnyTarget
+        self.evaluatedAnyWindow = evaluatedAnyWindow
+        self.relayoutNeeded = relayoutNeeded
+        self.stale = stale
+    }
 
     static let none = WindowRuleReevaluationOutcome(
         resolvedAnyTarget: false,

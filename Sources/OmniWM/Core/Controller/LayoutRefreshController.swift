@@ -21,11 +21,12 @@ import QuartzCore
     }
 
     struct WindowRemovalPayload {
-        let workspaceId: WorkspaceDescriptor.ID
+        var workspaceId: WorkspaceDescriptor.ID
         let layoutType: LayoutType
         let removedNodeId: NodeId?
         let niriOldFrames: [WindowToken: CGRect]
         let shouldRecoverFocus: Bool
+        let allowsPreferredRecoveryToken: Bool
     }
 
     struct FollowUpRefresh {
@@ -38,7 +39,7 @@ import QuartzCore
         var kind: ScheduledRefreshKind
         var reason: RefreshReason
         var affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
-        var postLayoutActions: [PostLayoutAction] = []
+        var postLayoutActions: [RefreshPostLayoutAction] = []
         var windowRemovalPayloads: [WindowRemovalPayload] = []
         var followUpRefresh: FollowUpRefresh?
         var needsVisibilityReconciliation: Bool = false
@@ -48,7 +49,7 @@ import QuartzCore
             kind: ScheduledRefreshKind,
             reason: RefreshReason,
             affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
-            postLayout: PostLayoutAction? = nil,
+            postLayout: RefreshPostLayoutAction? = nil,
             windowRemovalPayload: WindowRemovalPayload? = nil
         ) {
             self.kind = kind
@@ -61,24 +62,6 @@ import QuartzCore
                 windowRemovalPayloads = [windowRemovalPayload]
             }
         }
-    }
-
-    struct RefreshDebugCounters {
-        var fullRescanExecutions: Int = 0
-        var relayoutExecutions: Int = 0
-        var immediateRelayoutExecutions: Int = 0
-        var visibilityExecutions: Int = 0
-        var windowRemovalExecutions: Int = 0
-        var requestedByReason: [RefreshReason: Int] = [:]
-        var lastAffectedWorkspaceIdsByReason: [RefreshReason: Set<WorkspaceDescriptor.ID>] = [:]
-        var executedByReason: [RefreshReason: Int] = [:]
-    }
-
-    struct RefreshDebugHooks {
-        var onFullRescan: ((RefreshReason) async throws -> Bool)?
-        var onRelayout: ((RefreshReason, RefreshRoute) async -> Bool)?
-        var onVisibilityRefresh: ((RefreshReason) async -> Bool)?
-        var onWindowRemoval: ((RefreshReason, [WindowRemovalPayload]) -> Bool)?
     }
 
     @MainActor
@@ -97,6 +80,17 @@ import QuartzCore
             cache[token] = .some(frame)
             return frame
         }
+    }
+
+    private struct LayoutPlanExecutionResult {
+        var didExecute = false
+        var rejectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
+        var acceptedRevisions: [WorkspaceDescriptor.ID: AcceptedRuntimeRevision] = [:]
+    }
+
+    private struct CurrentLayoutPlans {
+        var plans: [WorkspaceLayoutPlan] = []
+        var rejectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
     }
 
     weak var controller: WMController?
@@ -122,13 +116,16 @@ import QuartzCore
     }
 
     private struct PendingRevealTransaction {
+        let id: UInt64
         var token: WindowToken
         var pid: pid_t
         var windowId: Int
+        var workspaceId: WorkspaceDescriptor.ID
+        var runtimeRevision: RuntimeRevision
         let targetFrame: CGRect
         let targetMonitorId: Monitor.ID
         let hiddenState: WindowModel.HiddenState
-        var postSuccessActions: [PostLayoutAction]
+        var postSuccessActions: [RefreshPostLayoutAction]
         var delayedVerificationScheduled: Bool = false
     }
 
@@ -175,12 +172,12 @@ import QuartzCore
         var screenChangeObserver: NSObjectProtocol?
         var hasCompletedInitialRefresh: Bool = false
         var didExecuteRefreshExecutionPlan: Bool = false
+        var refreshGeneration: UInt64 = 0
     }
 
     var layoutState = LayoutState()
-    var debugCounters = RefreshDebugCounters()
-    var debugHooks = RefreshDebugHooks()
     private var activeFrameContext: RefreshFrameContext?
+    private var nextPendingRevealTransactionId: UInt64 = 1
     private var pendingRevealTransactionsByWindowId: [Int: PendingRevealTransaction] = [:]
     private var pendingRevealVerificationTasksByWindowId: [Int: Task<Void, Never>] = [:]
     private var nativeFullscreenRestoredFrameApplyTokens: Set<WindowToken> = []
@@ -456,22 +453,105 @@ import QuartzCore
         }
     }
 
-    func executeLayoutPlans(_ plans: [WorkspaceLayoutPlan]) {
+    @discardableResult
+    private func executeLayoutPlans(_ plans: [WorkspaceLayoutPlan]) -> LayoutPlanExecutionResult {
+        var result = LayoutPlanExecutionResult()
         for plan in plans {
-            executeLayoutPlan(plan)
+            if let acceptedRevision = executeLayoutPlanReturningAcceptedRevision(plan) {
+                result.didExecute = true
+                result.acceptedRevisions[plan.workspaceId] = acceptedRevision
+            } else {
+                result.rejectedWorkspaceIds.insert(plan.workspaceId)
+            }
         }
+        return result
     }
 
-    func executeLayoutPlan(_ plan: WorkspaceLayoutPlan) {
-        applySessionPatch(plan.sessionPatch)
-        diffExecutor.execute(plan)
-        applyAnimationDirectives(plan.animationDirectives)
+    private func currentLayoutPlans(
+        _ plans: [WorkspaceLayoutPlan],
+        controller: WMController
+    ) -> CurrentLayoutPlans {
+        var current = CurrentLayoutPlans()
+        current.plans.reserveCapacity(plans.count)
+        for plan in plans {
+            if controller.workspaceManager.isRuntimeRevisionCurrent(
+                plan.runtimeRevision,
+                for: plan.workspaceId,
+                domains: .layoutCommit
+            ) {
+                current.plans.append(plan)
+            } else {
+                current.rejectedWorkspaceIds.insert(plan.workspaceId)
+            }
+        }
+        return current
     }
 
-    private func executeRefreshExecutionPlan(_ plan: RefreshExecutionPlan) async {
-        guard let controller else { return }
+    @discardableResult
+    func executeLayoutPlan(_ plan: WorkspaceLayoutPlan) -> Bool {
+        executeLayoutPlanReturningAcceptedRevision(plan) != nil
+    }
 
-        layoutState.didExecuteRefreshExecutionPlan = true
+    func executeLayoutPlanReturningAcceptedRevision(_ plan: WorkspaceLayoutPlan) -> AcceptedRuntimeRevision? {
+        guard let controller else { return nil }
+        guard controller.workspaceManager.isRuntimeRevisionCurrent(
+            plan.runtimeRevision,
+            for: plan.workspaceId,
+            domains: .layoutCommit
+        ) else {
+            return nil
+        }
+
+        let focusRevisionAccepted = controller.workspaceManager.isRuntimeRevisionCurrent(
+            plan.runtimeRevision,
+            for: plan.workspaceId,
+            domains: .focusCommit
+        )
+        var acceptedRevision = controller.workspaceManager.runtimeRevision(for: plan.workspaceId)
+        controller.withRuntimeFrameJobCancellationSuppressed {
+            applySessionPatch(plan.sessionPatch)
+            diffExecutor.execute(
+                plan,
+                focusRevisionAccepted: focusRevisionAccepted
+            )
+            controller.workspaceManager.setNiriRestorePlacements(plan.niriRestorePlacements)
+        }
+        applyAnimationDirectives(
+            plan.animationDirectives,
+            workspaceId: plan.workspaceId,
+            focusRevisionAccepted: focusRevisionAccepted
+        )
+        acceptedRevision = controller.workspaceManager.runtimeRevision(for: plan.workspaceId)
+        return AcceptedRuntimeRevision(
+            before: plan.runtimeRevision,
+            after: acceptedRevision,
+            domains: focusRevisionAccepted ? .layoutCommit.union(.focusCommit) : .layoutCommit
+        )
+    }
+
+    private func executeRefreshExecutionPlan(_ plan: RefreshExecutionPlan, generation: UInt64) async -> Bool {
+        guard let controller else { return false }
+        guard isCurrentRefreshGeneration(generation) else { return false }
+
+        let currentPlans = currentLayoutPlans(plan.workspacePlans, controller: controller)
+        var rejectedWorkspaceIds = currentPlans.rejectedWorkspaceIds
+        if !plan.workspacePlans.isEmpty, currentPlans.plans.isEmpty {
+            enqueueRefresh(
+                staleLayoutRefresh(
+                    affectedWorkspaceIds: currentPlans.rejectedWorkspaceIds,
+                    postLayoutActions: plan.postLayoutActions
+                )
+            )
+            layoutState.didExecuteRefreshExecutionPlan = true
+            if var activeRefresh = layoutState.activeRefresh {
+                activeRefresh.postLayoutActions.removeAll()
+                activeRefresh.followUpRefresh = nil
+                activeRefresh.needsVisibilityReconciliation = false
+                layoutState.activeRefresh = activeRefresh
+            }
+            return true
+        }
+
         activeFrameContext = RefreshFrameContext()
         defer { activeFrameContext = nil }
 
@@ -480,27 +560,76 @@ import QuartzCore
         // active/inactive classification. Without this, windows on a newly-active
         // workspace are still marked inactive from the previous cycle, causing their
         // frame writes to be silently skipped and leaving blank gaps on screen.
-        if let visibility = plan.effects.visibility {
-            rebuildInactiveWorkspaceWindowSet(activeWorkspaceIds: visibility.activeWorkspaceIds)
+        var currentEffectActiveWorkspaceIds: Set<WorkspaceDescriptor.ID>?
+        if plan.effects.visibility != nil {
+            let activeWorkspaceIds = currentActiveWorkspaceIds()
+            currentEffectActiveWorkspaceIds = activeWorkspaceIds
+            rebuildInactiveWorkspaceWindowSet(activeWorkspaceIds: activeWorkspaceIds)
         }
 
-        executeLayoutPlans(plan.workspacePlans)
+        let layoutResult = executeLayoutPlans(currentPlans.plans)
+        var acceptedRevisions = layoutResult.acceptedRevisions
+        if !plan.workspacePlans.isEmpty, !layoutResult.didExecute {
+            return false
+        }
+        if !layoutResult.rejectedWorkspaceIds.isEmpty {
+            rejectedWorkspaceIds.formUnion(layoutResult.rejectedWorkspaceIds)
+        }
 
-        if let visibility = plan.effects.visibility {
-            restoreWorkspaceInactiveFloatingWindows(activeWorkspaceIds: visibility.activeWorkspaceIds)
-            hideInactiveWorkspaces(activeWorkspaceIds: visibility.activeWorkspaceIds)
+        layoutState.didExecuteRefreshExecutionPlan = true
+
+        if plan.effects.visibility != nil {
+            let activeWorkspaceIds = currentEffectActiveWorkspaceIds ?? currentActiveWorkspaceIds()
+            currentEffectActiveWorkspaceIds = activeWorkspaceIds
+            controller.withRuntimeFrameJobCancellationSuppressed {
+                restoreWorkspaceInactiveFloatingWindows(activeWorkspaceIds: activeWorkspaceIds)
+                hideInactiveWorkspaces(activeWorkspaceIds: activeWorkspaceIds)
+            }
+            for workspaceId in Array(acceptedRevisions.keys) {
+                guard let accepted = acceptedRevisions[workspaceId] else { continue }
+                acceptedRevisions[workspaceId] = AcceptedRuntimeRevision(
+                    before: accepted.before,
+                    after: controller.workspaceManager.runtimeRevision(for: workspaceId),
+                    domains: accepted.domains
+                )
+            }
+        }
+
+        if !rejectedWorkspaceIds.isEmpty {
+            let stalePostLayoutActions = plan.postLayoutActions.map {
+                $0.refreshingAcceptedRevisions(acceptedRevisions)
+            }
+            enqueueRefresh(
+                staleLayoutRefresh(
+                    affectedWorkspaceIds: rejectedWorkspaceIds,
+                    postLayoutActions: stalePostLayoutActions
+                )
+            )
         }
 
         if plan.effects.refreshFocusedBorderForVisibilityState {
             refreshFocusedBorderForVisibilityState(on: controller)
         }
 
-        for workspaceId in plan.effects.focusValidationWorkspaceIds {
-            controller.ensureFocusedTokenValid(in: workspaceId)
+        let activeWorkspaceIdsForFocusValidation = currentEffectActiveWorkspaceIds ?? currentActiveWorkspaceIds()
+        for workspaceId in plan.effects.focusValidationWorkspaceIds
+            where activeWorkspaceIdsForFocusValidation.contains(workspaceId)
+            && !rejectedWorkspaceIds.contains(workspaceId)
+        {
+            let preferredRecoveryToken = plan.effects.focusValidationPreferredTokens[workspaceId]
+            controller.ensureFocusedTokenValid(
+                in: workspaceId,
+                preferredRecoveryToken: preferredRecoveryToken
+            )
         }
 
-        for postLayoutAction in plan.postLayoutActions {
-            postLayoutAction()
+        let acceptedPostLayoutActions = plan.postLayoutActions.map {
+            $0.refreshingAcceptedRevisions(acceptedRevisions)
+        }
+        for postLayoutAction in acceptedPostLayoutActions
+            where !postLayoutAction.hasWorkspace(in: rejectedWorkspaceIds)
+        {
+            postLayoutAction.runIfCurrent(using: controller.workspaceManager)
         }
 
         if plan.effects.updateTabbedOverlays {
@@ -522,6 +651,8 @@ import QuartzCore
         if plan.effects.subscribeManagedWindows {
             controller.axEventHandler.subscribeToManagedWindows()
         }
+
+        return true
     }
 
     func buildWindowSnapshots(
@@ -665,7 +796,8 @@ import QuartzCore
             workspaceId: workspaceId,
             monitor: monitorSnapshot,
             windows: windows,
-            isActiveWorkspace: isActiveWorkspace
+            isActiveWorkspace: isActiveWorkspace,
+            runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
         )
     }
 
@@ -673,7 +805,11 @@ import QuartzCore
         controller?.workspaceManager.applySessionPatch(patch)
     }
 
-    private func applyAnimationDirectives(_ directives: [AnimationDirective]) {
+    private func applyAnimationDirectives(
+        _ directives: [AnimationDirective],
+        workspaceId: WorkspaceDescriptor.ID,
+        focusRevisionAccepted: Bool
+    ) {
         guard let controller else { return }
 
         for directive in directives {
@@ -687,7 +823,8 @@ import QuartzCore
                 startDwindleAnimation(for: workspaceId, monitor: monitor)
             case let .activateWindow(token):
                 guard !controller.shouldSuppressManagedFocusRecovery,
-                      !controller.workspaceManager.hasPendingNativeFullscreenTransition
+                      !controller.workspaceManager.hasPendingNativeFullscreenTransition,
+                      focusRevisionAccepted
                 else { continue }
                 if let workspaceId = controller.workspaceManager.workspace(for: token) {
                     controller.recordNiriCreateFocusTrace(
@@ -706,15 +843,6 @@ import QuartzCore
 
     func cancelActiveAnimations(for workspaceId: WorkspaceDescriptor.ID) {
         niriHandler.cancelActiveAnimations(for: workspaceId)
-    }
-
-    func resetDebugState() {
-        debugCounters = RefreshDebugCounters()
-        debugHooks = RefreshDebugHooks()
-    }
-
-    func refreshDebugSnapshot() -> RefreshDebugCounters {
-        debugCounters
     }
 
     func requestFullRescan(reason: RefreshReason) {
@@ -737,16 +865,38 @@ import QuartzCore
     func requestImmediateRelayout(
         reason: RefreshReason,
         affectedWorkspaceIds: Set<WorkspaceDescriptor.ID> = [],
-        postLayout: PostLayoutAction? = nil
+        postLayout: PostLayoutAction? = nil,
+        postLayoutDomains: RuntimeRevisionDomain = [.workspace, .layout, .focus, .fullscreen]
     ) {
         assert(reason.requestRoute == .immediateRelayout, "Invalid immediate-relayout reason: \(reason)")
+        let postLayoutWorkspaceIds = self.postLayoutWorkspaceIds(for: affectedWorkspaceIds)
+        let postLayoutAction = makePostLayoutAction(
+            postLayout,
+            workspaceIds: postLayoutWorkspaceIds,
+            domains: postLayoutDomains
+        )
         enqueueRefresh(
             .init(
                 kind: .immediateRelayout,
                 reason: reason,
                 affectedWorkspaceIds: affectedWorkspaceIds,
-                postLayout: postLayout
+                postLayout: postLayoutAction
             )
+        )
+    }
+
+    func requestLayoutCommandRelayout(
+        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID>,
+        postLayout: PostLayoutAction? = nil,
+        postLayoutDomains: RuntimeRevisionDomain = [.workspace, .layout, .focus, .fullscreen]
+    ) {
+        assert(!affectedWorkspaceIds.isEmpty, "Layout command relayout must name affected workspaces")
+        controller?.workspaceManager.invalidateLayoutRevision(for: affectedWorkspaceIds)
+        requestImmediateRelayout(
+            reason: .layoutCommand,
+            affectedWorkspaceIds: affectedWorkspaceIds,
+            postLayout: postLayout,
+            postLayoutDomains: postLayoutDomains
         )
     }
 
@@ -755,7 +905,13 @@ import QuartzCore
         postLayout: PostLayoutAction? = nil
     ) {
         assert(reason.requestRoute == .visibilityRefresh, "Invalid visibility-refresh reason: \(reason)")
-        enqueueRefresh(.init(kind: .visibilityRefresh, reason: reason, postLayout: postLayout))
+        enqueueRefresh(
+            .init(
+                kind: .visibilityRefresh,
+                reason: reason,
+                postLayout: makePostLayoutAction(postLayout, workspaceIds: currentActiveWorkspaceIds())
+            )
+        )
     }
 
     func requestWindowRemoval(
@@ -764,6 +920,7 @@ import QuartzCore
         removedNodeId: NodeId?,
         niriOldFrames: [WindowToken: CGRect],
         shouldRecoverFocus: Bool,
+        allowsPreferredRecoveryToken: Bool = false,
         postLayout: PostLayoutAction? = nil
     ) {
         assert(RefreshReason.windowDestroyed.requestRoute == .windowRemoval, "Invalid window-removal reason")
@@ -771,13 +928,14 @@ import QuartzCore
             .init(
                 kind: .windowRemoval,
                 reason: .windowDestroyed,
-                postLayout: postLayout,
+                postLayout: makePostLayoutAction(postLayout, workspaceIds: [workspaceId]),
                 windowRemovalPayload: .init(
                     workspaceId: workspaceId,
                     layoutType: layoutType,
                     removedNodeId: removedNodeId,
                     niriOldFrames: niriOldFrames,
-                    shouldRecoverFocus: shouldRecoverFocus
+                    shouldRecoverFocus: shouldRecoverFocus,
+                    allowsPreferredRecoveryToken: allowsPreferredRecoveryToken
                 )
             )
         )
@@ -793,6 +951,57 @@ import QuartzCore
             affectedWorkspaceIds: affectedWorkspaces,
             postLayout: postLayout
         )
+    }
+
+    private func makePostLayoutAction(
+        _ postLayout: PostLayoutAction?,
+        workspaceIds: Set<WorkspaceDescriptor.ID>,
+        domains: RuntimeRevisionDomain = [.workspace, .layout, .focus, .fullscreen]
+    ) -> RefreshPostLayoutAction? {
+        guard let postLayout else { return nil }
+        guard let controller, !workspaceIds.isEmpty else { return nil }
+        var revisions: [WorkspaceDescriptor.ID: RuntimeRevision] = [:]
+        revisions.reserveCapacity(workspaceIds.count)
+        for workspaceId in workspaceIds {
+            revisions[workspaceId] = controller.workspaceManager.runtimeRevision(for: workspaceId)
+        }
+        return RefreshPostLayoutAction(
+            workspaceRevisions: revisions,
+            domains: domains,
+            action: postLayout
+        )
+    }
+
+    private func acceptedPostLayoutAction(
+        _ postLayout: PostLayoutAction?,
+        workspaceIds: Set<WorkspaceDescriptor.ID>
+    ) -> RefreshPostLayoutAction? {
+        guard let action = makePostLayoutAction(postLayout, workspaceIds: workspaceIds),
+              let controller,
+              action.isCurrent(using: controller.workspaceManager)
+        else {
+            return nil
+        }
+        return action
+    }
+
+    private func postLayoutWorkspaceIds(
+        for affectedWorkspaceIds: Set<WorkspaceDescriptor.ID>
+    ) -> Set<WorkspaceDescriptor.ID> {
+        affectedWorkspaceIds.isEmpty ? currentActiveWorkspaceIds() : affectedWorkspaceIds
+    }
+
+    private func staleLayoutRefresh(
+        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID>,
+        postLayoutActions: [RefreshPostLayoutAction]
+    ) -> ScheduledRefresh {
+        var refresh = ScheduledRefresh(
+            kind: .relayout,
+            reason: .staleLayoutPlan,
+            affectedWorkspaceIds: affectedWorkspaceIds
+        )
+        refresh.postLayoutActions = postLayoutActions.filter { $0.hasWorkspace(in: affectedWorkspaceIds) }
+        return refresh
     }
 
     private func scheduleFullRescan(reason: RefreshReason) {
@@ -819,7 +1028,7 @@ import QuartzCore
         )
     }
 
-    private func executeScheduledRelayout(refresh: ScheduledRefresh) async -> Bool {
+    private func executeScheduledRelayout(refresh: ScheduledRefresh, generation: UInt64) async -> Bool {
         guard !layoutState.isIncrementalRefreshInProgress else { return false }
         guard !layoutState.isImmediateLayoutInProgress else { return false }
         layoutState.isIncrementalRefreshInProgress = true
@@ -828,7 +1037,8 @@ import QuartzCore
             refresh: refresh,
             route: .relayout,
             useScrollAnimationPath: false,
-            recoverFocus: true
+            recoverFocus: true,
+            generation: generation
         )
     }
 
@@ -836,15 +1046,11 @@ import QuartzCore
         refresh: ScheduledRefresh,
         route: RefreshRoute,
         useScrollAnimationPath: Bool,
-        recoverFocus: Bool
+        recoverFocus: Bool,
+        generation: UInt64
     ) async -> Bool {
-        let reason = refresh.reason
-        recordRefreshExecution(route, reason: reason)
-        if await debugHooks.onRelayout?(reason, route) == true {
-            return true
-        }
-
         guard let controller else { return false }
+        guard isCurrentRefreshGeneration(generation) else { return false }
 
         if controller.isFrontmostAppLockScreen() || controller.isLockScreenActive {
             return false
@@ -858,22 +1064,16 @@ import QuartzCore
             )
             applyRefreshMetadata(refresh, to: &plan)
             try Task.checkCancellation()
-            await executeRefreshExecutionPlan(plan)
+            guard isCurrentRefreshGeneration(generation) else { return false }
+            return await executeRefreshExecutionPlan(plan, generation: generation)
         } catch {
             return false
         }
-
-        return true
     }
 
-    private func executeVisibilityRefresh(refresh: ScheduledRefresh) async -> Bool {
-        let reason = refresh.reason
-        recordRefreshExecution(.visibilityRefresh, reason: reason)
-        if await debugHooks.onVisibilityRefresh?(reason) == true {
-            return true
-        }
-
+    private func executeVisibilityRefresh(refresh: ScheduledRefresh, generation: UInt64) async -> Bool {
         guard let controller else { return false }
+        guard isCurrentRefreshGeneration(generation) else { return false }
 
         if controller.isFrontmostAppLockScreen() || controller.isLockScreenActive {
             return false
@@ -882,9 +1082,8 @@ import QuartzCore
         var plan = buildVisibilityExecutionPlan()
         applyRefreshMetadata(refresh, to: &plan)
         guard !Task.isCancelled else { return false }
-        await executeRefreshExecutionPlan(plan)
-
-        return true
+        guard isCurrentRefreshGeneration(generation) else { return false }
+        return await executeRefreshExecutionPlan(plan, generation: generation)
     }
 
     func hideInactiveWorkspacesSync() {
@@ -898,7 +1097,7 @@ import QuartzCore
         hideInactiveWorkspaces(activeWorkspaceIds: activeWorkspaceIds)
     }
 
-    private func executeImmediateRelayout(refresh: ScheduledRefresh) async -> Bool {
+    private func executeImmediateRelayout(refresh: ScheduledRefresh, generation: UInt64) async -> Bool {
         guard !layoutState.isImmediateLayoutInProgress else { return false }
         layoutState.isImmediateLayoutInProgress = true
         defer { layoutState.isImmediateLayoutInProgress = false }
@@ -906,19 +1105,15 @@ import QuartzCore
             refresh: refresh,
             route: .immediateRelayout,
             useScrollAnimationPath: !niriHandler.scrollAnimationByDisplay.isEmpty,
-            recoverFocus: false
+            recoverFocus: false,
+            generation: generation
         )
     }
 
-    private func executeWindowRemoval(refresh: ScheduledRefresh) async -> Bool {
-        let reason = refresh.reason
+    private func executeWindowRemoval(refresh: ScheduledRefresh, generation: UInt64) async -> Bool {
         let payloads = refresh.windowRemovalPayloads
-        recordRefreshExecution(.windowRemoval, reason: reason)
-        if debugHooks.onWindowRemoval?(reason, payloads) == true {
-            return true
-        }
-
         guard let controller else { return false }
+        guard isCurrentRefreshGeneration(generation) else { return false }
         if controller.isFrontmostAppLockScreen() || controller.isLockScreenActive {
             return false
         }
@@ -927,47 +1122,15 @@ import QuartzCore
             var plan = try await buildWindowRemovalExecutionPlan(payloads: payloads)
             applyRefreshMetadata(refresh, to: &plan)
             try Task.checkCancellation()
-            await executeRefreshExecutionPlan(plan)
+            guard isCurrentRefreshGeneration(generation) else { return false }
+            return await executeRefreshExecutionPlan(plan, generation: generation)
         } catch {
             return false
         }
-
-        return true
     }
 
     private func refreshFocusedBorderForVisibilityState(on controller: WMController) {
         _ = controller.focusBorderController.refresh()
-    }
-
-    func waitForRefreshWorkForTests() async {
-        while let task = layoutState.activeRefreshTask {
-            await task.value
-        }
-    }
-
-    private func settleAllAnimations() {
-        let settleTime = CACurrentMediaTime() + 10.0
-
-        for displayId in Array(niriHandler.scrollAnimationByDisplay.keys) {
-            niriHandler.tickScrollAnimation(targetTime: settleTime, displayId: displayId)
-        }
-
-        for displayId in Array(dwindleHandler.dwindleAnimationByDisplay.keys) {
-            dwindleHandler.tickDwindleAnimation(targetTime: settleTime, displayId: displayId)
-        }
-
-        for displayId in Array(layoutState.closingAnimationsByDisplay.keys) {
-            tickClosingAnimations(targetTime: settleTime, displayId: displayId)
-        }
-    }
-
-    func settleAllAnimationsForTests() {
-        settleAllAnimations()
-    }
-
-    func waitForSettledRefreshWorkForTests() async {
-        await waitForRefreshWorkForTests()
-        settleAllAnimationsForTests()
     }
 
     func resetState() {
@@ -976,6 +1139,13 @@ import QuartzCore
         layoutState.activeRefresh = nil
         layoutState.pendingRefresh = nil
         layoutState.didExecuteRefreshExecutionPlan = false
+        layoutState.refreshGeneration &+= 1
+        for (_, task) in pendingRevealVerificationTasksByWindowId {
+            task.cancel()
+        }
+        pendingRevealVerificationTasksByWindowId.removeAll()
+        pendingRevealTransactionsByWindowId.removeAll()
+        nextPendingRevealTransactionId = 1
         nativeFullscreenRestoredFrameApplyTokens.removeAll()
         pendingResizePlaceholderFallbackEvidenceByToken.removeAll()
 
@@ -995,17 +1165,12 @@ import QuartzCore
         }
     }
 
-    private func executeFullRefresh(refresh: ScheduledRefresh) async throws -> Bool {
-        let reason = refresh.reason
-        debugCounters.fullRescanExecutions += 1
-        debugCounters.executedByReason[reason, default: 0] += 1
-        if try await debugHooks.onFullRescan?(reason) == true {
-            return true
-        }
+    private func executeFullRefresh(refresh: ScheduledRefresh, generation: UInt64) async throws -> Bool {
         layoutState.isFullEnumerationInProgress = true
         defer { layoutState.isFullEnumerationInProgress = false }
 
         guard let controller else { return false }
+        guard isCurrentRefreshGeneration(generation) else { return false }
         controller.axEventHandler.resetManagedReplacementState()
 
         if controller.isFrontmostAppLockScreen() || controller.isLockScreenActive {
@@ -1015,16 +1180,24 @@ import QuartzCore
         var plan = try await buildFullRefreshExecutionPlan()
         applyRefreshMetadata(refresh, to: &plan)
         try Task.checkCancellation()
-        await executeRefreshExecutionPlan(plan)
-        return true
+        guard isCurrentRefreshGeneration(generation) else { return false }
+        return await executeRefreshExecutionPlan(plan, generation: generation)
     }
 
     func updateTabbedColumnOverlays() {
         niriHandler.updateTabbedColumnOverlays()
     }
 
-    func selectTabInNiri(workspaceId: WorkspaceDescriptor.ID, columnId: NodeId, visualIndex: Int) {
-        niriHandler.selectTabInNiri(workspaceId: workspaceId, columnId: columnId, visualIndex: visualIndex)
+    func selectTabInNiri(
+        info: TabbedColumnOverlayInfo,
+        visualIndex: Int,
+        expectedToken: WindowToken?
+    ) {
+        niriHandler.selectTabInNiri(
+            info: info,
+            visualIndex: visualIndex,
+            expectedToken: expectedToken
+        )
     }
 
     private func applyRefreshMetadata(_ refresh: ScheduledRefresh, to plan: inout RefreshExecutionPlan) {
@@ -1055,7 +1228,12 @@ import QuartzCore
         guard let controller else { return .init() }
 
         let activeWorkspaceIds = currentActiveWorkspaceIds()
-        let layoutWorkspaceIds = affectedWorkspaceIds.isEmpty ? activeWorkspaceIds : affectedWorkspaceIds
+        let layoutWorkspaceIds = affectedWorkspaceIds.isEmpty
+            ? activeWorkspaceIds
+            : liveLayoutWorkspaceIds(affectedWorkspaceIds, controller: controller)
+        if !affectedWorkspaceIds.isEmpty, layoutWorkspaceIds.isEmpty {
+            return .init()
+        }
         let (niriWorkspaces, dwindleWorkspaces) = partitionWorkspacesByLayoutType(layoutWorkspaceIds)
         var workspacePlans: [WorkspaceLayoutPlan] = []
         workspacePlans.reserveCapacity(niriWorkspaces.count + dwindleWorkspaces.count)
@@ -1081,7 +1259,7 @@ import QuartzCore
         }
 
         var effects = RefreshExecutionEffects()
-        effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
+        effects.visibility = .init()
         effects.requestWorkspaceBarRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         if recoverFocus,
@@ -1103,6 +1281,7 @@ import QuartzCore
 
         var dwindleWorkspaces: Set<WorkspaceDescriptor.ID> = []
         var focusedWorkspacesToRecover: Set<WorkspaceDescriptor.ID> = []
+        var workspacesAllowingPreferredRecovery: Set<WorkspaceDescriptor.ID> = []
         var niriRemovalSeeds: [WorkspaceDescriptor.ID: NiriWindowRemovalSeed] = [:]
 
         for payload in payloads {
@@ -1116,14 +1295,18 @@ import QuartzCore
                     removedNodeIds.append(removedNodeId)
                 }
                 let existingOldFrames = niriRemovalSeeds[payload.workspaceId]?.oldFrames ?? [:]
+                let mergedOldFrames = existingOldFrames.merging(payload.niriOldFrames) { current, _ in current }
                 niriRemovalSeeds[payload.workspaceId] = NiriWindowRemovalSeed(
                     removedNodeIds: removedNodeIds,
-                    oldFrames: existingOldFrames.merging(payload.niriOldFrames) { current, _ in current }
+                    oldFrames: mergedOldFrames
                 )
             }
 
             if payload.shouldRecoverFocus {
                 focusedWorkspacesToRecover.insert(payload.workspaceId)
+            }
+            if payload.allowsPreferredRecoveryToken {
+                workspacesAllowingPreferredRecovery.insert(payload.workspaceId)
             }
         }
 
@@ -1163,11 +1346,24 @@ import QuartzCore
                 .sorted { $0.uuidString < $1.uuidString }
         }
 
+        let focusValidationPreferredTokens = workspacePlans.reduce(
+            into: [WorkspaceDescriptor.ID: WindowToken]()
+        ) { result, plan in
+            guard let rememberedFocusToken = plan.sessionPatch.rememberedFocusToken,
+                  focusValidationWorkspaceIds.contains(plan.workspaceId),
+                  workspacesAllowingPreferredRecovery.contains(plan.workspaceId)
+            else {
+                return
+            }
+            result[plan.workspaceId] = rememberedFocusToken
+        }
+
         var effects = RefreshExecutionEffects()
-        effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
+        effects.visibility = .init()
         effects.requestWorkspaceBarRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         effects.focusValidationWorkspaceIds = focusValidationWorkspaceIds
+        effects.focusValidationPreferredTokens = focusValidationPreferredTokens
 
         return RefreshExecutionPlan(workspacePlans: workspacePlans, effects: effects)
     }
@@ -1175,10 +1371,16 @@ import QuartzCore
     private func buildFullRefreshExecutionPlan() async throws -> RefreshExecutionPlan {
         guard let controller else { return .init() }
 
+        let rescanEpochDomains: RuntimeRevisionDomain = .layoutCommit
+        let rescanEpoch = controller.workspaceManager.runtimeEpoch(for: rescanEpochDomains)
         let hadNativeFullscreenLifecycleContextAtStart = controller.workspaceManager.hasNativeFullscreenLifecycleContext
         let enumerationSnapshot = await controller.axManager.fullRescanEnumerationSnapshot()
-        let windows = enumerationSnapshot.windows
         try Task.checkCancellation()
+        guard controller.workspaceManager.isRuntimeEpochCurrent(rescanEpoch, domains: rescanEpochDomains) else {
+            requestFullRescan(reason: .staleFullRescan)
+            throw CancellationError()
+        }
+        let windows = enumerationSnapshot.windows
         var seenKeys: Set<WindowModel.WindowKey> = []
         var decisionBasedRemovals: [WindowToken] = []
         let focusedWorkspaceId = controller.activeWorkspace()?.id
@@ -1193,7 +1395,7 @@ import QuartzCore
             }
 
             let token = WindowToken(pid: pid, windowId: winId)
-            let appFullscreen = controller.axEventHandler.isFullscreenProvider?(ax) ?? AXWindowService.isFullscreen(ax)
+            let appFullscreen = AXWindowService.isFullscreen(ax)
             let evaluation = controller.evaluateWindowDisposition(
                 axRef: ax,
                 pid: pid,
@@ -1453,9 +1655,8 @@ import QuartzCore
         }
 
         let scratchpadTokenBeforeRemove = controller.workspaceManager.scratchpadToken()
-        controller.workspaceManager.removeMissing(keys: seenKeys, requiredConsecutiveMisses: 1)
-        let remainingTokens = Set(controller.workspaceManager.allEntries().map(\.token))
-        for entry in trackedEntries where !remainingTokens.contains(entry.token) {
+        let removedEntries = controller.workspaceManager.removeMissing(keys: seenKeys, requiredConsecutiveMisses: 1)
+        for entry in removedEntries {
             controller.nativeFullscreenPlaceholderManager.remove(entry.token)
             controller.clearResizePlaceholder(for: entry.token)
             controller.axManager.removeWindowState(pid: entry.pid, windowId: entry.windowId)
@@ -1498,7 +1699,7 @@ import QuartzCore
         }
 
         var effects = RefreshExecutionEffects()
-        effects.visibility = .init(activeWorkspaceIds: activeWorkspaceIds)
+        effects.visibility = .init()
         effects.requestWorkspaceBarRefresh = true
         effects.updateTabbedOverlays = updateTabbedOverlays
         if !controller.workspaceManager.isAppFullscreenActive,
@@ -1569,12 +1770,10 @@ import QuartzCore
     }
 
     private func scratchpadRescanObservation(for entry: WindowModel.Entry) -> ScratchpadRescanObservation? {
-        guard let controller else { return nil }
+        guard controller != nil else { return nil }
         guard let windowId = UInt32(exactly: entry.windowId) else { return nil }
 
-        if let windowInfo = controller.axEventHandler.windowInfoProvider?(windowId) ?? SkyLight.shared
-            .queryWindowInfo(windowId)
-        {
+        if let windowInfo = SkyLight.shared.queryWindowInfo(windowId) {
             guard windowInfo.pid == entry.pid else { return nil }
             if let visibleFrame = scratchpadVisibleWindowServerFrame(windowInfo.frame, for: entry) {
                 return ScratchpadRescanObservation(evidence: .visibleFrame, visibleFrame: visibleFrame)
@@ -1635,7 +1834,6 @@ import QuartzCore
 
         for wsId in workspaces {
             guard let ws = controller.workspaceManager.descriptor(for: wsId) else {
-                niriWorkspaces.insert(wsId)
                 continue
             }
             let layoutType = controller.settings.layoutType(for: ws.name)
@@ -1651,6 +1849,21 @@ import QuartzCore
         return (niriWorkspaces, dwindleWorkspaces)
     }
 
+    private func liveLayoutWorkspaceIds(
+        _ workspaceIds: Set<WorkspaceDescriptor.ID>,
+        controller: WMController
+    ) -> Set<WorkspaceDescriptor.ID> {
+        var liveWorkspaceIds: Set<WorkspaceDescriptor.ID> = []
+        liveWorkspaceIds.reserveCapacity(workspaceIds.count)
+        for workspaceId in workspaceIds
+            where controller.workspaceManager.descriptor(for: workspaceId) != nil
+            && controller.workspaceManager.monitor(for: workspaceId) != nil
+        {
+            liveWorkspaceIds.insert(workspaceId)
+        }
+        return liveWorkspaceIds
+    }
+
     private func currentActiveWorkspaceIds() -> Set<WorkspaceDescriptor.ID> {
         guard let controller else { return [] }
 
@@ -1664,7 +1877,6 @@ import QuartzCore
     }
 
     private func enqueueRefresh(_ refresh: ScheduledRefresh) {
-        recordRefreshRequest(refresh.reason, affectedWorkspaceIds: refresh.affectedWorkspaceIds)
         if let activeRefresh = layoutState.activeRefresh {
             handleRefresh(refresh, whileActive: activeRefresh)
             return
@@ -1875,38 +2087,46 @@ import QuartzCore
         layoutState.pendingRefresh = nil
         layoutState.activeRefresh = refresh
         layoutState.didExecuteRefreshExecutionPlan = false
+        let refreshGeneration = layoutState.refreshGeneration
         layoutState.activeRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let didComplete = await self.execute(refresh)
-            self.finishRefresh(refresh, didComplete: didComplete)
+            let didComplete = await self.execute(refresh, generation: refreshGeneration)
+            self.finishRefresh(refresh, didComplete: didComplete, generation: refreshGeneration)
         }
     }
 
-    private func execute(_ refresh: ScheduledRefresh) async -> Bool {
+    private func isCurrentRefreshGeneration(_ generation: UInt64) -> Bool {
+        generation == layoutState.refreshGeneration
+    }
+
+    private func execute(_ refresh: ScheduledRefresh, generation: UInt64) async -> Bool {
+        guard isCurrentRefreshGeneration(generation) else { return false }
         do {
             switch refresh.kind {
             case .fullRescan:
-                return try await executeFullRefresh(refresh: refresh)
+                return try await executeFullRefresh(refresh: refresh, generation: generation)
             case .relayout:
                 let policy = refresh.reason.relayoutSchedulingPolicy
                 if policy.debounceInterval > 0 {
                     try await Task.sleep(nanoseconds: policy.debounceInterval)
                 }
                 try Task.checkCancellation()
-                return await executeScheduledRelayout(refresh: refresh)
+                guard isCurrentRefreshGeneration(generation) else { return false }
+                return await executeScheduledRelayout(refresh: refresh, generation: generation)
             case .immediateRelayout:
-                return await executeImmediateRelayout(refresh: refresh)
+                return await executeImmediateRelayout(refresh: refresh, generation: generation)
             case .visibilityRefresh:
-                return await executeVisibilityRefresh(refresh: refresh)
+                return await executeVisibilityRefresh(refresh: refresh, generation: generation)
             case .windowRemoval:
-                return await executeWindowRemoval(refresh: refresh)
+                return await executeWindowRemoval(refresh: refresh, generation: generation)
             }
         } catch {
             return false
         }
     }
 
-    private func finishRefresh(_ refresh: ScheduledRefresh, didComplete: Bool) {
+    private func finishRefresh(_ refresh: ScheduledRefresh, didComplete: Bool, generation: UInt64) {
+        guard generation == layoutState.refreshGeneration else { return }
         let completedRefresh = layoutState.activeRefresh ?? refresh
         let didExecuteRefreshExecutionPlan = layoutState.didExecuteRefreshExecutionPlan
 
@@ -1927,7 +2147,7 @@ import QuartzCore
                     performVisibilitySideEffects(on: controller)
                 }
                 for postLayoutAction in completedRefresh.postLayoutActions {
-                    postLayoutAction()
+                    postLayoutAction.runIfCurrent(using: controller.workspaceManager)
                 }
                 if shouldRequestWorkspaceBarRefresh {
                     controller.requestWorkspaceBarRefresh()
@@ -1945,28 +2165,6 @@ import QuartzCore
         }
 
         startNextRefreshIfNeeded()
-    }
-
-    private func recordRefreshExecution(_ route: RefreshRoute, reason: RefreshReason) {
-        debugCounters.executedByReason[reason, default: 0] += 1
-        switch route {
-        case .relayout:
-            debugCounters.relayoutExecutions += 1
-        case .immediateRelayout:
-            debugCounters.immediateRelayoutExecutions += 1
-        case .visibilityRefresh:
-            debugCounters.visibilityExecutions += 1
-        case .windowRemoval:
-            debugCounters.windowRemovalExecutions += 1
-        }
-    }
-
-    private func recordRefreshRequest(
-        _ reason: RefreshReason,
-        affectedWorkspaceIds: Set<WorkspaceDescriptor.ID>
-    ) {
-        debugCounters.requestedByReason[reason, default: 0] += 1
-        debugCounters.lastAffectedWorkspaceIdsByReason[reason] = affectedWorkspaceIds
     }
 
     private func mergeWindowRemovalPayloads(
@@ -2048,14 +2246,24 @@ import QuartzCore
             return
         }
 
-        if !refresh.postLayoutActions.isEmpty {
-            pendingRefresh.postLayoutActions.insert(contentsOf: refresh.postLayoutActions, at: 0)
-        }
-
+        pendingRefresh.postLayoutActions.insert(contentsOf: refresh.postLayoutActions, at: 0)
         pendingRefresh.affectedWorkspaceIds = mergedAffectedWorkspaceIds(
             pendingRefresh.affectedWorkspaceIds,
             refresh.affectedWorkspaceIds
         )
+
+        if refresh.kind == .fullRescan {
+            pendingRefresh.kind = .fullRescan
+            pendingRefresh.reason = refresh.reason
+        }
+
+        if refresh.kind == .immediateRelayout,
+           pendingRefresh.kind != .fullRescan,
+           pendingRefresh.kind != .windowRemoval
+        {
+            pendingRefresh.kind = .immediateRelayout
+            pendingRefresh.reason = refresh.reason
+        }
 
         if refresh.kind == .windowRemoval, !refresh.windowRemovalPayloads.isEmpty {
             pendingRefresh.windowRemovalPayloads = mergeWindowRemovalPayloads(
@@ -2561,6 +2769,10 @@ import QuartzCore
         pendingRevealTransactionsByWindowId[windowId] != nil
     }
 
+    fileprivate func pendingRevealTransactionId(forWindowId windowId: Int) -> UInt64? {
+        pendingRevealTransactionsByWindowId[windowId]?.id
+    }
+
     fileprivate func shouldUsePendingRevealTransaction(
         for entry: WindowModel.Entry,
         hiddenState: WindowModel.HiddenState
@@ -2570,33 +2782,46 @@ import QuartzCore
             && hiddenState.restoresViaFloatingState
     }
 
-    fileprivate func beginPendingRevealTransaction(
+    func beginPendingRevealTransaction(
         for entry: WindowModel.Entry,
         hiddenState: WindowModel.HiddenState,
         targetFrame: CGRect,
         monitor: Monitor,
         onSuccess: PostLayoutAction? = nil
-    ) -> Bool {
+    ) -> UInt64? {
+        guard let controller else { return nil }
+        let entry = controller.workspaceManager.entry(for: entry.token) ?? entry
         if var pendingTransaction = pendingRevealTransactionsByWindowId[entry.windowId] {
-            if let onSuccess {
+            if let onSuccess = makePostLayoutAction(
+                onSuccess,
+                workspaceIds: [entry.workspaceId]
+            ) {
                 if !pendingTransaction.hiddenState.isScratchpad || pendingTransaction.postSuccessActions.isEmpty {
                     pendingTransaction.postSuccessActions.append(onSuccess)
                     pendingRevealTransactionsByWindowId[entry.windowId] = pendingTransaction
                 }
             }
-            return false
+            return nil
         }
 
+        let transactionId = nextPendingRevealTransactionId
         pendingRevealTransactionsByWindowId[entry.windowId] = PendingRevealTransaction(
+            id: transactionId,
             token: entry.token,
             pid: entry.pid,
             windowId: entry.windowId,
+            workspaceId: entry.workspaceId,
+            runtimeRevision: controller.workspaceManager.runtimeRevision(for: entry.workspaceId),
             targetFrame: targetFrame,
             targetMonitorId: monitor.id,
             hiddenState: hiddenState,
-            postSuccessActions: onSuccess.map { [$0] } ?? []
+            postSuccessActions: makePostLayoutAction(
+                onSuccess,
+                workspaceIds: [entry.workspaceId]
+            ).map { [$0] } ?? []
         )
-        return true
+        nextPendingRevealTransactionId &+= 1
+        return transactionId
     }
 
     func rekeyPendingRevealTransaction(
@@ -2614,6 +2839,10 @@ import QuartzCore
         transaction.token = newToken
         transaction.pid = entry.pid
         transaction.windowId = entry.windowId
+        transaction.workspaceId = entry.workspaceId
+        if let controller {
+            transaction.runtimeRevision = controller.workspaceManager.runtimeRevision(for: entry.workspaceId)
+        }
         pendingRevealTransactionsByWindowId[newWindowId] = transaction
 
         if let verificationTask = pendingRevealVerificationTasksByWindowId.removeValue(forKey: oldWindowId) {
@@ -2622,6 +2851,20 @@ import QuartzCore
                 scheduleDelayedRevealVerification(forWindowId: newWindowId)
             }
         }
+    }
+
+    fileprivate func refreshPendingRevealTransactionRuntimeRevision(
+        forWindowId windowId: Int,
+        transactionId: UInt64
+    ) {
+        guard let controller,
+              var transaction = pendingRevealTransactionsByWindowId[windowId],
+              transaction.id == transactionId
+        else {
+            return
+        }
+        transaction.runtimeRevision = controller.workspaceManager.runtimeRevision(for: transaction.workspaceId)
+        pendingRevealTransactionsByWindowId[windowId] = transaction
     }
 
     func cancelPendingScratchpadReveal(for token: WindowToken) {
@@ -2633,10 +2876,16 @@ import QuartzCore
         }
         pendingRevealTransactionsByWindowId.removeValue(forKey: token.windowId)
         pendingRevealVerificationTasksByWindowId.removeValue(forKey: token.windowId)?.cancel()
+        controller?.axManager.cancelPendingFrameJobs([(transaction.pid, transaction.windowId)])
     }
 
-    fileprivate func completePendingRevealTransaction(with result: AXFrameApplyResult) {
-        guard let transaction = pendingRevealTransactionsByWindowId[result.windowId] else {
+    func completePendingRevealTransaction(
+        with result: AXFrameApplyResult,
+        transactionId: UInt64
+    ) {
+        guard let transaction = pendingRevealTransactionsByWindowId[result.windowId],
+              transaction.id == transactionId
+        else {
             return
         }
 
@@ -2646,7 +2895,8 @@ import QuartzCore
         case .success:
             finalizePendingRevealTransactionSuccess(
                 forWindowId: result.windowId,
-                confirmedFrame: result.confirmedFrame
+                confirmedFrame: result.confirmedFrame,
+                transactionId: transaction.id
             )
         case .delayedVerification:
             guard var pendingTransaction = pendingRevealTransactionsByWindowId[result.windowId],
@@ -2658,7 +2908,10 @@ import QuartzCore
             pendingRevealTransactionsByWindowId[result.windowId] = pendingTransaction
             scheduleDelayedRevealVerification(forWindowId: result.windowId)
         case .failure:
-            finalizePendingRevealTransactionFailure(forWindowId: result.windowId)
+            finalizePendingRevealTransactionFailure(
+                forWindowId: result.windowId,
+                transactionId: transaction.id
+            )
         }
     }
 
@@ -2710,35 +2963,74 @@ import QuartzCore
 
     private func finalizePendingRevealTransactionSuccess(
         forWindowId windowId: Int,
-        confirmedFrame: CGRect?
+        confirmedFrame: CGRect?,
+        transactionId: UInt64? = nil
     ) {
         guard let controller,
               let pendingTransaction = pendingRevealTransactionsByWindowId.removeValue(forKey: windowId)
         else {
             return
         }
+        if let transactionId, pendingTransaction.id != transactionId {
+            pendingRevealTransactionsByWindowId[windowId] = pendingTransaction
+            return
+        }
         pendingRevealVerificationTasksByWindowId.removeValue(forKey: windowId)?.cancel()
 
-        controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
+        guard pendingRevealTransactionIsCurrent(pendingTransaction, using: controller.workspaceManager) else {
+            restoreStalePendingRevealSideEffects(pendingTransaction, using: controller)
+            requestRelayout(
+                reason: .staleLayoutPlan,
+                affectedWorkspaceIds: stalePendingRevealWorkspaceIds(pendingTransaction, using: controller)
+            )
+            return
+        }
+        let preSuccessRevision = controller.workspaceManager.runtimeRevision(for: pendingTransaction.workspaceId)
+        controller.withRuntimeFrameJobCancellationSuppressed {
+            controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
+        }
         if pendingTransaction.hiddenState.isScratchpad {
             controller.requestWorkspaceBarRefresh()
         }
         if let confirmedFrame {
             controller.axManager.confirmFrameWrite(for: pendingTransaction.windowId, frame: confirmedFrame)
         }
+        let acceptedRevisions = acceptedPendingRevealPostSuccessRevisions(
+            pendingTransaction,
+            preSuccessRevision: preSuccessRevision,
+            using: controller
+        )
         for action in pendingTransaction.postSuccessActions {
-            action()
+            action
+                .refreshingAcceptedRevisions(acceptedRevisions)
+                .runIfCurrent(using: controller.workspaceManager)
         }
     }
 
-    private func finalizePendingRevealTransactionFailure(forWindowId windowId: Int) {
+    private func finalizePendingRevealTransactionFailure(
+        forWindowId windowId: Int,
+        transactionId: UInt64? = nil
+    ) {
         guard let controller,
               let pendingTransaction = pendingRevealTransactionsByWindowId.removeValue(forKey: windowId)
         else {
             return
         }
+        if let transactionId, pendingTransaction.id != transactionId {
+            pendingRevealTransactionsByWindowId[windowId] = pendingTransaction
+            return
+        }
         pendingRevealVerificationTasksByWindowId.removeValue(forKey: windowId)?.cancel()
         let frameEntry = [(pendingTransaction.pid, pendingTransaction.windowId)]
+
+        guard pendingRevealTransactionIsCurrent(pendingTransaction, using: controller.workspaceManager) else {
+            restoreStalePendingRevealSideEffects(pendingTransaction, using: controller)
+            requestRelayout(
+                reason: .staleLayoutPlan,
+                affectedWorkspaceIds: stalePendingRevealWorkspaceIds(pendingTransaction, using: controller)
+            )
+            return
+        }
 
         if pendingTransaction.hiddenState.isScratchpad,
            controller.workspaceManager.hiddenState(for: pendingTransaction.token)?.isScratchpad != true
@@ -2748,39 +3040,163 @@ import QuartzCore
         }
 
         if pendingTransaction.hiddenState.workspaceInactive {
-            controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
+            controller.withRuntimeFrameJobCancellationSuppressed {
+                controller.workspaceManager.setHiddenState(nil, for: pendingTransaction.token)
+            }
             controller.axManager.unsuppressFrameWrites(frameEntry)
             return
         }
 
         if controller.workspaceManager.hiddenState(for: pendingTransaction.token) == nil {
-            controller.workspaceManager.setHiddenState(pendingTransaction.hiddenState, for: pendingTransaction.token)
+            controller.withRuntimeFrameJobCancellationSuppressed {
+                controller.workspaceManager.setHiddenState(
+                    pendingTransaction.hiddenState,
+                    for: pendingTransaction.token
+                )
+            }
         }
         if controller.workspaceManager.hiddenState(for: pendingTransaction.token) != nil {
             controller.axManager.suppressFrameWrites(frameEntry)
         }
     }
 
+    private func restoreStalePendingRevealSideEffects(
+        _ transaction: PendingRevealTransaction,
+        using controller: WMController
+    ) {
+        let pendingFrameEntry = (pid: transaction.pid, windowId: transaction.windowId)
+        guard let entry = controller.workspaceManager.entry(for: transaction.token) else {
+            controller.axManager.suppressFrameWrites([pendingFrameEntry])
+            return
+        }
+
+        let liveFrameEntry = (pid: entry.pid, windowId: entry.windowId)
+        let frameEntries = liveFrameEntry.windowId == pendingFrameEntry.windowId
+            ? [liveFrameEntry]
+            : [pendingFrameEntry, liveFrameEntry]
+
+        guard let hiddenState = controller.workspaceManager.hiddenState(for: transaction.token) else {
+            controller.axManager.unsuppressFrameWrites(frameEntries)
+            return
+        }
+
+        controller.axManager.cancelPendingFrameJobs(frameEntries)
+        controller.axManager.suppressFrameWrites(frameEntries)
+
+        let monitor = stalePendingRevealMonitor(
+            for: entry,
+            hiddenState: hiddenState,
+            transaction: transaction,
+            using: controller
+        )
+        hideWindow(
+            entry,
+            monitor: monitor,
+            side: hiddenState.offscreenSide ?? preferredHideSide(for: monitor),
+            reason: hideReason(for: hiddenState)
+        )
+    }
+
+    private func acceptedPendingRevealPostSuccessRevisions(
+        _ transaction: PendingRevealTransaction,
+        preSuccessRevision: RuntimeRevision,
+        using controller: WMController
+    ) -> [WorkspaceDescriptor.ID: AcceptedRuntimeRevision] {
+        let after = controller.workspaceManager.runtimeRevision(for: transaction.workspaceId)
+        var domains: RuntimeRevisionDomain = .layoutCommit
+        if transaction.runtimeRevision.matches(preSuccessRevision, domains: .focusCommit) {
+            domains.insert(.focus)
+        }
+        return [
+            transaction.workspaceId: AcceptedRuntimeRevision(
+                before: transaction.runtimeRevision,
+                after: after,
+                domains: domains
+            )
+        ]
+    }
+
+    private func stalePendingRevealWorkspaceIds(
+        _ transaction: PendingRevealTransaction,
+        using controller: WMController
+    ) -> Set<WorkspaceDescriptor.ID> {
+        var workspaceIds: Set<WorkspaceDescriptor.ID> = [transaction.workspaceId]
+        if let currentWorkspaceId = controller.workspaceManager.entry(for: transaction.token)?.workspaceId {
+            workspaceIds.insert(currentWorkspaceId)
+        }
+        return workspaceIds
+    }
+
+    private func stalePendingRevealMonitor(
+        for entry: WindowModel.Entry,
+        hiddenState: WindowModel.HiddenState,
+        transaction: PendingRevealTransaction,
+        using controller: WMController
+    ) -> Monitor {
+        hiddenState.referenceMonitorId.flatMap { controller.workspaceManager.monitor(byId: $0) }
+            ?? controller.workspaceManager.monitor(byId: transaction.targetMonitorId)
+            ?? controller.workspaceManager.monitor(for: entry.workspaceId)
+            ?? Monitor.fallback()
+    }
+
+    private func hideReason(for hiddenState: WindowModel.HiddenState) -> HideReason {
+        switch hiddenState.reason {
+        case .workspaceInactive:
+            .workspaceInactive
+        case .layoutTransient:
+            .layoutTransient
+        case .scratchpad:
+            .scratchpad
+        }
+    }
+
+    private func pendingRevealTransactionIsCurrent(
+        _ transaction: PendingRevealTransaction,
+        using workspaceManager: WorkspaceManager
+    ) -> Bool {
+        workspaceManager.isRuntimeRevisionCurrent(
+            transaction.runtimeRevision,
+            for: transaction.workspaceId,
+            domains: .layoutCommit
+        )
+    }
+
     private func scheduleDelayedRevealVerification(forWindowId windowId: Int) {
         pendingRevealVerificationTasksByWindowId[windowId]?.cancel()
+        guard let transactionId = pendingRevealTransactionsByWindowId[windowId]?.id else { return }
         pendingRevealVerificationTasksByWindowId[windowId] = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.delayedRevealVerificationDelay)
+            do {
+                try await Task.sleep(for: Self.delayedRevealVerificationDelay)
+            } catch {
+                return
+            }
             guard let self else { return }
-            let verifiedFrame = self.delayedVerifiedRevealFrame(forWindowId: windowId)
+            let verifiedFrame = self.delayedVerifiedRevealFrame(
+                forWindowId: windowId,
+                transactionId: transactionId
+            )
             if let verifiedFrame {
                 self.finalizePendingRevealTransactionSuccess(
                     forWindowId: windowId,
-                    confirmedFrame: verifiedFrame
+                    confirmedFrame: verifiedFrame,
+                    transactionId: transactionId
                 )
             } else {
-                self.finalizePendingRevealTransactionFailure(forWindowId: windowId)
+                self.finalizePendingRevealTransactionFailure(
+                    forWindowId: windowId,
+                    transactionId: transactionId
+                )
             }
         }
     }
 
-    private func delayedVerifiedRevealFrame(forWindowId windowId: Int) -> CGRect? {
+    private func delayedVerifiedRevealFrame(
+        forWindowId windowId: Int,
+        transactionId: UInt64
+    ) -> CGRect? {
         guard let controller,
               let pendingTransaction = pendingRevealTransactionsByWindowId[windowId],
+              pendingTransaction.id == transactionId,
               let entry = controller.workspaceManager.entry(for: pendingTransaction.token),
               let observedFrame = observedWindowFrame(entry)
         else {
@@ -2806,16 +3222,22 @@ import QuartzCore
         onSuccess: PostLayoutAction? = nil
     ) -> Bool {
         guard let controller else { return false }
+        let entry = controller.workspaceManager.entry(for: entry.token) ?? entry
         let frameEntry = [(entry.handle.pid, entry.windowId)]
         switch restoreWindowFromHiddenState(entry, monitor: monitor, hiddenState: hiddenState) {
         case .none:
             if hiddenState.workspaceInactive {
-                controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                controller.withRuntimeFrameJobCancellationSuppressed {
+                    controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                }
                 if hiddenState.isScratchpad {
                     controller.requestWorkspaceBarRefresh()
                 }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
-                onSuccess?()
+                acceptedPostLayoutAction(
+                    onSuccess,
+                    workspaceIds: [entry.workspaceId]
+                )?.runIfCurrent(using: controller.workspaceManager)
                 return true
             } else {
                 controller.axManager.suppressFrameWrites(frameEntry)
@@ -2823,26 +3245,36 @@ import QuartzCore
             }
         case let .positionPlan(plan):
             applyPositionPlans([plan])
-            controller.workspaceManager.setHiddenState(nil, for: entry.token)
+            controller.withRuntimeFrameJobCancellationSuppressed {
+                controller.workspaceManager.setHiddenState(nil, for: entry.token)
+            }
             if hiddenState.isScratchpad {
                 controller.requestWorkspaceBarRefresh()
             }
             controller.axManager.unsuppressFrameWrites(frameEntry)
-            onSuccess?()
+            acceptedPostLayoutAction(
+                onSuccess,
+                workspaceIds: [entry.workspaceId]
+            )?.runIfCurrent(using: controller.workspaceManager)
             return true
         case let .asyncFrame(frame):
             if !shouldUsePendingRevealTransaction(for: entry, hiddenState: hiddenState) {
-                controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                controller.withRuntimeFrameJobCancellationSuppressed {
+                    controller.workspaceManager.setHiddenState(nil, for: entry.token)
+                }
                 if hiddenState.isScratchpad {
                     controller.requestWorkspaceBarRefresh()
                 }
                 controller.axManager.unsuppressFrameWrites(frameEntry)
                 controller.axManager.forceApplyNextFrame(for: entry.windowId)
                 controller.axManager.applyFramesParallel([(entry.pid, entry.windowId, frame)])
-                onSuccess?()
+                acceptedPostLayoutAction(
+                    onSuccess,
+                    workspaceIds: [entry.workspaceId]
+                )?.runIfCurrent(using: controller.workspaceManager)
                 return true
             }
-            guard beginPendingRevealTransaction(
+            guard let transactionId = beginPendingRevealTransaction(
                 for: entry,
                 hiddenState: hiddenState,
                 targetFrame: frame,
@@ -2856,7 +3288,10 @@ import QuartzCore
             controller.axManager.applyFramesParallel(
                 [(entry.pid, entry.windowId, frame)],
                 terminalObserver: { [weak self] result in
-                    self?.completePendingRevealTransaction(with: result)
+                    self?.completePendingRevealTransaction(
+                        with: result,
+                        transactionId: transactionId
+                    )
                 }
             )
             return true
@@ -3035,10 +3470,20 @@ import QuartzCore
     func handleResizePlaceholderFrameApplyResult(
         _ result: AXFrameApplyResult,
         workspaceId: WorkspaceDescriptor.ID,
-        monitor: Monitor
+        monitor: Monitor,
+        runtimeRevision: RuntimeRevision
     ) {
+        let token = WindowToken(pid: result.pid, windowId: result.windowId)
+        guard controller?.workspaceManager.isRuntimeRevisionCurrent(
+            runtimeRevision,
+            for: workspaceId,
+            domains: .layoutCommit
+        ) == true else {
+            pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: token)
+            return
+        }
         guard let controller,
-              let entry = controller.workspaceManager.entry(for: .init(pid: result.pid, windowId: result.windowId)),
+              let entry = controller.workspaceManager.entry(for: token),
               entry.workspaceId == workspaceId,
               entry.layoutReason == .standard,
               controller.workspaceManager.hiddenState(for: entry.token) == nil
@@ -3070,7 +3515,9 @@ import QuartzCore
             frame: result.targetFrame,
             minimumSize: minimumSize
         )
-        controller.workspaceManager.setResizePlaceholderState(state, for: entry.token)
+        controller.withRuntimeFrameJobCancellationSuppressed {
+            controller.workspaceManager.setResizePlaceholderState(state, for: entry.token)
+        }
         pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
 
         let appInfo = controller.appInfoCache.info(for: entry.pid)
@@ -3112,7 +3559,10 @@ import QuartzCore
                 pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return nil
             }
-            let constraints = resizePlaceholderFallbackConstraints(for: entry, observedFrame: result.writeResult.observedFrame)
+            let constraints = resizePlaceholderFallbackConstraints(
+                for: entry,
+                observedFrame: result.writeResult.observedFrame
+            )
             let minimumSize = fallbackResizeMinimumSize(
                 targetSize: result.targetFrame.size,
                 observedSize: observedSize,
@@ -3141,7 +3591,10 @@ import QuartzCore
                 pendingResizePlaceholderFallbackEvidenceByToken.removeValue(forKey: entry.token)
                 return constraints.minSize
             }
-            let constraints = resizePlaceholderFallbackConstraints(for: entry, observedFrame: result.writeResult.observedFrame)
+            let constraints = resizePlaceholderFallbackConstraints(
+                for: entry,
+                observedFrame: result.writeResult.observedFrame
+            )
             let minimumSize = fallbackResizeMinimumSize(
                 targetSize: result.targetFrame.size,
                 observedSize: observedSize,
@@ -3252,7 +3705,10 @@ final class LayoutDiffExecutor {
         self.refreshController = refreshController
     }
 
-    func execute(_ plan: WorkspaceLayoutPlan) {
+    func execute(
+        _ plan: WorkspaceLayoutPlan,
+        focusRevisionAccepted: Bool
+    ) {
         guard let controller = refreshController.controller,
               let monitor = resolveMonitor(from: plan.monitor, controller: controller)
         else {
@@ -3268,7 +3724,7 @@ final class LayoutDiffExecutor {
         var restoreEntries: [(entry: WindowModel.Entry, hiddenState: WindowModel.HiddenState)] = []
         var restoreTokens: Set<WindowToken> = []
         var frameChangeByToken: [WindowToken: CGRect] = [:]
-        var pendingRevealTokens: Set<WindowToken> = []
+        var pendingRevealTransactionIdsByToken: [WindowToken: UInt64] = [:]
         var blockedRevealTokens: Set<WindowToken> = []
 
         for change in diff.frameChanges {
@@ -3286,24 +3742,25 @@ final class LayoutDiffExecutor {
             return entry
         }
 
-        let placeholderUpdates = diff.nativeFullscreenPlaceholders.compactMap { change -> NativeFullscreenPlaceholderUpdate? in
-            guard let entry = resolveEntry(for: change.token),
-                  entry.workspaceId == plan.workspaceId,
-                  entry.layoutReason == .nativeFullscreen,
-                  controller.workspaceManager.showsNativeFullscreenPlaceholder(for: change.token)
-            else {
-                return nil
+        let placeholderUpdates = diff.nativeFullscreenPlaceholders
+            .compactMap { change -> NativeFullscreenPlaceholderUpdate? in
+                guard let entry = resolveEntry(for: change.token),
+                      entry.workspaceId == plan.workspaceId,
+                      entry.layoutReason == .nativeFullscreen,
+                      controller.workspaceManager.showsNativeFullscreenPlaceholder(for: change.token)
+                else {
+                    return nil
+                }
+                let appInfo = controller.appInfoCache.info(for: entry.pid)
+                return NativeFullscreenPlaceholderUpdate(
+                    token: change.token,
+                    workspaceId: plan.workspaceId,
+                    frame: change.frame,
+                    selected: change.selected,
+                    appName: appInfo?.name,
+                    icon: appInfo?.icon
+                )
             }
-            let appInfo = controller.appInfoCache.info(for: entry.pid)
-            return NativeFullscreenPlaceholderUpdate(
-                token: change.token,
-                workspaceId: plan.workspaceId,
-                frame: change.frame,
-                selected: change.selected,
-                appName: appInfo?.name,
-                icon: appInfo?.icon
-            )
-        }
         controller.nativeFullscreenPlaceholderManager.update(
             placeholders: placeholderUpdates,
             in: plan.workspaceId
@@ -3340,7 +3797,9 @@ final class LayoutDiffExecutor {
             )
         }
         let resizePlaceholderTokens = Set(resizePlaceholderUpdates.map(\.token))
-        if !resizePlaceholderUpdates.isEmpty || controller.resizePlaceholderManager.hasPlaceholders(in: plan.workspaceId) {
+        if !resizePlaceholderUpdates.isEmpty || controller.resizePlaceholderManager
+            .hasPlaceholders(in: plan.workspaceId)
+        {
             for (token, _) in controller.workspaceManager.resizePlaceholderStates(in: plan.workspaceId)
                 where !resizePlaceholderTokens.contains(token)
             {
@@ -3384,13 +3843,13 @@ final class LayoutDiffExecutor {
                 continue
             }
             if let targetFrame = frameChangeByToken[entry.token] {
-                if refreshController.beginPendingRevealTransaction(
+                if let transactionId = refreshController.beginPendingRevealTransaction(
                     for: entry,
                     hiddenState: hiddenState,
                     targetFrame: targetFrame,
                     monitor: monitor
                 ) {
-                    pendingRevealTokens.insert(entry.token)
+                    pendingRevealTransactionIdsByToken[entry.token] = transactionId
                 } else {
                     blockedRevealTokens.insert(entry.token)
                 }
@@ -3408,13 +3867,13 @@ final class LayoutDiffExecutor {
                 continue
             }
             if let targetFrame = frameChangeByToken[entry.token] {
-                if refreshController.beginPendingRevealTransaction(
+                if let transactionId = refreshController.beginPendingRevealTransaction(
                     for: entry,
                     hiddenState: hiddenState,
                     targetFrame: targetFrame,
                     monitor: monitor
                 ) {
-                    pendingRevealTokens.insert(entry.token)
+                    pendingRevealTransactionIdsByToken[entry.token] = transactionId
                 } else {
                     blockedRevealTokens.insert(entry.token)
                 }
@@ -3460,7 +3919,7 @@ final class LayoutDiffExecutor {
             let restorePlans: [LayoutRefreshController.WindowPositionPlan] = restoreEntries
                 .compactMap { entry, hiddenState in
                     guard !blockedRevealTokens.contains(entry.token),
-                          !pendingRevealTokens.contains(entry.token)
+                          pendingRevealTransactionIdsByToken[entry.token] == nil
                     else { return nil }
                     return refreshController.makeRestorePositionPlan(
                         for: entry,
@@ -3471,7 +3930,7 @@ final class LayoutDiffExecutor {
             refreshController.applyPositionPlans(restorePlans)
 
             for (entry, _) in restoreEntries
-                where !pendingRevealTokens.contains(entry.token)
+                where pendingRevealTransactionIdsByToken[entry.token] == nil
                 && !blockedRevealTokens.contains(entry.token)
             {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
@@ -3481,7 +3940,7 @@ final class LayoutDiffExecutor {
         if !shownEntries.isEmpty {
             for (entry, _) in shownEntries
                 where !restoreTokens.contains(entry.token)
-                && !pendingRevealTokens.contains(entry.token)
+                && pendingRevealTransactionIdsByToken[entry.token] == nil
                 && !blockedRevealTokens.contains(entry.token)
             {
                 controller.workspaceManager.setHiddenState(nil, for: entry.token)
@@ -3515,8 +3974,8 @@ final class LayoutDiffExecutor {
         var frameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = []
         frameUpdates.reserveCapacity(diff.frameChanges.count)
         var resizeProbeFrameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = []
-        var revealFrameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect)] = []
-        revealFrameUpdates.reserveCapacity(pendingRevealTokens.count)
+        var revealFrameUpdates: [(pid: pid_t, windowId: Int, frame: CGRect, transactionId: UInt64)] = []
+        revealFrameUpdates.reserveCapacity(pendingRevealTransactionIdsByToken.count)
 
         for change in diff.frameChanges {
             guard !hiddenTokens.contains(change.token),
@@ -3527,11 +3986,11 @@ final class LayoutDiffExecutor {
                 continue
             }
             guard entry.layoutReason != .nativeFullscreen else { continue }
-            if pendingRevealTokens.contains(change.token) {
+            if pendingRevealTransactionIdsByToken[change.token] != nil {
                 controller.axManager.forceApplyNextFrame(for: entry.windowId)
             }
-            if pendingRevealTokens.contains(change.token) {
-                revealFrameUpdates.append((entry.pid, entry.windowId, change.frame))
+            if let transactionId = pendingRevealTransactionIdsByToken[change.token] {
+                revealFrameUpdates.append((entry.pid, entry.windowId, change.frame, transactionId))
             } else {
                 let forceNativeFullscreenRestoreApply = refreshController
                     .consumeNativeFullscreenRestoredFrameApply(for: change.token)
@@ -3542,7 +4001,10 @@ final class LayoutDiffExecutor {
                     controller.axManager.forceApplyNextFrame(for: entry.windowId)
                     refreshController.clearResizePlaceholderFallbackEvidence(for: change.token)
                     frameUpdates.append((entry.pid, entry.windowId, change.frame))
-                } else if refreshController.shouldObserveResizePlaceholderFallback(entry: entry, targetFrame: change.frame) {
+                } else if refreshController.shouldObserveResizePlaceholderFallback(
+                    entry: entry,
+                    targetFrame: change.frame
+                ) {
                     resizeProbeFrameUpdates.append((entry.pid, entry.windowId, change.frame))
                 } else {
                     frameUpdates.append((entry.pid, entry.windowId, change.frame))
@@ -3555,28 +4017,50 @@ final class LayoutDiffExecutor {
         }
 
         if !resizeProbeFrameUpdates.isEmpty {
+            let frameEffectRevision = controller.workspaceManager.runtimeRevision(for: plan.workspaceId)
             controller.axManager.applyFramesParallel(
                 resizeProbeFrameUpdates,
                 terminalObserver: { [weak refreshController] result in
                     refreshController?.handleResizePlaceholderFrameApplyResult(
                         result,
                         workspaceId: plan.workspaceId,
-                        monitor: monitor
+                        monitor: monitor,
+                        runtimeRevision: frameEffectRevision
                     )
                 }
             )
         }
 
         if !revealFrameUpdates.isEmpty {
+            var revealTransactionIdsByWindowId: [Int: UInt64] = [:]
+            revealTransactionIdsByWindowId.reserveCapacity(revealFrameUpdates.count)
+            for update in revealFrameUpdates {
+                refreshController.refreshPendingRevealTransactionRuntimeRevision(
+                    forWindowId: update.windowId,
+                    transactionId: update.transactionId
+                )
+                revealTransactionIdsByWindowId[update.windowId] = update.transactionId
+            }
             controller.axManager.applyFramesParallel(
-                revealFrameUpdates,
-                terminalObserver: { [weak refreshController] result in
-                    refreshController?.completePendingRevealTransaction(with: result)
+                revealFrameUpdates.map { ($0.pid, $0.windowId, $0.frame) },
+                terminalObserver: { [weak refreshController, revealTransactionIdsByWindowId] result in
+                    guard let refreshController,
+                          let transactionId = revealTransactionIdsByWindowId[result.windowId]
+                          ?? refreshController.pendingRevealTransactionId(forWindowId: result.windowId)
+                    else {
+                        return
+                    }
+                    refreshController.completePendingRevealTransaction(
+                        with: result,
+                        transactionId: transactionId
+                    )
                 }
             )
         }
 
-        if let focusedFrame = diff.focusedFrame {
+        if let focusedFrame = diff.focusedFrame,
+           focusRevisionAccepted
+        {
             _ = controller.updateManagedKeyboardFocusBorder(
                 token: focusedFrame.token,
                 preferredFrame: focusedFrame.frame
@@ -3594,5 +4078,4 @@ final class LayoutDiffExecutor {
 
         return controller.workspaceManager.monitors.first(where: { $0.displayId == snapshot.displayId })
     }
-
 }

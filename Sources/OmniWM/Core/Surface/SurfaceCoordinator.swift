@@ -103,8 +103,4 @@ final class SurfaceCoordinator {
             suppressesManagedFocusRecovery: suppressesManagedFocusRecovery
         )
     }
-
-    func resetForTests() {
-        scene.reset()
-    }
 }

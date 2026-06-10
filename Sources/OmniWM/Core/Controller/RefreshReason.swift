@@ -51,6 +51,8 @@ enum RefreshReason: String, Sendable {
     case interactiveGesture
     case axWindowCreated
     case axWindowChanged
+    case staleLayoutPlan
+    case staleFullRescan
     case windowDestroyed
     case appHidden
     case appUnhidden
@@ -65,7 +67,8 @@ enum RefreshReason: String, Sendable {
              .monitorConfigurationChanged,
              .appRulesChanged,
              .workspaceConfigChanged,
-             .appTerminated:
+             .appTerminated,
+             .staleFullRescan:
             .fullRescan
         case .layoutConfigChanged,
              .monitorSettingsChanged,
@@ -73,7 +76,8 @@ enum RefreshReason: String, Sendable {
              .workspaceLayoutToggled,
              .windowRuleReevaluation,
              .axWindowCreated,
-             .axWindowChanged:
+             .axWindowChanged,
+             .staleLayoutPlan:
             .relayout
         case .workspaceTransition,
              .appActivationTransition,
@@ -105,6 +109,7 @@ enum RefreshReason: String, Sendable {
              .appActivationTransition,
              .workspaceLayoutToggled,
              .appTerminated,
+             .staleFullRescan,
              .windowRuleReevaluation,
              .layoutCommand,
              .interactiveGesture,
@@ -116,6 +121,8 @@ enum RefreshReason: String, Sendable {
             .debounced(nanoseconds: 4_000_000, dropWhileBusy: false)
         case .axWindowChanged:
             .debounced(nanoseconds: 8_000_000, dropWhileBusy: true)
+        case .staleLayoutPlan:
+            .plain
         case .windowDestroyed:
             .plain
         }

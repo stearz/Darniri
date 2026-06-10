@@ -1,30 +1,6 @@
 import Foundation
 import OmniWMIPC
 
-struct IPCConnectionSubscriptionTestHooks {
-    var afterSubscribeResponseBeforeEventDelivery: (@Sendable () async -> Void)?
-}
-
-private final class IPCConnectionSubscriptionTestHookStore: @unchecked Sendable {
-    private let lock = NSLock()
-    private var hooks: IPCConnectionSubscriptionTestHooks?
-
-    func set(_ hooks: IPCConnectionSubscriptionTestHooks?) {
-        lock.lock()
-        self.hooks = hooks
-        lock.unlock()
-    }
-
-    func get() -> IPCConnectionSubscriptionTestHooks? {
-        lock.lock()
-        let hooks = self.hooks
-        lock.unlock()
-        return hooks
-    }
-}
-
-private let ipcConnectionSubscriptionTestHookStore = IPCConnectionSubscriptionTestHookStore()
-
 actor IPCConnection {
     private enum ReadLoopError: Error {
         case requestTooLarge
@@ -61,10 +37,6 @@ actor IPCConnection {
 
     func stop() {
         closeIfNeeded()
-    }
-
-    nonisolated static func setSubscriptionTestHooksForTests(_ hooks: IPCConnectionSubscriptionTestHooks?) {
-        ipcConnectionSubscriptionTestHookStore.set(hooks)
     }
 
     private nonisolated static func runReadLoop(fileDescriptor: Int32, owner: IPCConnection) async {
@@ -110,10 +82,6 @@ actor IPCConnection {
                 : []
 
             try send(response)
-
-            if let hook = Self.subscriptionTestHooksForTests()?.afterSubscribeResponseBeforeEventDelivery {
-                await hook()
-            }
 
             for event in initialEvents {
                 try send(event)
@@ -167,10 +135,6 @@ actor IPCConnection {
 
     private func finishReadLoop() {
         closeIfNeeded()
-    }
-
-    private nonisolated static func subscriptionTestHooksForTests() -> IPCConnectionSubscriptionTestHooks? {
-        ipcConnectionSubscriptionTestHookStore.get()
     }
 
     private nonisolated static func readNextLine(from fileDescriptor: Int32, buffer: inout Data) throws -> String? {

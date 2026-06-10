@@ -27,7 +27,8 @@ import QuartzCore
         dwindleAnimationByDisplay.values.contains { $0.0 == workspaceId }
     }
 
-    func applyFramesOnDemand(workspaceId wsId: WorkspaceDescriptor.ID, monitor: Monitor) {
+    @discardableResult
+    func applyFramesOnDemand(workspaceId wsId: WorkspaceDescriptor.ID, monitor: Monitor) -> Bool {
         guard let controller,
               let activeWorkspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id,
               let engine = controller.dwindleEngine,
@@ -38,14 +39,14 @@ import QuartzCore
                   isActiveWorkspace: activeWorkspaceId == wsId
               )
         else {
-            return
+            return false
         }
 
         let plan = buildOnDemandLayoutPlan(
             snapshot: snapshot,
             engine: engine
         )
-        controller.layoutRefreshController.executeLayoutPlan(plan)
+        return controller.layoutRefreshController.executeLayoutPlan(plan)
     }
 
     func tickDwindleAnimation(targetTime: CFTimeInterval, displayId: CGDirectDisplayID) {
@@ -80,7 +81,14 @@ import QuartzCore
             engine: engine,
             targetTime: targetTime
         )
-        controller.layoutRefreshController.executeLayoutPlan(plan)
+        let didExecute = controller.layoutRefreshController.executeLayoutPlan(plan)
+        guard didExecute else {
+            controller.layoutRefreshController.requestRelayout(
+                reason: .staleLayoutPlan,
+                affectedWorkspaceIds: [wsId]
+            )
+            return
+        }
 
         if !engine.hasActiveAnimations(in: wsId, at: targetTime) {
             controller.layoutRefreshController.stopDwindleAnimation(for: displayId)
@@ -98,7 +106,11 @@ import QuartzCore
     func layoutWithDwindleEngine(activeWorkspaces: Set<WorkspaceDescriptor.ID>) async throws -> [WorkspaceLayoutPlan] {
         guard let controller, let engine = controller.dwindleEngine else { return [] }
         var plans: [WorkspaceLayoutPlan] = []
-        for wsId in activeWorkspaces.sorted(by: { $0.uuidString < $1.uuidString }) {
+        let workspaceIds = activeWorkspaces.sorted(by: { $0.uuidString < $1.uuidString })
+        for (index, wsId) in workspaceIds.enumerated() {
+            if index > 0 {
+                await Task.yield()
+            }
             try Task.checkCancellation()
             guard let workspace = controller.workspaceManager.descriptor(for: wsId),
                   let monitor = controller.workspaceManager.monitor(for: wsId)
@@ -124,7 +136,6 @@ import QuartzCore
             )
 
             try Task.checkCancellation()
-            await Task.yield()
         }
 
         try Task.checkCancellation()
@@ -141,11 +152,12 @@ import QuartzCore
                     .init(
                         workspaceId: wsId,
                         viewportState: nil,
-                        rememberedFocusToken: token
+                        rememberedFocusToken: token,
+                        runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
                     )
                 )
-                controller.layoutRefreshController.requestImmediateRelayout(
-                    reason: .layoutCommand
+                controller.layoutRefreshController.requestLayoutCommandRelayout(
+                    affectedWorkspaceIds: [wsId]
                 ) { [weak controller] in
                     controller?.focusWindow(token)
                 }
@@ -168,11 +180,12 @@ import QuartzCore
             .init(
                 workspaceId: workspaceId,
                 viewportState: nil,
-                rememberedFocusToken: token
+                rememberedFocusToken: token,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
-        controller.layoutRefreshController.requestImmediateRelayout(
-            reason: .layoutCommand
+        controller.layoutRefreshController.requestLayoutCommandRelayout(
+            affectedWorkspaceIds: [workspaceId]
         ) { [weak controller] in
             controller?.focusWindow(token)
         }
@@ -182,7 +195,9 @@ import QuartzCore
         guard let controller else { return }
         withDwindleContext { engine, wsId in
             if engine.swapWindows(direction: direction, in: wsId) {
-                controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+                controller.layoutRefreshController.requestLayoutCommandRelayout(
+                    affectedWorkspaceIds: [wsId]
+                )
             }
         }
     }
@@ -195,10 +210,13 @@ import QuartzCore
                     .init(
                         workspaceId: wsId,
                         viewportState: nil,
-                        rememberedFocusToken: token
+                        rememberedFocusToken: token,
+                        runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
                     )
                 )
-                controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+                controller.layoutRefreshController.requestLayoutCommandRelayout(
+                    affectedWorkspaceIds: [wsId]
+                )
             }
         }
     }
@@ -207,7 +225,9 @@ import QuartzCore
         guard let controller else { return }
         withDwindleContext { engine, wsId in
             engine.cycleSplitRatio(forward: forward, in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 
@@ -215,7 +235,9 @@ import QuartzCore
         guard let controller else { return }
         withDwindleContext { engine, wsId in
             engine.balanceSizes(in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 
@@ -292,6 +314,7 @@ import QuartzCore
             workspaceId: wsId,
             monitor: refreshInput.monitor,
             windows: refreshInput.windows,
+            runtimeRevision: refreshInput.runtimeRevision,
             preferredFocusToken: controller.workspaceManager.preferredFocusToken(in: wsId),
             confirmedFocusedToken: controller.workspaceManager.focusedToken,
             selectedToken: selectedToken,
@@ -366,9 +389,11 @@ import QuartzCore
         return WorkspaceLayoutPlan(
             workspaceId: snapshot.workspaceId,
             monitor: snapshot.monitor,
+            runtimeRevision: snapshot.runtimeRevision,
             sessionPatch: WorkspaceSessionPatch(
                 workspaceId: snapshot.workspaceId,
-                rememberedFocusToken: rememberedFocusToken
+                rememberedFocusToken: rememberedFocusToken,
+                runtimeRevision: snapshot.runtimeRevision
             ),
             diff: diff,
             animationDirectives: directives
@@ -397,7 +422,11 @@ import QuartzCore
         return WorkspaceLayoutPlan(
             workspaceId: snapshot.workspaceId,
             monitor: snapshot.monitor,
-            sessionPatch: WorkspaceSessionPatch(workspaceId: snapshot.workspaceId),
+            runtimeRevision: snapshot.runtimeRevision,
+            sessionPatch: WorkspaceSessionPatch(
+                workspaceId: snapshot.workspaceId,
+                runtimeRevision: snapshot.runtimeRevision
+            ),
             diff: diff
         )
     }
@@ -430,7 +459,11 @@ import QuartzCore
         return WorkspaceLayoutPlan(
             workspaceId: snapshot.workspaceId,
             monitor: snapshot.monitor,
-            sessionPatch: WorkspaceSessionPatch(workspaceId: snapshot.workspaceId),
+            runtimeRevision: snapshot.runtimeRevision,
+            sessionPatch: WorkspaceSessionPatch(
+                workspaceId: snapshot.workspaceId,
+                runtimeRevision: snapshot.runtimeRevision
+            ),
             diff: diff
         )
     }

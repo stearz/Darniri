@@ -155,6 +155,8 @@ struct ViewportState {
 
     var selectedNodeId: NodeId?
 
+    var selectionRevision: UInt64 = 0
+
     var viewOffsetToRestore: CGFloat?
 
     var activatePrevColumnOnRemoval: CGFloat?

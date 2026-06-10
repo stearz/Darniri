@@ -107,14 +107,6 @@ final class BorderManager {
         registeredSurfaceWindowNumber = nil
     }
 
-    var lastAppliedFocusedWindowIdForTests: Int? {
-        lastAppliedWindowId
-    }
-
-    var lastAppliedFocusedFrameForTests: CGRect? {
-        lastAppliedFrame
-    }
-
     func cleanup() {
         hideBorder()
         borderWindow?.destroy()

@@ -18,8 +18,6 @@ struct ResizePlaceholderSnapshot: Equatable {
 
 @MainActor
 final class ResizePlaceholderManager {
-    static var materializesWindowsForTests = true
-
     var onActivate: ((WindowToken) -> Void)?
 
     private var windowsByToken: [WindowToken: ResizePlaceholderWindow] = [:]
@@ -44,13 +42,6 @@ final class ResizePlaceholderManager {
             )
         }
 
-        guard Self.materializesWindowsForTests else {
-            for token in desiredTokens {
-                windowsByToken.removeValue(forKey: token)?.destroy()
-            }
-            return
-        }
-
         let staleWindowTokens = windowsByToken.compactMap { token, window in
             window.workspaceId == workspaceId && !desiredTokens.contains(token) ? token : nil
         }
@@ -70,11 +61,6 @@ final class ResizePlaceholderManager {
             selected: placeholder.selected,
             appName: placeholder.appName
         )
-
-        guard Self.materializesWindowsForTests else {
-            windowsByToken.removeValue(forKey: placeholder.token)?.destroy()
-            return
-        }
 
         let window = windowsByToken[placeholder.token] ?? {
             let window = ResizePlaceholderWindow(token: placeholder.token)
@@ -112,10 +98,6 @@ final class ResizePlaceholderManager {
         snapshotsByToken.removeAll()
     }
 
-    func snapshotForTests() -> [WindowToken: ResizePlaceholderSnapshot] {
-        snapshotsByToken
-    }
-
     func hasPlaceholders(in workspaceId: WorkspaceDescriptor.ID) -> Bool {
         snapshotsByToken.values.contains { $0.workspaceId == workspaceId }
     }
@@ -137,21 +119,6 @@ final class ResizePlaceholderManager {
         return fallbackToken
     }
 
-    func appearanceForTests(_ token: WindowToken) -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?)? {
-        windowsByToken[token]?.appearanceForTests()
-    }
-
-    func windowNumberForTests(_ token: WindowToken) -> Int? {
-        windowsByToken[token]?.windowNumber
-    }
-
-    func activateForTests(_ token: WindowToken) {
-        if let window = windowsByToken[token] {
-            window.activate()
-        } else if snapshotsByToken[token] != nil {
-            onActivate?(token)
-        }
-    }
 }
 
 @MainActor
@@ -252,10 +219,6 @@ private final class ResizePlaceholderWindow: NSPanel {
         unregisterSurface()
         orderOut(nil)
         close()
-    }
-
-    func appearanceForTests() -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?) {
-        (isOpaque, backgroundColor, placeholderView.layer?.backgroundColor.map(NSColor.init(cgColor:)) ?? nil)
     }
 
     private func registerSurfaceIfNeeded() {

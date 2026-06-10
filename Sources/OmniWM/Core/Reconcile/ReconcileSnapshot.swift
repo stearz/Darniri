@@ -129,11 +129,13 @@ struct PendingManagedFocusSnapshot: Equatable {
     var token: WindowToken?
     var workspaceId: WorkspaceDescriptor.ID?
     var monitorId: Monitor.ID?
+    var requestId: UInt64?
 
     static let empty = PendingManagedFocusSnapshot(
         token: nil,
         workspaceId: nil,
-        monitorId: nil
+        monitorId: nil,
+        requestId: nil
     )
 }
 

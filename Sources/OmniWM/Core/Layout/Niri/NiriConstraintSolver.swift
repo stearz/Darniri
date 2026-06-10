@@ -88,35 +88,44 @@ enum NiriAxisSolver {
             values[index] = fixedValue
         }
 
-        var pendingAutoIndices = nonFixedIndices
+        var autoCandidates: [(index: Int, weight: CGFloat, minimum: CGFloat)] = []
+        autoCandidates.reserveCapacity(nonFixedIndices.count)
+        var pendingWeight: CGFloat = 0
+        for index in nonFixedIndices {
+            let weight = max(weights[index], epsilon)
+            autoCandidates.append((index: index, weight: weight, minimum: minConstraints[index]))
+            pendingWeight += weight
+        }
+        autoCandidates.sort { lhs, rhs in
+            let lhsThreshold = lhs.minimum / lhs.weight
+            let rhsThreshold = rhs.minimum / rhs.weight
+            if abs(lhsThreshold - rhsThreshold) > epsilon {
+                return lhsThreshold > rhsThreshold
+            }
+            return lhs.index < rhs.index
+        }
+
         var pinnedMinimumSum: CGFloat = 0
-        while !pendingAutoIndices.isEmpty {
+        var firstUnpinnedIndex = 0
+        while firstUnpinnedIndex < autoCandidates.count, pendingWeight > epsilon {
             let distributableSpace = max(0, remainingSpace - pinnedMinimumSum)
-            let totalWeight = pendingAutoIndices.reduce(CGFloat.zero) { partialResult, index in
-                partialResult + max(weights[index], epsilon)
-            }
-            guard totalWeight > epsilon else { break }
-
-            var pinnedIndex: Int?
-            for index in pendingAutoIndices {
-                let share = distributableSpace * (max(weights[index], epsilon) / totalWeight)
-                if share + epsilon < minConstraints[index] {
-                    pinnedIndex = index
-                    break
-                }
+            let candidate = autoCandidates[firstUnpinnedIndex]
+            let share = distributableSpace * (candidate.weight / pendingWeight)
+            guard share + epsilon < candidate.minimum else {
+                break
             }
 
-            if let pinnedIndex {
-                values[pinnedIndex] = minConstraints[pinnedIndex]
-                pinnedMinimumSum += minConstraints[pinnedIndex]
-                pendingAutoIndices.removeAll { $0 == pinnedIndex }
-                continue
-            }
+            values[candidate.index] = candidate.minimum
+            pinnedMinimumSum += candidate.minimum
+            pendingWeight -= candidate.weight
+            firstUnpinnedIndex += 1
+        }
 
-            for index in pendingAutoIndices {
-                values[index] = distributableSpace * (max(weights[index], epsilon) / totalWeight)
+        if firstUnpinnedIndex < autoCandidates.count, pendingWeight > epsilon {
+            let distributableSpace = max(0, remainingSpace - pinnedMinimumSum)
+            for candidate in autoCandidates[firstUnpinnedIndex...] {
+                values[candidate.index] = distributableSpace * (candidate.weight / pendingWeight)
             }
-            break
         }
 
         return windows.enumerated().map { index, window in

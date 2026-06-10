@@ -25,9 +25,6 @@ final class ServiceLifecycleManager {
     private var wakeObserver: NSObjectProtocol?
     private var permissionCheckerTask: Task<Void, Never>?
     private(set) var isSecureInputActive = false
-    var accessibilityPermissionStreamProviderForTests: ((Bool) -> AsyncStream<Bool>)?
-    var accessibilityPermissionStateProviderForTests: (() -> Bool)?
-    var accessibilityPermissionRequestHandlerForTests: (() -> Bool)?
 
     init(controller: WMController) {
         self.controller = controller
@@ -75,8 +72,7 @@ final class ServiceLifecycleManager {
             self?.handleAppTerminated(pid: pid)
         }
         AppAXContext.onWindowDestroyed = { [weak controller] pid, windowId in
-            guard let controller else { return }
-            controller.axEventHandler.handleRemoved(pid: pid, winId: windowId)
+            controller?.axEventHandler.handleRemoved(pid: pid, winId: windowId)
         }
         AppAXContext.onWindowMiniaturized = { [weak controller] pid, windowId in
             controller?.axEventHandler.handleWindowMiniaturized(pid: pid, windowId: windowId)
@@ -138,10 +134,6 @@ final class ServiceLifecycleManager {
         }
     }
 
-    func handleSecureInputChangeForTests(_ isSecure: Bool) {
-        handleSecureInputChange(isSecure)
-    }
-
     private func setupDisplayObserver() {
         displayObserver = DisplayConfigurationObserver()
         displayObserver?.setEventHandler { [weak self] event in
@@ -187,6 +179,7 @@ final class ServiceLifecycleManager {
         guard currentMonitors.allSatisfy({ $0.frame.width > 1 && $0.frame.height > 1 }) else { return }
 
         controller.workspaceManager.applyMonitorConfigurationChange(currentMonitors)
+        controller.resetMouseWarpTransientState()
         controller.syncMouseWarpPolicy(for: controller.workspaceManager.monitors)
         guard performPostUpdateActions else { return }
 
@@ -416,16 +409,15 @@ final class ServiceLifecycleManager {
     }
 
     private func accessibilityPermissionStream(initial: Bool) -> AsyncStream<Bool> {
-        accessibilityPermissionStreamProviderForTests?(initial)
-            ?? AccessibilityPermissionMonitor.shared.stream(initial: initial)
+        AccessibilityPermissionMonitor.shared.stream(initial: initial)
     }
 
     private func currentAccessibilityPermissionGranted() -> Bool {
-        accessibilityPermissionStateProviderForTests?() ?? AccessibilityPermissionMonitor.shared.isGranted
+        AccessibilityPermissionMonitor.shared.isGranted
     }
 
     @discardableResult
     private func requestAccessibilityPermission() -> Bool {
-        accessibilityPermissionRequestHandlerForTests?() ?? controller?.axManager.requestPermission() ?? false
+        controller?.axManager.requestPermission() ?? false
     }
 }

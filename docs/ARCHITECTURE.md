@@ -36,8 +36,7 @@ This document is for contributors who want to understand OmniWM's internals. It 
   - [4.12 Additional Features](#412-additional-features)
 - [5. Data Flow Diagrams](#5-data-flow-diagrams)
 - [6. Common Contribution Patterns](#6-common-contribution-patterns)
-- [7. Testing](#7-testing)
-- [8. Glossary](#8-glossary)
+- [7. Glossary](#7-glossary)
 
 ---
 
@@ -127,14 +126,11 @@ OmniWM has **zero third-party package dependencies**. All functionality is built
 # Debug build
 swift build
 
-# Run tests
-swift test
-
 # Code quality
 make format        # Rewrite Swift formatting with SwiftFormat
 make format-check  # Verify SwiftFormat output without rewriting
 make lint          # Run SwiftLint diagnostics
-make check         # Verify formatting, lint, audit, build, and test
+make check         # Verify formatting, lint, audit, and build
 
 # Create distributable app bundle
 ./Scripts/package-app.sh release true    # Run checks, build, sign, notarize
@@ -377,7 +373,7 @@ Both layout engines follow the same contract:
 3. They produce a `[WindowToken: CGRect]` frame dictionary as output
 4. They **never touch windows directly** — no accessibility calls, no frame writes
 
-This separation means layout logic can be unit-tested without any macOS UI or accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the active engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
+This separation keeps layout logic independent of macOS UI and accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the active engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
 
 ### 3.6 Thread Safety Model
 
@@ -960,7 +956,7 @@ Actions can carry multiple persisted bindings, so any extra default shortcuts sh
 
 6. **Handle schema compatibility** in the TOML codec if needed. `settings.toml` is the only settings source of truth.
 
-7. **Add round-trip coverage** in tests: verify the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/omniwm/settings.toml`.
+7. **Verify persistence** by checking the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/omniwm/settings.toml`.
 
 ### 6.4 Modifying Layout Behavior
 
@@ -980,8 +976,6 @@ Actions can carry multiple persisted bindings, so any extra default shortcuts sh
 
    Focus navigation lives in `NiriNavigation.swift`. Constraint solving lives in `NiriConstraintSolver.swift`.
 
-3. **Write tests** using existing helpers. Layout engines can be tested in isolation — create nodes, call `calculateLayout()`, assert frame positions.
-
 ### 6.5 Working with Private APIs
 
 OmniWM uses SkyLight (private macOS framework) for low-latency window operations. The wrapper pattern is:
@@ -990,35 +984,11 @@ OmniWM uses SkyLight (private macOS framework) for low-latency window operations
 2. **Dynamic loading** via `dlopen`/`dlsym` in `Sources/OmniWM/Core/SkyLight/SkyLight.swift` for functions that can't use `@_silgen_name`
 3. All private API usage is wrapped in safe Swift functions with fallback behavior
 
-**Risk model:** Private APIs can break across macOS versions. When adding new private API usage, provide a fallback path using public APIs where possible, and test across macOS versions.
+**Risk model:** Private APIs can break across macOS versions. When adding new private API usage, provide a fallback path using public APIs where possible, and verify behavior across macOS versions.
 
 ---
 
-## 7. Testing
-
-**Runner:** `swift test` via SwiftPM. Requires macOS 15+.
-
-**Test directory:** `Tests/OmniWMTests/` (55 files: 52 test files + 3 support files)
-
-**Test patterns:**
-
-| Pattern | Used For | Example |
-|---------|----------|---------|
-| Direct unit tests | Layout engines, animation math, rule evaluation | Create nodes, call `calculateLayout()`, assert frames |
-| DI via closures | Controllers, handlers | `nativeFullscreenStateProvider`, `frameApplyOverrideForTests` |
-| Debug hooks | Refresh pipeline | `RefreshDebugHooks.onFullRescan`, `onRelayout` |
-| In-process IPC | IPC protocol, routing | Create socket pair, send/receive in-process |
-
-**Key test support files:**
-- `TestSharedStateSupport.swift` — shared test fixtures
-- `TokenCompatibilityTestSupport.swift` — window token creation helpers
-- `LayoutPlanTestSupport.swift` — layout test utilities
-
-**What's hard to test:** Anything requiring live accessibility permissions or actual window manipulation. These are covered by the override/hook pattern — production code checks for test overrides (closures/hooks) and uses them instead of real system calls.
-
----
-
-## 8. Glossary
+## 7. Glossary
 
 | Term | Definition |
 |------|-----------|

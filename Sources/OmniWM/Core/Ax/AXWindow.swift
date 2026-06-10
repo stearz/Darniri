@@ -183,14 +183,6 @@ enum AXWindowService {
         case title
     }
 
-    nonisolated(unsafe) static var axWindowRefProviderForTests: ((UInt32, pid_t) -> AXWindowRef?)?
-    nonisolated(unsafe) static var setFrameResultProviderForTests: ((AXWindowRef, CGRect, CGRect?)
-        -> AXFrameWriteResult)?
-    nonisolated(unsafe) static var pinnedWindowIdProviderForTests: ((UInt32) -> CGWindowID?)?
-    @MainActor static var fastFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
-    @MainActor static var titleLookupProviderForTests: ((UInt32) -> String?)?
-    @MainActor static var timeSourceForTests: (() -> TimeInterval)?
-
     // Held AXUIElement references for windows that may be pruned from the
     // app's kAXWindowsAttribute enumeration (e.g. scratchpad-hidden Calculator
     // windows that drop out of the AX windows list while off-screen). Survives
@@ -210,18 +202,6 @@ enum AXWindowService {
         pinnedElements.removeValue(forKey: windowId)
     }
 
-    static func hasPinnedAXElementForTests(for windowId: UInt32) -> Bool {
-        pinnedElementsLock.lock()
-        defer { pinnedElementsLock.unlock() }
-        return pinnedElements[windowId] != nil
-    }
-
-    static func clearPinnedAXElementsForTests() {
-        pinnedElementsLock.lock()
-        defer { pinnedElementsLock.unlock() }
-        pinnedElements.removeAll()
-    }
-
     private static func pinnedAXElement(for windowId: UInt32) -> AXUIElement? {
         pinnedElementsLock.lock()
         defer { pinnedElementsLock.unlock() }
@@ -229,9 +209,6 @@ enum AXWindowService {
     }
 
     static func pinnedWindowId(for windowId: UInt32) -> CGWindowID? {
-        if let overrideWindowId = pinnedWindowIdProviderForTests?(windowId) {
-            return overrideWindowId
-        }
         guard let pinned = pinnedAXElement(for: windowId) else { return nil }
         var resolvedWindowId: CGWindowID = 0
         guard _AXUIElementGetWindow(pinned, &resolvedWindowId) == .success else { return nil }
@@ -250,29 +227,21 @@ enum AXWindowService {
 
     @MainActor
     static func titlePreferFast(windowId: UInt32) -> String? {
-        let now = timeSourceForTests?() ?? ProcessInfo.processInfo.systemUptime
+        let now = ProcessInfo.processInfo.systemUptime
         if let cached = titleCache[windowId],
            now - cached.fetchedAt < titleTTL
         {
             return cached.title
         }
-        let title = if let titleLookupProviderForTests {
-            titleLookupProviderForTests(windowId)
-        } else {
-            SkyLight.shared.getWindowTitle(windowId)
-        }
+        let title = SkyLight.shared.getWindowTitle(windowId)
         storeTitleCacheEntry(windowId: windowId, title: title, at: now)
         return title
     }
 
     @MainActor
     static func refreshCachedTitle(windowId: UInt32) {
-        let now = timeSourceForTests?() ?? ProcessInfo.processInfo.systemUptime
-        let title = if let titleLookupProviderForTests {
-            titleLookupProviderForTests(windowId)
-        } else {
-            SkyLight.shared.getWindowTitle(windowId)
-        }
+        let now = ProcessInfo.processInfo.systemUptime
+        let title = SkyLight.shared.getWindowTitle(windowId)
         storeTitleCacheEntry(windowId: windowId, title: title, at: now)
     }
 
@@ -289,12 +258,6 @@ enum AXWindowService {
         }
         let windowIdSet = Set(windowIds)
         titleInsertionOrder.removeAll { windowIdSet.contains($0) }
-    }
-
-    @MainActor
-    static func clearTitleCacheForTests() {
-        titleCache.removeAll()
-        titleInsertionOrder.removeAll()
     }
 
     @MainActor
@@ -347,9 +310,6 @@ enum AXWindowService {
 
     @MainActor
     static func fastFrame(_ window: AXWindowRef) -> CGRect? {
-        if let fastFrameProviderForTests {
-            return fastFrameProviderForTests(window)
-        }
         guard let frame = SkyLight.shared.getWindowBounds(UInt32(windowId(window))) else { return nil }
         return ScreenCoordinateSpace.toAppKit(rect: frame)
     }
@@ -374,10 +334,6 @@ enum AXWindowService {
         frame: CGRect,
         currentFrameHint: CGRect? = nil
     ) -> AXFrameWriteResult {
-        if let setFrameResultProviderForTests {
-            return setFrameResultProviderForTests(window, frame, currentFrameHint)
-        }
-
         let writeOrder = frameWriteOrder(
             currentFrame: currentFrameHint ?? (try? self.frame(window)),
             targetFrame: frame
@@ -765,10 +721,6 @@ enum AXWindowService {
     }
 
     static func axWindowRef(for windowId: UInt32, pid: pid_t) -> AXWindowRef? {
-        if let axWindowRefProviderForTests {
-            return axWindowRefProviderForTests(windowId, pid)
-        }
-
         if let pinned = pinnedAXElement(for: windowId) {
             var winId: CGWindowID = 0
             if _AXUIElementGetWindow(pinned, &winId) == .success, winId == windowId {

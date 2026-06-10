@@ -399,42 +399,14 @@ final class MouseEventHandler {
         state.gesturePhase != .idle
     }
 
-    func flushPendingTapEventsForTests() {
-        flushPendingTapEvents()
-    }
-
     func mouseTapDebugSnapshot() -> State.DebugCounters {
         state.debugCounters
-    }
-
-    func resetDebugStateForTests() {
-        state.debugCounters = .init()
-        state.pendingTapEvents.clear()
     }
 
     func handleInputSuppressionBegan() {
         dropPendingTapEvents()
         resetMouseWheelTrackers()
         abortActiveGestureIfNeeded()
-    }
-
-    func handleTapCallbackForTests(
-        type: CGEventType,
-        event: CGEvent,
-        isMainThread: Bool
-    ) -> Bool {
-        let previousInstance = Self._instance
-        Self._instance = self
-        defer { Self._instance = previousInstance }
-        return Self.processTapCallback(type: type, event: event, isMainThread: isMainThread)
-    }
-
-    func handleGestureTapCallbackForTests(
-        type: CGEventType,
-        event: CGEvent,
-        isMainThread: Bool
-    ) -> Bool {
-        Self.processGestureTapCallback(type: type, event: event, isMainThread: isMainThread)
     }
 
     func receiveTapMouseMoved(at location: CGPoint) {
@@ -776,6 +748,13 @@ final class MouseEventHandler {
             return false
         }
 
+        if button == .left,
+           modifiers.intersection(mouseRelevantModifierFlags).isEmpty,
+           let window = engine.hitTestFocusableWindow(point: location, in: wsId)
+        {
+            controller.axEventHandler.noteMouseFocusIntent(token: window.token)
+        }
+
         if button == .left, modifiers.contains(.maskAlternate) {
             if let tiledWindow = engine.hitTestTiled(point: location, in: wsId),
                let monitor = controller.workspaceManager.monitor(for: wsId)
@@ -891,7 +870,9 @@ final class MouseEventHandler {
     private func shouldSuppressRightMouseEvent(type: CGEventType) -> Bool {
         guard state.activeInteractionButton == .right else { return false }
         switch type {
-        case .rightMouseDown, .rightMouseDragged, .rightMouseUp:
+        case .rightMouseDown,
+             .rightMouseDragged,
+             .rightMouseUp:
             return state.isResizing
         default:
             return false
@@ -1601,7 +1582,8 @@ final class MouseEventHandler {
             .init(
                 workspaceId: wsId,
                 viewportState: nil,
-                rememberedFocusToken: window.token
+                rememberedFocusToken: window.token,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
             )
         )
         engine.updateFocusTimestamp(for: window.id)

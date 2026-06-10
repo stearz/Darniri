@@ -146,26 +146,6 @@ final class StatusBarController: NSObject {
         button.imagePosition = .imageLeft
     }
 
-    func statusButtonTitleForTests() -> String {
-        statusItem?.button?.title ?? ""
-    }
-
-    func statusButtonImagePositionForTests() -> NSControl.ImagePosition? {
-        statusItem?.button?.imagePosition
-    }
-
-    func statusItemAutosaveNameForTests() -> String? {
-        statusItem?.autosaveName
-    }
-
-    func statusItemIsVisibleForTests() -> Bool? {
-        statusItem?.isVisible
-    }
-
-    func rebuildOwnedStatusItemsAfterUnsafeOrderingForTests() {
-        rebuildOwnedStatusItemsAfterUnsafeOrdering()
-    }
-
     func cleanup() {
         cleanupOwnedStatusItems()
     }

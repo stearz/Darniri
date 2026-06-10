@@ -65,10 +65,6 @@ final class UpdateWindowController: UpdateWindowControlling {
         window?.close()
     }
 
-    var windowForTests: NSWindow? {
-        window
-    }
-
     private func center(_ window: NSWindow) {
         let mouseLocation = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }) else {

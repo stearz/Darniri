@@ -726,28 +726,6 @@ final class QuakeTerminalController: NSObject, NSWindowDelegate, QuakeTerminalTa
         }
     }
 
-    func configureTransitionStateForTests(
-        window: QuakeTerminalWindow = QuakeTerminalWindow(),
-        visible: Bool,
-        isTransitioning: Bool
-    ) {
-        self.window = window
-        self.visible = visible
-        self.isTransitioning = isTransitioning
-    }
-
-    var isTransitioningForTests: Bool {
-        isTransitioning
-    }
-
-    func captureRestoreTargetForTests() {
-        restoreTarget = captureRestoreTarget()
-    }
-
-    var restoreTargetForTests: QuakeTerminalRestoreTarget? {
-        restoreTarget
-    }
-
     private func readClipboard(location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) {
         guard let surface else { return }
         let pasteboard = location == GHOSTTY_CLIPBOARD_SELECTION ? NSPasteboard(name: .find) : NSPasteboard.general

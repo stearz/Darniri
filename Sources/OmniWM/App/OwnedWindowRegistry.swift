@@ -151,8 +151,4 @@ final class OwnedWindowRegistry {
             suppressesManagedFocusRecovery: suppressesManagedFocusRecovery
         )
     }
-
-    func resetForTests() {
-        surfaceCoordinator.resetForTests()
-    }
 }

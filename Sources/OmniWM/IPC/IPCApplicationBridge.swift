@@ -157,15 +157,6 @@ actor IPCApplicationBridge {
         await eventBroker.publish(event)
     }
 
-    func publishEventForTests(_ channel: IPCSubscriptionChannel) async {
-        guard let event = await eventEnvelope(for: channel) else { return }
-        await eventBroker.publish(event)
-    }
-
-    func publishEventEnvelopeForTests(_ event: IPCEventEnvelope) async {
-        await eventBroker.publish(event)
-    }
-
     func shutdown() async {
         await eventBroker.finishAll()
     }

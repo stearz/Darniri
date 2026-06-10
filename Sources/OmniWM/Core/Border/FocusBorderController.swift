@@ -21,9 +21,6 @@ final class FocusBorderController {
     }
 
     weak var controller: WMController?
-    var observedFrameProviderForTests: ((AXWindowRef) -> CGRect?)?
-    var suppressNextRenderForTests: ((KeyboardFocusTarget) -> Bool)?
-    var suppressNextFrameHintForTests: ((WindowToken) -> Bool)?
 
     private let borderManager: BorderManager
     private var lastAXConfirmedTarget: KeyboardFocusTarget?
@@ -92,10 +89,6 @@ final class FocusBorderController {
         forceOrdering: Bool = false
     ) -> Bool {
         guard lastAXConfirmedTarget?.token == token else { return false }
-        if suppressNextFrameHintForTests?(token) == true {
-            suppressNextFrameHintForTests = nil
-            return false
-        }
         return refresh(
             preferredFrame: frame,
             preferredFrameSource: source,
@@ -209,14 +202,6 @@ final class FocusBorderController {
         lastAXConfirmedTarget
     }
 
-    var lastAppliedFocusedWindowIdForTests: Int? {
-        borderManager.lastAppliedFocusedWindowIdForTests
-    }
-
-    var lastAppliedFocusedFrameForTests: CGRect? {
-        borderManager.lastAppliedFocusedFrameForTests
-    }
-
     @discardableResult
     private func render(
         target: KeyboardFocusTarget,
@@ -225,11 +210,6 @@ final class FocusBorderController {
         forceOrdering: Bool
     ) -> Bool {
         guard controller != nil else { return false }
-
-        if suppressNextRenderForTests?(target) == true {
-            suppressNextRenderForTests = nil
-            return false
-        }
 
         switch renderEligibility(for: target) {
         case .clear:
@@ -381,10 +361,6 @@ final class FocusBorderController {
     }
 
     private func observedFrame(for axRef: AXWindowRef) -> CGRect? {
-        if let observedFrameProviderForTests {
-            return observedFrameProviderForTests(axRef)
-        }
-
         if let frame = AXWindowService.framePreferFast(axRef) {
             return frame
         }

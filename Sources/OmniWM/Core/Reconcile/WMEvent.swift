@@ -86,6 +86,7 @@ enum WMEvent: Equatable {
         token: WindowToken,
         workspaceId: WorkspaceDescriptor.ID,
         monitorId: Monitor.ID?,
+        requestId: UInt64,
         source: WMEventSource
     )
     case managedFocusConfirmed(
@@ -93,11 +94,13 @@ enum WMEvent: Equatable {
         workspaceId: WorkspaceDescriptor.ID,
         monitorId: Monitor.ID?,
         appFullscreen: Bool,
+        requestId: UInt64?,
         source: WMEventSource
     )
     case managedFocusCancelled(
         token: WindowToken?,
         workspaceId: WorkspaceDescriptor.ID?,
+        requestId: UInt64?,
         source: WMEventSource
     )
     case nonManagedFocusChanged(
@@ -120,12 +123,12 @@ enum WMEvent: Equatable {
              let .hiddenStateChanged(token, _, _, _, _),
              let .nativeFullscreenTransition(token, _, _, _, _),
              let .managedReplacementMetadataChanged(token, _, _, _),
-             let .managedFocusRequested(token, _, _, _),
-             let .managedFocusConfirmed(token, _, _, _, _):
+             let .managedFocusRequested(token, _, _, _, _),
+             let .managedFocusConfirmed(token, _, _, _, _, _):
             token
         case let .windowRekeyed(_, to, _, _, _, _):
             to
-        case let .managedFocusCancelled(token, _, _):
+        case let .managedFocusCancelled(token, _, _, _):
             token
         case .topologyChanged,
              .activeSpaceChanged,
@@ -151,9 +154,9 @@ enum WMEvent: Equatable {
              let .topologyChanged(_, source),
              let .activeSpaceChanged(source),
              let .focusLeaseChanged(_, source),
-             let .managedFocusRequested(_, _, _, source),
-             let .managedFocusConfirmed(_, _, _, _, source),
-             let .managedFocusCancelled(_, _, source),
+             let .managedFocusRequested(_, _, _, _, source),
+             let .managedFocusConfirmed(_, _, _, _, _, source),
+             let .managedFocusCancelled(_, _, _, source),
              let .nonManagedFocusChanged(_, _, _, _, source),
              let .systemSleep(source),
              let .systemWake(source):
@@ -187,12 +190,12 @@ enum WMEvent: Equatable {
             "active_space_changed"
         case let .focusLeaseChanged(lease, _):
             "focus_lease_changed owner=\(lease?.owner.rawValue ?? "nil") reason=\(lease?.reason ?? "")"
-        case let .managedFocusRequested(token, workspaceId, monitorId, _):
-            "managed_focus_requested token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId))"
-        case let .managedFocusConfirmed(token, workspaceId, monitorId, appFullscreen, _):
-            "managed_focus_confirmed token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId)) fullscreen=\(appFullscreen)"
-        case let .managedFocusCancelled(token, workspaceId, _):
-            "managed_focus_cancelled token=\(token.map(String.init(describing:)) ?? "nil") workspace=\(workspaceId?.uuidString ?? "nil")"
+        case let .managedFocusRequested(token, workspaceId, monitorId, requestId, _):
+            "managed_focus_requested token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId)) request=\(requestId)"
+        case let .managedFocusConfirmed(token, workspaceId, monitorId, appFullscreen, requestId, _):
+            "managed_focus_confirmed token=\(token) workspace=\(workspaceId.uuidString) monitor=\(String(describing: monitorId)) fullscreen=\(appFullscreen) request=\(requestId.map { String($0) } ?? "nil")"
+        case let .managedFocusCancelled(token, workspaceId, requestId, _):
+            "managed_focus_cancelled token=\(token.map(String.init(describing:)) ?? "nil") workspace=\(workspaceId?.uuidString ?? "nil") request=\(requestId.map { String($0) } ?? "nil")"
         case let .nonManagedFocusChanged(active, appFullscreen, preserveFocusedToken, preservePendingManagedFocus, _):
             "non_managed_focus_changed active=\(active) fullscreen=\(appFullscreen) preserve=\(preserveFocusedToken) preserve_pending=\(preservePendingManagedFocus)"
         case .systemSleep:

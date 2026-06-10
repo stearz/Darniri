@@ -557,29 +557,3 @@ final class WorkspaceBarManager {
         panel.level = resolved.windowLevel.nsWindowLevel
     }
 }
-
-extension WorkspaceBarManager {
-    func activeBarCountForTests() -> Int {
-        barsByMonitor.count
-    }
-
-    func hostingViewIdentifierForTests(on monitorId: Monitor.ID) -> ObjectIdentifier? {
-        barsByMonitor[monitorId].map { ObjectIdentifier($0.hostingView) }
-    }
-
-    func lastAppliedFrameForTests(on monitorId: Monitor.ID) -> CGRect? {
-        barsByMonitor[monitorId]?.lastAppliedFrame
-    }
-
-    func snapshotForTests(on monitorId: Monitor.ID) -> WorkspaceBarSnapshot? {
-        barsByMonitor[monitorId]?.model.snapshot
-    }
-
-    func panelEffectiveAppearanceForTests(on monitorId: Monitor.ID) -> NSAppearance.Name? {
-        barsByMonitor[monitorId]?.panel.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
-    }
-
-    func hostingViewEffectiveAppearanceForTests(on monitorId: Monitor.ID) -> NSAppearance.Name? {
-        barsByMonitor[monitorId]?.hostingView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
-    }
-}

@@ -3,8 +3,24 @@ import Foundation
 enum InvariantChecks {
     static func validate(snapshot: ReconcileSnapshot) -> [ReconcileInvariantViolation] {
         var violations: [ReconcileInvariantViolation] = []
-        let liveTokens = Set(snapshot.windows.map(\.token))
+        var windowByToken: [WindowToken: ReconcileWindowSnapshot] = [:]
+        var duplicateTokens: Set<WindowToken> = []
+        for window in snapshot.windows {
+            if windowByToken.updateValue(window, forKey: window.token) != nil {
+                duplicateTokens.insert(window.token)
+            }
+        }
+        let liveTokens = Set(windowByToken.keys)
         let liveMonitorIds = Set(snapshot.topologyProfile.displays.map { Monitor.ID(displayId: $0.displayId) })
+
+        for token in duplicateTokens {
+            violations.append(
+                .init(
+                    code: "duplicate_window_token",
+                    message: "Window token \(token) appears more than once in the runtime snapshot."
+                )
+            )
+        }
 
         if let focusedToken = snapshot.focusedToken,
            !liveTokens.contains(focusedToken)
@@ -13,6 +29,75 @@ enum InvariantChecks {
                 .init(
                     code: "focused_token_missing",
                     message: "Focused token \(focusedToken) is missing from the runtime snapshot."
+                )
+            )
+        }
+
+        if let focusedToken = snapshot.focusedToken,
+           let focusedWindow = windowByToken[focusedToken],
+           focusedWindow.lifecyclePhase == .destroyed
+        {
+            violations.append(
+                .init(
+                    code: "focused_token_destroyed",
+                    message: "Focused token \(focusedToken) points to a destroyed window."
+                )
+            )
+        }
+
+        if let pendingToken = snapshot.focusSession.pendingManagedFocus.token,
+           !liveTokens.contains(pendingToken)
+        {
+            violations.append(
+                .init(
+                    code: "pending_focus_token_missing",
+                    message: "Pending focus token \(pendingToken) is missing from the runtime snapshot."
+                )
+            )
+        }
+
+        if let pendingToken = snapshot.focusSession.pendingManagedFocus.token,
+           let pendingWorkspaceId = snapshot.focusSession.pendingManagedFocus.workspaceId,
+           let pendingWindow = windowByToken[pendingToken],
+           pendingWindow.workspaceId != pendingWorkspaceId
+        {
+            violations.append(
+                .init(
+                    code: "pending_focus_workspace_mismatch",
+                    message: "Pending focus token \(pendingToken) is in workspace \(pendingWindow.workspaceId.uuidString), not pending workspace \(pendingWorkspaceId.uuidString)."
+                )
+            )
+        }
+
+        if snapshot.focusSession.pendingManagedFocus.requestId != nil,
+           snapshot.focusSession.pendingManagedFocus.token == nil
+        {
+            violations.append(
+                .init(
+                    code: "pending_focus_request_without_token",
+                    message: "Pending managed focus request has a request id but no token."
+                )
+            )
+        }
+
+        if snapshot.focusSession.pendingManagedFocus.requestId != nil,
+           snapshot.focusSession.pendingManagedFocus.workspaceId == nil
+        {
+            violations.append(
+                .init(
+                    code: "pending_focus_request_without_workspace",
+                    message: "Pending managed focus request has a request id but no workspace."
+                )
+            )
+        }
+
+        if snapshot.focusSession.pendingManagedFocus.requestId == nil,
+           snapshot.focusSession.pendingManagedFocus != .empty
+        {
+            violations.append(
+                .init(
+                    code: "pending_focus_without_request",
+                    message: "Pending managed focus exists without a request id."
                 )
             )
         }

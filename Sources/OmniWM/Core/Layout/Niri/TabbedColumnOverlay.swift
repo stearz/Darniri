@@ -70,6 +70,7 @@ private enum TabbedOverlayMetrics {
 
 struct TabbedColumnOverlayTabInfo: Equatable {
     let visualIndex: Int
+    let token: WindowToken?
     let windowId: Int?
     let appName: String?
     let title: String?
@@ -93,6 +94,7 @@ struct TabbedColumnOverlayTabInfo: Equatable {
 struct TabbedColumnOverlayInfo: Equatable {
     let workspaceId: WorkspaceDescriptor.ID
     let columnId: NodeId
+    let runtimeRevision: RuntimeRevision
     let columnFrame: CGRect
     let visibleColumnFrame: CGRect
     let activeVisualIndex: Int
@@ -110,6 +112,7 @@ struct TabbedColumnOverlayInfo: Equatable {
     init(
         workspaceId: WorkspaceDescriptor.ID,
         columnId: NodeId,
+        runtimeRevision: RuntimeRevision,
         columnFrame: CGRect,
         visibleColumnFrame: CGRect? = nil,
         tabCount: Int,
@@ -119,6 +122,7 @@ struct TabbedColumnOverlayInfo: Equatable {
     ) {
         self.workspaceId = workspaceId
         self.columnId = columnId
+        self.runtimeRevision = runtimeRevision
         self.columnFrame = columnFrame
         self.visibleColumnFrame = visibleColumnFrame ?? columnFrame
         self.activeVisualIndex = activeVisualIndex
@@ -132,6 +136,7 @@ struct TabbedColumnOverlayInfo: Equatable {
         return (0 ..< tabCount).map { visualIndex in
             TabbedColumnOverlayTabInfo(
                 visualIndex: visualIndex,
+                token: nil,
                 windowId: nil,
                 appName: nil,
                 title: nil,
@@ -224,7 +229,10 @@ struct TabbedRailLayout: Equatable {
             segmentGap: segmentGap
         )
         guard segmentHeight >= TabbedOverlayMetrics.minimumSegmentHeight else { return 0 }
-        return min(availableHeight, totalHeight(tabCount: tabCount, segmentHeight: segmentHeight, segmentGap: segmentGap))
+        return min(
+            availableHeight,
+            totalHeight(tabCount: tabCount, segmentHeight: segmentHeight, segmentGap: segmentGap)
+        )
     }
 
     static func visualRailRect(in bounds: CGRect) -> CGRect {
@@ -270,36 +278,17 @@ struct TabbedRailLayout: Equatable {
     }
 }
 
-struct TabbedColumnOverlayAccessibilitySnapshot: Equatable {
-    let visualIndex: Int
-    let role: NSAccessibility.Role?
-    let label: String?
-    let value: Bool
-    let frame: CGRect
-}
-
 @MainActor
 final class TabbedColumnOverlayManager {
-    typealias SelectionHandler = (WorkspaceDescriptor.ID, NodeId, Int) -> Void
+    typealias SelectionHandler = (TabbedColumnOverlayInfo, Int, WindowToken?) -> Void
 
     static let tabIndicatorWidth: CGFloat = TabbedOverlayMetrics.totalWidth
 
     var onSelect: SelectionHandler?
-    var disablesWindowUpdatesForTests = false
-    var updateHookForTests: ((WorkspaceDescriptor.ID?, Bool) -> Void)?
-    var frontHookForTests: ((Int) -> Void)?
-    var orderingHookForTests: ((Int, Int) -> Void)?
-    var orderWindowForTests: ((Int, Int) -> Void)?
-    private(set) var lastUpdateInfosForTests: [TabbedColumnOverlayInfo] = []
-    private(set) var lastScopedWorkspaceIdForTests: WorkspaceDescriptor.ID?
-    private(set) var lastForceOrderingForTests = false
 
     private var overlays: [TabbedColumnOverlayKey: TabbedColumnOverlayWindow] = [:]
 
     func updateOverlays(_ infos: [TabbedColumnOverlayInfo], forceOrdering: Bool = false) {
-        recordUpdateForTests(infos: infos, scopedWorkspaceId: nil, forceOrdering: forceOrdering)
-        guard !disablesWindowUpdatesForTests else { return }
-
         var desiredKeys = Set<TabbedColumnOverlayKey>()
         desiredKeys.reserveCapacity(infos.count)
         for info in infos where info.tabCount > 0 {
@@ -318,9 +307,6 @@ final class TabbedColumnOverlayManager {
         in workspaceId: WorkspaceDescriptor.ID,
         forceOrdering: Bool = false
     ) {
-        recordUpdateForTests(infos: infos, scopedWorkspaceId: workspaceId, forceOrdering: forceOrdering)
-        guard !disablesWindowUpdatesForTests else { return }
-
         var desiredKeys = Set<TabbedColumnOverlayKey>()
         desiredKeys.reserveCapacity(infos.count)
         for info in infos where info.tabCount > 0 {
@@ -337,76 +323,17 @@ final class TabbedColumnOverlayManager {
         }
     }
 
-    private func recordUpdateForTests(
-        infos: [TabbedColumnOverlayInfo],
-        scopedWorkspaceId: WorkspaceDescriptor.ID?,
-        forceOrdering: Bool
-    ) {
-        updateHookForTests?(scopedWorkspaceId, forceOrdering)
-        guard disablesWindowUpdatesForTests else { return }
-        lastUpdateInfosForTests = infos.filter { $0.tabCount > 0 }
-        lastScopedWorkspaceIdForTests = scopedWorkspaceId
-        lastForceOrderingForTests = forceOrdering
-    }
-
     private func updateOverlay(_ info: TabbedColumnOverlayInfo, forceOrdering: Bool) {
         let key = info.key
         let overlay = overlays[key] ?? {
             let window = TabbedColumnOverlayWindow(columnId: info.columnId, workspaceId: info.workspaceId)
-            window.onSelect = { [weak self] workspaceId, columnId, visualIndex in
-                self?.onSelect?(workspaceId, columnId, visualIndex)
+            window.onSelect = { [weak self] info, visualIndex, token in
+                self?.onSelect?(info, visualIndex, token)
             }
             overlays[key] = window
             return window
         }()
-        overlay.frontHookForTests = frontHookForTests
-        overlay.orderingHookForTests = orderingHookForTests
-        overlay.orderWindowForTests = orderWindowForTests
         overlay.update(info: info, forceOrdering: forceOrdering)
-    }
-
-    func overlayWindowNumberForTests(workspaceId: WorkspaceDescriptor.ID, columnId: NodeId) -> Int? {
-        overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)]?.windowNumber
-    }
-
-    func overlayWindowConfigurationForTests(
-        workspaceId: WorkspaceDescriptor.ID,
-        columnId: NodeId
-    ) -> (
-        level: NSWindow.Level,
-        isFloatingPanel: Bool,
-        styleMask: NSWindow.StyleMask,
-        canBecomeKey: Bool,
-        canBecomeMain: Bool,
-        collectionBehavior: NSWindow.CollectionBehavior
-    )? {
-        guard let overlay = overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)] else {
-            return nil
-        }
-        return (
-            overlay.level,
-            overlay.isFloatingPanel,
-            overlay.styleMask,
-            overlay.canBecomeKey,
-            overlay.canBecomeMain,
-            overlay.collectionBehavior
-        )
-    }
-
-    func overlayAccessibilitySnapshotForTests(
-        workspaceId: WorkspaceDescriptor.ID,
-        columnId: NodeId
-    ) -> [TabbedColumnOverlayAccessibilitySnapshot] {
-        overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)]?.accessibilitySnapshotForTests() ?? []
-    }
-
-    func performOverlayAccessibilityPressForTests(
-        workspaceId: WorkspaceDescriptor.ID,
-        columnId: NodeId,
-        visualIndex: Int
-    ) -> Bool {
-        overlays[TabbedColumnOverlayKey(workspaceId: workspaceId, columnId: columnId)]?
-            .performAccessibilitySelectionForTests(visualIndex) ?? false
     }
 
     func removeAll() {
@@ -432,13 +359,11 @@ private final class TabbedColumnOverlayWindow: NSPanel {
     private let surfaceCoordinator = SurfaceCoordinator.shared
     private var lastFrame: CGRect?
     private var lastActiveWindowId: Int?
+    private var currentInfo: TabbedColumnOverlayInfo?
     private var registeredSurfaceWindowNumber: Int?
     private var accessibilityDisplayObserver: NSObjectProtocol?
-    var frontHookForTests: ((Int) -> Void)?
-    var orderingHookForTests: ((Int, Int) -> Void)?
-    var orderWindowForTests: ((Int, Int) -> Void)?
 
-    var onSelect: ((WorkspaceDescriptor.ID, NodeId, Int) -> Void)?
+    var onSelect: ((TabbedColumnOverlayInfo, Int, WindowToken?) -> Void)?
 
     init(columnId: NodeId, workspaceId: WorkspaceDescriptor.ID) {
         self.columnId = columnId
@@ -467,8 +392,9 @@ private final class TabbedColumnOverlayWindow: NSPanel {
         isReleasedWhenClosed = false
 
         overlayView.onSelect = { [weak self] visualIndex in
-            guard let self else { return }
-            self.onSelect?(self.workspaceId, self.columnId, visualIndex)
+            guard let self, let currentInfo else { return }
+            let token = currentInfo.tabs.first(where: { $0.visualIndex == visualIndex })?.token
+            self.onSelect?(currentInfo, visualIndex, token)
         }
         contentView = overlayView
 
@@ -502,6 +428,7 @@ private final class TabbedColumnOverlayWindow: NSPanel {
     }
 
     func update(info: TabbedColumnOverlayInfo, forceOrdering: Bool) {
+        currentInfo = info
         workspaceId = info.workspaceId
         columnId = info.columnId
 
@@ -526,7 +453,6 @@ private final class TabbedColumnOverlayWindow: NSPanel {
         let wasVisible = isVisible
         if forceOrdering || !wasVisible {
             orderFront(nil)
-            frontHookForTests?(windowNumber)
         }
         syncSurfaceRegistration()
 
@@ -534,12 +460,7 @@ private final class TabbedColumnOverlayWindow: NSPanel {
            forceOrdering || lastActiveWindowId != targetWid || !wasVisible
         {
             let wid = UInt32(windowNumber)
-            if let orderWindowForTests {
-                orderWindowForTests(Int(wid), targetWid)
-            } else {
-                SkyLight.shared.orderWindow(wid, relativeTo: UInt32(targetWid))
-            }
-            orderingHookForTests?(Int(wid), targetWid)
+            SkyLight.shared.orderWindow(wid, relativeTo: UInt32(targetWid))
         }
         lastActiveWindowId = info.activeWindowId
     }
@@ -584,14 +505,6 @@ private final class TabbedColumnOverlayWindow: NSPanel {
 
     private static func surfaceID(workspaceId: WorkspaceDescriptor.ID, columnId: NodeId) -> String {
         "tabbed-column-overlay-\(workspaceId.uuidString)-\(columnId.uuid.uuidString)"
-    }
-
-    func accessibilitySnapshotForTests() -> [TabbedColumnOverlayAccessibilitySnapshot] {
-        overlayView.accessibilitySnapshotForTests()
-    }
-
-    func performAccessibilitySelectionForTests(_ visualIndex: Int) -> Bool {
-        overlayView.performAccessibilitySelection(visualIndex)
     }
 }
 
@@ -894,10 +807,6 @@ private final class TabbedColumnOverlayView: NSView {
         return window.convertToScreen(windowRect)
     }
 
-    fileprivate func accessibilitySnapshotForTests() -> [TabbedColumnOverlayAccessibilitySnapshot] {
-        accessibilityTabElements.map { $0.snapshotForTests() }
-    }
-
     private static func hasSameAccessibilityMetadata(
         _ lhs: [TabbedColumnOverlayTabInfo],
         _ rhs: [TabbedColumnOverlayTabInfo]
@@ -927,7 +836,12 @@ private final class TabbedColumnAccessibilityElement: NSAccessibilityElement {
         tab.visualIndex
     }
 
-    init(parent: AnyObject, tab: TabbedColumnOverlayTabInfo, screenFrame: CGRect, pressAction: @escaping (Int) -> Void) {
+    init(
+        parent: AnyObject,
+        tab: TabbedColumnOverlayTabInfo,
+        screenFrame: CGRect,
+        pressAction: @escaping (Int) -> Void
+    ) {
         parentElement = parent
         self.tab = tab
         self.screenFrame = screenFrame
@@ -980,16 +894,6 @@ private final class TabbedColumnAccessibilityElement: NSAccessibilityElement {
         if postNotification {
             NSAccessibility.post(element: self, notification: .valueChanged)
         }
-    }
-
-    func snapshotForTests() -> TabbedColumnOverlayAccessibilitySnapshot {
-        TabbedColumnOverlayAccessibilitySnapshot(
-            visualIndex: tab.visualIndex,
-            role: accessibilityRole(),
-            label: accessibilityLabel(),
-            value: isSelected,
-            frame: accessibilityFrame()
-        )
     }
 }
 

@@ -1126,56 +1126,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         panel?.makeFirstResponder(textField)
     }
 
-    func setWindowSelectionStateForTests(
-        wmController: WMController,
-        items: [CommandPaletteWindowItem],
-        selectedItemID: CommandPaletteSelectionID?,
-        summonAnchor: CommandPaletteSummonAnchor? = nil
-    ) {
-        self.wmController = wmController
-        windows = items
-        menuItems = []
-        selectedMode = .windows
-        self.selectedItemID = selectedItemID
-        self.summonAnchor = summonAnchor
-    }
-
-    func setMenuAvailabilityForTests(_ target: CommandPaletteAppSnapshot?) {
-        menuFocusTarget = target.map { CommandPaletteFocusTarget(app: $0, focusedWindow: nil) }
-    }
-
-    func setMenuLoadingStateForTests(
-        wmController: WMController,
-        target: CommandPaletteAppSnapshot
-    ) {
-        self.wmController = wmController
-        isVisible = true
-        menuFocusTarget = CommandPaletteFocusTarget(app: target, focusedWindow: nil)
-        menuItems = []
-        hasLoadedMenuItems = false
-        menuLoadGeneration &+= 1
-        selectedMode = .menu
-    }
-
-    func loadMenuItemsForTests() {
-        loadMenuItemsIfNeeded()
-    }
-
-    @discardableResult
-    func handleModeShortcutForTests(_ characters: String) -> Bool {
-        handleModeShortcut(characters)
-    }
-
-    func selectionTriggerForTests(
-        keyCode: UInt16,
-        modifierFlags: NSEvent.ModifierFlags
-    ) -> CommandPaletteSelectionTrigger? {
-        Self.selectionTrigger(forKeyCode: keyCode, modifierFlags: modifierFlags)
-    }
-
-    var panelForTests: NSPanel? {
-        panel
-    }
 }
 
 private struct CommandPaletteView: View {

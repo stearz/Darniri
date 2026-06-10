@@ -48,10 +48,6 @@ final class SettingsWindowController {
         self.window = window
     }
 
-    var windowForTests: NSWindow? {
-        window
-    }
-
     func isPointInside(_ point: CGPoint) -> Bool {
         guard let window, window.isVisible else { return false }
         return window.frame.contains(point)

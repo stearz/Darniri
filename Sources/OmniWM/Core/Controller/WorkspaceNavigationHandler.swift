@@ -25,7 +25,8 @@ final class WorkspaceNavigationHandler {
             .init(
                 workspaceId: workspaceId,
                 viewportState: viewportState,
-                rememberedFocusToken: rememberedFocusToken
+                rememberedFocusToken: rememberedFocusToken,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
     }
@@ -45,14 +46,16 @@ final class WorkspaceNavigationHandler {
                     .init(
                         workspaceId: $0,
                         viewportState: sourceState,
-                        rememberedFocusToken: sourceFocusedToken
+                        rememberedFocusToken: sourceFocusedToken,
+                        runtimeRevision: controller.workspaceManager.runtimeRevision(for: $0)
                     )
                 },
                 targetPatch: targetWorkspaceId.map {
                     .init(
                         workspaceId: $0,
                         viewportState: targetState,
-                        rememberedFocusToken: targetFocusedToken
+                        rememberedFocusToken: targetFocusedToken,
+                        runtimeRevision: controller.workspaceManager.runtimeRevision(for: $0)
                     )
                 }
             )
@@ -115,6 +118,11 @@ final class WorkspaceNavigationHandler {
         guard let controller else { return }
         let canceledRequest = controller.focusBridge.cancelManagedRequest()
         if let canceledRequest {
+            _ = controller.workspaceManager.cancelManagedFocusRequest(
+                matching: canceledRequest.token,
+                workspaceId: canceledRequest.workspaceId,
+                requestId: canceledRequest.requestId
+            )
             controller.focusBridge.discardPendingFocus(canceledRequest.token)
         }
         controller.clearKeyboardFocusTarget()

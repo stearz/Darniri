@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-@testable import OmniWM
+import OmniWM
 import SwiftUI
 
 struct SettingsSceneRedirectView: View {
@@ -24,12 +24,12 @@ struct SettingsSceneRedirectView: View {
         .onAppear {
             redirectIfPossible()
         }
-        .onChange(of: bootstrap.settings != nil && bootstrap.controller != nil) { _, _ in
+        .onChange(of: bootstrap.isReady) { _, _ in
             redirectIfPossible()
         }
         .onDisappear {
             if let window {
-                OwnedWindowRegistry.shared.unregister(window)
+                bootstrap.unregisterRedirectWindow(window)
             }
         }
     }
@@ -38,37 +38,26 @@ struct SettingsSceneRedirectView: View {
         if let window {
             if let newWindow {
                 if window !== newWindow {
-                    OwnedWindowRegistry.shared.unregister(window)
+                    bootstrap.unregisterRedirectWindow(window)
                 }
             } else {
-                OwnedWindowRegistry.shared.unregister(window)
+                bootstrap.unregisterRedirectWindow(window)
             }
         }
         window = newWindow
         if let newWindow {
-            OwnedWindowRegistry.shared.register(newWindow)
+            bootstrap.registerRedirectWindow(newWindow)
         }
         redirectIfPossible()
     }
 
     private func redirectIfPossible() {
         guard !didRedirect,
-              let settings = bootstrap.settings,
-              let controller = bootstrap.controller
+              bootstrap.isReady
         else { return }
 
         didRedirect = true
-        SettingsWindowController.shared.show(
-            settings: settings,
-            controller: controller,
-            updateCoordinator: bootstrap.updateCoordinator
-        )
-
-        guard let window else { return }
-        OwnedWindowRegistry.shared.unregister(window)
-        DispatchQueue.main.async {
-            window.close()
-        }
+        bootstrap.showSettingsAndCloseRedirectWindow(window)
     }
 }
 

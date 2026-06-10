@@ -40,16 +40,19 @@ struct ActionPlan: Equatable {
     var notes: [String] = []
 
     var isEmpty: Bool {
-        lifecyclePhase == nil
-            && observedState == nil
-            && desiredState == nil
-            && restoreIntent == nil
-            && replacementCorrelation == nil
-            && focusSession == nil
-            && restoreRefresh == nil
-            && topologyTransition == nil
-            && persistedHydration == nil
-            && notes.isEmpty
+        !mutatesRuntimeState && notes.isEmpty
+    }
+
+    var mutatesRuntimeState: Bool {
+        lifecyclePhase != nil
+            || observedState != nil
+            || desiredState != nil
+            || restoreIntent != nil
+            || replacementCorrelation != nil
+            || focusSession != nil
+            || restoreRefresh != nil
+            || topologyTransition != nil
+            || persistedHydration != nil
     }
 
     var summary: String {
@@ -95,6 +98,9 @@ struct ActionPlan: Equatable {
         var parts: [String] = []
         parts.append("focused=\(focusSession.focusedToken.map(String.init(describing:)) ?? "nil")")
         parts.append("pending=\(focusSession.pendingManagedFocus.token.map(String.init(describing:)) ?? "nil")")
+        if let requestId = focusSession.pendingManagedFocus.requestId {
+            parts.append("request=\(requestId)")
+        }
         if let leaseOwner = focusSession.focusLease?.owner.rawValue {
             parts.append("lease=\(leaseOwner)")
         }

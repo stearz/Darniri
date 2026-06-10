@@ -17,15 +17,6 @@ protocol CGSEventDelegate: AnyObject {
 
 @MainActor
 final class CGSEventObserver {
-    struct DebugCounters: Equatable {
-        var decodedEvents = 0
-        var coalescedFrameEvents = 0
-        var malformedPayloadDrops = 0
-        var clearedFrameEventsOnDestroy = 0
-        var drainedEvents = 0
-        var drainRuns = 0
-    }
-
     static let shared = CGSEventObserver()
 
     weak var delegate: CGSEventDelegate?
@@ -120,33 +111,6 @@ final class CGSEventObserver {
         SkyLight.shared.subscribeToWindowNotifications(windowIds)
     }
 
-    func flushPendingCGSEventsForTests() {
-        drainPendingEventsOnMainRunLoop(ignoreRegistration: true)
-    }
-
-    func enqueueEventForTests(_ event: CGSWindowEvent) {
-        enqueueDecodedCGSEvent(event, requireRegistration: false)
-    }
-
-    func ingestRawEventForTests(eventType: UInt32, bytes: [UInt8]) {
-        bytes.withUnsafeBytes { rawBuffer in
-            handleRawCGSEvent(
-                eventType: eventType,
-                data: UnsafeMutableRawPointer(mutating: rawBuffer.baseAddress),
-                length: rawBuffer.count,
-                requireRegistration: false
-            )
-        }
-    }
-
-    func resetDebugStateForTests() {
-        resetPendingCGSEventState(isRegistered: isRegistered)
-    }
-
-    func cgsDebugSnapshot() -> DebugCounters {
-        cgsPendingEvents.withLock { $0.debugCounters }
-    }
-
     fileprivate func drainPendingEventsOnMainRunLoop(ignoreRegistration: Bool = false) {
         precondition(Thread.isMainThread, "CGS drains must run on the main run loop")
 
@@ -157,10 +121,6 @@ final class CGSEventObserver {
             state.pendingFrameWindowIds.removeAll(keepingCapacity: true)
             state.drainScheduled = false
             state.drainIgnoresRegistration = false
-            if !events.isEmpty {
-                state.debugCounters.drainRuns += 1
-                state.debugCounters.drainedEvents += events.count
-            }
             return (events, ignoresRegistration)
         }
 
@@ -186,7 +146,6 @@ private struct PendingCGSEventState {
     var drainIgnoresRegistration = false
     var orderedEvents: [CGSWindowEvent] = []
     var pendingFrameWindowIds: Set<UInt32> = []
-    var debugCounters = CGSEventObserver.DebugCounters()
 }
 
 private enum DecodedCGSEvent {
@@ -204,7 +163,6 @@ private func resetPendingCGSEventState(isRegistered: Bool) {
         state.drainIgnoresRegistration = false
         state.orderedEvents.removeAll(keepingCapacity: false)
         state.pendingFrameWindowIds.removeAll(keepingCapacity: false)
-        state.debugCounters = .init()
     }
 }
 
@@ -222,14 +180,10 @@ private func enqueueDecodedCGSEvent(_ event: CGSWindowEvent, requireRegistration
     let shouldScheduleDrain = cgsPendingEvents.withLock { state -> Bool in
         guard state.isRegistered || !requireRegistration else { return false }
 
-        state.debugCounters.decodedEvents += 1
-
         switch event {
         case let .frameChanged(windowId):
             if state.pendingFrameWindowIds.insert(windowId).inserted {
                 state.orderedEvents.append(event)
-            } else {
-                state.debugCounters.coalescedFrameEvents += 1
             }
 
         case let .destroyed(windowId, _):
@@ -272,7 +226,6 @@ private func clearPendingFrameEvent(
         }
         return false
     }
-    state.debugCounters.clearedFrameEventsOnDestroy += 1
 }
 
 private func handleRawCGSEvent(
@@ -285,10 +238,7 @@ private func handleRawCGSEvent(
     case .ignored:
         return
     case .malformed:
-        cgsPendingEvents.withLock { state in
-            guard state.isRegistered || !requireRegistration else { return }
-            state.debugCounters.malformedPayloadDrops += 1
-        }
+        return
     case let .event(event):
         enqueueDecodedCGSEvent(event, requireRegistration: requireRegistration)
     }

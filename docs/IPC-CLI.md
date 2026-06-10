@@ -195,7 +195,7 @@ Examples in this document are pretty-printed for readability. The actual wire fo
 6. **Session-scoped window IDs:** opaque IDs embed a separate internal session token and are invalidated across restarts — format: `ow_` + base64url(`sessionToken:pid:windowId`)
 7. **FD_CLOEXEC:** server-side listening and accepted socket file descriptors are not inherited by child processes
 8. **SO_NOSIGPIPE:** prevents SIGPIPE crashes on broken connections
-9. **Stale socket cleanup:** server tests existing sockets before overwriting
+9. **Stale socket cleanup:** server checks existing sockets before overwriting
 
 The trust boundary is the local macOS user account, not individual client processes. Any process running as the same user can read the secret file and use the IPC API once IPC is enabled.
 

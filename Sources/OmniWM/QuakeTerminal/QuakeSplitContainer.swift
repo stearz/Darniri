@@ -167,9 +167,6 @@ final class QuakeSplitContainer: NSView {
         relayout()
     }
 
-    func dividerViewForTesting(at address: SplitNode.SplitAddress) -> NSView? {
-        dividerViews.first(where: { $0.address == address })
-    }
 }
 
 @MainActor

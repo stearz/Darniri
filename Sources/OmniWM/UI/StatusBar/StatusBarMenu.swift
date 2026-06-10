@@ -951,10 +951,6 @@ final class MenuActionRowView: NSView {
         }
     }
 
-    func performActionForTests() {
-        action()
-    }
-
     override func layout() {
         super.layout()
         backgroundLayer?.frame = NSRect(x: 4, y: 2, width: menuWidth - 8, height: 24)

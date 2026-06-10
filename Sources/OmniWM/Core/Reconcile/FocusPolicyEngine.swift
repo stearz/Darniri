@@ -2,6 +2,7 @@ import Foundation
 
 enum FocusPolicyLeaseOwner: String, Equatable {
     case nativeMenu = "native_menu"
+    case windowCloseFocusRecovery = "window_close_focus_recovery"
     case nativeAppSwitch = "native_app_switch"
     case ruleCreatedFloatingWindow = "rule_created_floating_window"
 }
@@ -33,6 +34,7 @@ struct FocusPolicyDecision: Equatable {
 final class FocusPolicyEngine {
     private static let effectiveLeasePriority: [FocusPolicyLeaseOwner] = [
         .nativeMenu,
+        .windowCloseFocusRecovery,
         .nativeAppSwitch,
         .ruleCreatedFloatingWindow
     ]
@@ -55,8 +57,10 @@ final class FocusPolicyEngine {
         owner: FocusPolicyLeaseOwner,
         reason: String,
         suppressesFocusFollowsMouse: Bool = true,
-        duration: TimeInterval? = 0.35
+        duration: TimeInterval? = 0.35,
+        notify: Bool = true
     ) {
+        pruneExpiredLeasesIfNeeded(notify: notify)
         let expiresAt = duration.map { nowProvider().addingTimeInterval($0) }
         let lease = FocusPolicyLease(
             owner: owner,
@@ -65,12 +69,13 @@ final class FocusPolicyEngine {
             expiresAt: expiresAt
         )
         leasesByOwner[owner] = lease
-        reconcileActiveLease(notify: true)
+        reconcileActiveLease(notify: notify)
     }
 
-    func endLease(owner: FocusPolicyLeaseOwner) {
+    func endLease(owner: FocusPolicyLeaseOwner, notify: Bool = true) {
         guard leasesByOwner.removeValue(forKey: owner) != nil else { return }
-        reconcileActiveLease(notify: true)
+        pruneExpiredLeasesIfNeeded(notify: notify)
+        reconcileActiveLease(notify: notify)
     }
 
     func evaluate(_ request: FocusPolicyRequest) -> FocusPolicyDecision {
@@ -88,7 +93,7 @@ final class FocusPolicyEngine {
         }
     }
 
-    private func pruneExpiredLeasesIfNeeded() {
+    private func pruneExpiredLeasesIfNeeded(notify: Bool = true) {
         let now = nowProvider()
         let expiredOwners = leasesByOwner.compactMap { owner, lease -> FocusPolicyLeaseOwner? in
             guard let expiresAt = lease.expiresAt, expiresAt <= now else {
@@ -101,7 +106,11 @@ final class FocusPolicyEngine {
         for owner in expiredOwners {
             leasesByOwner.removeValue(forKey: owner)
         }
-        reconcileActiveLease(notify: true)
+        reconcileActiveLease(notify: notify && expiredOwners.contains(where: shouldNotifyExpiredLeaseChange))
+    }
+
+    private func shouldNotifyExpiredLeaseChange(owner: FocusPolicyLeaseOwner) -> Bool {
+        owner != .windowCloseFocusRecovery
     }
 
     private func reconcileActiveLease(notify: Bool) {

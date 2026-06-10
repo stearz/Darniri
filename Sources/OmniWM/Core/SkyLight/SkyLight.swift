@@ -139,7 +139,6 @@ final class SkyLight {
     private let transactionSetWindowLevel: TransactionSetWindowLevelFunc?
     private let copyManagedDisplaySpaces: CopyManagedDisplaySpacesFunc?
 
-    @MainActor static var orderedStateProviderForTests: ((UInt32) -> Bool?)?
     private static let displayCreateUUIDFromDisplayID: DisplayCreateUUIDFromDisplayIDFunc? = {
         let handle = dlopen("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY)
             ?? dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY)
@@ -328,11 +327,6 @@ final class SkyLight {
     }
 
     func isWindowOrderedIn(_ wid: UInt32) -> Bool? {
-        if let provider = Self.orderedStateProviderForTests {
-            if let orderedIn = provider(wid) {
-                return orderedIn
-            }
-        }
         guard let windowIsOrderedIn else { return nil }
         let cid = getMainConnectionID()
         guard cid != 0 else { return nil }

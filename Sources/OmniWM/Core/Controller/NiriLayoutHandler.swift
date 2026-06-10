@@ -36,6 +36,19 @@ enum NiriWindowMoveResult {
         var removalResult: NiriLayoutEngine.NiriRemovalResult
     }
 
+    private struct InsertionContext {
+        var newTokens: [WindowToken]
+        var tabLocalTokens: Set<WindowToken>
+        var viewOriginBeforeInsertion: CGFloat?
+    }
+
+    private struct ArrivalContext {
+        var activateWindowToken: WindowToken?
+        var rememberedFocusToken: WindowToken?
+        var hasNewWindowArrival: Bool
+        var shouldStartScrollForNewWindow: Bool
+    }
+
     var scrollAnimationByDisplay: [CGDirectDisplayID: WorkspaceDescriptor.ID] = [:]
 
     init(controller: WMController?) {
@@ -86,43 +99,50 @@ enum NiriWindowMoveResult {
         let windowAnimationsRunning = engine.tickAllWindowAnimations(in: wsId, at: targetTime)
         let columnAnimationsRunning = engine.tickAllColumnAnimations(in: wsId, at: targetTime)
 
-        controller.workspaceManager.withNiriViewportState(for: wsId) { state in
-            let viewportAnimationRunning = state.advanceAnimations(at: targetTime)
+        var state = controller.workspaceManager.niriViewportState(for: wsId)
+        let viewportAnimationRunning = state.advanceAnimations(at: targetTime)
 
-            self.applyFramesOnDemand(
-                wsId: wsId,
-                state: state,
-                engine: engine,
-                monitor: monitor,
-                animationTime: targetTime
+        let didApplyFrames = applyFramesOnDemand(
+            wsId: wsId,
+            state: state,
+            engine: engine,
+            monitor: monitor,
+            animationTime: targetTime
+        )
+        guard didApplyFrames else {
+            controller.layoutRefreshController.requestRelayout(
+                reason: .staleLayoutPlan,
+                affectedWorkspaceIds: [wsId]
             )
-            self.updateTabbedColumnOverlays(workspaceId: wsId, monitor: monitor)
+            return
+        }
+        updateTabbedColumnOverlays(workspaceId: wsId, monitor: monitor)
 
-            let animationsOngoing = viewportAnimationRunning
-                || windowAnimationsRunning
-                || columnAnimationsRunning
+        let animationsOngoing = viewportAnimationRunning
+            || windowAnimationsRunning
+            || columnAnimationsRunning
 
-            if !animationsOngoing {
-                self.finalizeAnimation()
-                var activeIds = Set<WorkspaceDescriptor.ID>()
-                for mon in controller.workspaceManager.monitors {
-                    if let ws = controller.workspaceManager.activeWorkspaceOrFirst(on: mon.id) {
-                        activeIds.insert(ws.id)
-                    }
+        if !animationsOngoing {
+            finalizeAnimation()
+            var activeIds = Set<WorkspaceDescriptor.ID>()
+            for mon in controller.workspaceManager.monitors {
+                if let ws = controller.workspaceManager.activeWorkspaceOrFirst(on: mon.id) {
+                    activeIds.insert(ws.id)
                 }
-                controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: activeIds)
-                controller.layoutRefreshController.stopScrollAnimation(for: displayId)
             }
+            controller.layoutRefreshController.hideInactiveWorkspaces(activeWorkspaceIds: activeIds)
+            controller.layoutRefreshController.stopScrollAnimation(for: displayId)
         }
     }
 
+    @discardableResult
     func applyFramesOnDemand(
         wsId: WorkspaceDescriptor.ID,
         state: ViewportState,
         engine: NiriLayoutEngine,
         monitor: Monitor,
         animationTime: TimeInterval? = nil
-    ) {
+    ) -> Bool {
         guard let controller,
               let activeWorkspaceId = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)?.id,
               let snapshot = makeWorkspaceSnapshot(
@@ -134,7 +154,7 @@ enum NiriWindowMoveResult {
                   isActiveWorkspace: activeWorkspaceId == wsId
               )
         else {
-            return
+            return false
         }
 
         let plan = buildOnDemandLayoutPlan(
@@ -143,7 +163,7 @@ enum NiriWindowMoveResult {
             monitor: monitor,
             animationTime: animationTime
         )
-        controller.layoutRefreshController.executeLayoutPlan(plan)
+        return controller.layoutRefreshController.executeLayoutPlan(plan)
     }
 
     private func finalizeAnimation() {
@@ -189,6 +209,38 @@ enum NiriWindowMoveResult {
         }
     }
 
+    private func requestLayoutCommandRelayout(
+        in workspaceId: WorkspaceDescriptor.ID,
+        postLayout: LayoutRefreshController.PostLayoutAction? = nil,
+        postLayoutDomains: RuntimeRevisionDomain = .layoutCommit
+    ) {
+        controller?.layoutRefreshController.requestLayoutCommandRelayout(
+            affectedWorkspaceIds: [workspaceId],
+            postLayout: postLayout,
+            postLayoutDomains: postLayoutDomains
+        )
+    }
+
+    func requestSelectedWindowFocusAfterLayout(in workspaceId: WorkspaceDescriptor.ID) {
+        requestLayoutCommandRelayout(
+            in: workspaceId,
+            postLayout: { [weak controller] in
+                guard let controller else {
+                    return
+                }
+                let viewportState = controller.workspaceManager.niriViewportState(for: workspaceId)
+                guard let selectedNodeId = viewportState.selectedNodeId,
+                      let selectedWindow = controller.niriEngine?.findNode(by: selectedNodeId) as? NiriWindow,
+                      controller.workspaceManager.entry(for: selectedWindow.token)?.workspaceId == workspaceId
+                else {
+                    return
+                }
+                controller.focusWindow(selectedWindow.token)
+            },
+            postLayoutDomains: [.workspace, .layout, .focus, .fullscreen]
+        )
+    }
+
     func layoutWithNiriEngine(
         activeWorkspaces: Set<WorkspaceDescriptor.ID>,
         useScrollAnimationPath: Bool = false,
@@ -196,7 +248,11 @@ enum NiriWindowMoveResult {
     ) async throws -> [WorkspaceLayoutPlan] {
         guard let controller, let engine = controller.niriEngine else { return [] }
         var plans: [WorkspaceLayoutPlan] = []
-        for wsId in activeWorkspaces.sorted(by: { $0.uuidString < $1.uuidString }) {
+        let workspaceIds = activeWorkspaces.sorted(by: { $0.uuidString < $1.uuidString })
+        for (index, wsId) in workspaceIds.enumerated() {
+            if index > 0 {
+                await Task.yield()
+            }
             try Task.checkCancellation()
             guard let workspace = controller.workspaceManager.descriptor(for: wsId),
                   let monitor = controller.workspaceManager.monitor(for: wsId)
@@ -224,7 +280,6 @@ enum NiriWindowMoveResult {
             )
 
             try Task.checkCancellation()
-            await Task.yield()
         }
 
         try Task.checkCancellation()
@@ -260,6 +315,7 @@ enum NiriWindowMoveResult {
             workspaceId: wsId,
             monitor: refreshInput.monitor,
             windows: refreshInput.windows,
+            runtimeRevision: refreshInput.runtimeRevision,
             viewportState: effectiveViewportState,
             preferredFocusToken: controller.workspaceManager.preferredFocusToken(in: wsId),
             confirmedFocusedToken: controller.workspaceManager.focusedToken,
@@ -316,7 +372,12 @@ enum NiriWindowMoveResult {
         return WorkspaceLayoutPlan(
             workspaceId: snapshot.workspaceId,
             monitor: snapshot.monitor,
-            sessionPatch: WorkspaceSessionPatch(workspaceId: snapshot.workspaceId),
+            runtimeRevision: snapshot.runtimeRevision,
+            sessionPatch: WorkspaceSessionPatch(
+                workspaceId: snapshot.workspaceId,
+                viewportState: animationTime == nil ? nil : snapshot.viewportState,
+                runtimeRevision: snapshot.runtimeRevision
+            ),
             diff: diff
         )
     }
@@ -347,15 +408,18 @@ enum NiriWindowMoveResult {
             removedNodeIds: snapshot.removalSeed?.removedNodeIds ?? []
         )
 
+        let viewOriginBeforeInsertion = currentViewOrigin(pass: pass, state: state)
+
         restoreInitialNiriPlacementsIfNeeded(pass: pass, windowTokens: windowTokens)
 
-        let newTokens = syncAndInsert(
+        let insertion = syncAndInsert(
             pass: pass,
             motion: motion,
             state: &state,
             windowTokens: windowTokens,
             removal: removal,
-            preferredFocusToken: snapshot.preferredFocusToken
+            preferredFocusToken: snapshot.preferredFocusToken,
+            viewOriginBeforeInsertion: viewOriginBeforeInsertion
         )
 
         for window in snapshot.windows {
@@ -375,24 +439,23 @@ enum NiriWindowMoveResult {
             pass: pass,
             motion: motion,
             state: &state,
-            newTokens: newTokens,
+            insertion: insertion,
             existingHandleIds: removal.existingHandleIds,
             snapshot: snapshot
         )
 
-        let plan = computeLayoutPlan(
+        var plan = computeLayoutPlan(
             pass: pass,
             motion: motion,
             state: state,
             rememberedFocusToken: arrival.rememberedFocusToken ?? selection.rememberedFocusToken,
-            newWindowToken: arrival.newWindowToken,
+            activateWindowToken: arrival.activateWindowToken,
+            hasNewWindowArrival: arrival.hasNewWindowArrival,
+            shouldStartScrollForNewWindow: arrival.shouldStartScrollForNewWindow,
             viewportNeedsRecalc: selection.viewportNeedsRecalc,
             snapshot: snapshot
         )
-
-        controller?.workspaceManager.setNiriRestorePlacements(
-            pass.engine.persistedPlacements(in: pass.wsId)
-        )
+        plan.niriRestorePlacements = pass.engine.persistedPlacements(in: pass.wsId)
 
         return plan
     }
@@ -451,8 +514,9 @@ enum NiriWindowMoveResult {
         state: inout ViewportState,
         windowTokens: [WindowToken],
         removal: RemovalContext,
-        preferredFocusToken: WindowToken?
-    ) -> [WindowToken] {
+        preferredFocusToken: WindowToken?,
+        viewOriginBeforeInsertion: CGFloat?
+    ) -> InsertionContext {
         let currentSelection = state.selectedNodeId
         _ = pass.engine.syncWindows(
             windowTokens,
@@ -461,23 +525,35 @@ enum NiriWindowMoveResult {
             focusedToken: preferredFocusToken
         )
         let newTokens = windowTokens.filter { !removal.existingHandleIds.contains($0) }
+        var tabLocalTokens = Set<WindowToken>()
 
-        for col in pass.engine.columns(in: pass.wsId) {
-            if col.cachedWidth <= 0 {
-                col.resolveAndCacheWidth(workingAreaWidth: pass.insetFrame.width, gaps: pass.gap)
-            }
-        }
+        let columns = pass.engine.columns(in: pass.wsId)
+        resolveColumnWidthsIfNeeded(pass: pass)
 
         if !removal.wasEmptyBeforeSync, !newTokens.isEmpty {
+            let newTokenSet = Set(newTokens)
+            let preexistingSurvivingTokens = Set(windowTokens).intersection(removal.existingHandleIds)
             var newColumnData: [(col: NiriContainer, colIdx: Int)] = []
-            for newToken in newTokens {
-                if let node = pass.engine.findNode(for: newToken),
-                   let col = pass.engine.column(of: node),
-                   let colIdx = pass.engine.columnIndex(of: col, in: pass.wsId)
-                {
-                    if !newColumnData.contains(where: { $0.col.id == col.id }) {
-                        newColumnData.append((col, colIdx))
+
+            for (colIdx, col) in columns.enumerated() {
+                var columnNewTokens: [WindowToken] = []
+                var hasPreexistingToken = false
+                for window in col.windowNodes {
+                    if newTokenSet.contains(window.token) {
+                        columnNewTokens.append(window.token)
                     }
+                    if preexistingSurvivingTokens.contains(window.token) {
+                        hasPreexistingToken = true
+                    }
+                }
+                guard !columnNewTokens.isEmpty else { continue }
+
+                if hasPreexistingToken {
+                    if col.displayMode == .tabbed {
+                        tabLocalTokens.formUnion(columnNewTokens)
+                    }
+                } else {
+                    newColumnData.append((col, colIdx))
                 }
             }
 
@@ -504,7 +580,11 @@ enum NiriWindowMoveResult {
             }
         }
 
-        return newTokens
+        return InsertionContext(
+            newTokens: newTokens,
+            tabLocalTokens: tabLocalTokens,
+            viewOriginBeforeInsertion: viewOriginBeforeInsertion
+        )
     }
 
     private func resolveSelection(
@@ -543,11 +623,7 @@ enum NiriWindowMoveResult {
 
         let isGestureOrAnimation = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
 
-        for col in pass.engine.columns(in: pass.wsId) {
-            if col.cachedWidth <= 0 {
-                col.resolveAndCacheWidth(workingAreaWidth: pass.insetFrame.width, gaps: pass.gap)
-            }
-        }
+        resolveColumnWidthsIfNeeded(pass: pass)
 
         if !usesSingleWindowAspectRatio,
            !isGestureOrAnimation,
@@ -566,7 +642,8 @@ enum NiriWindowMoveResult {
                 gaps: pass.gap,
                 fromContainerIndex: removal.removalResult.fromIndexForVisibility
             )
-            if abs(state.viewOffsetPixels.current() - offsetBefore) > 1 {
+            let validationOffsetAfter = state.viewOffsetPixels.current()
+            if abs(validationOffsetAfter - offsetBefore) > 1 {
                 viewportNeedsRecalc = true
             }
         }
@@ -587,19 +664,23 @@ enum NiriWindowMoveResult {
         pass: NiriLayoutPass,
         motion: MotionSnapshot,
         state: inout ViewportState,
-        newTokens: [WindowToken],
+        insertion: InsertionContext,
         existingHandleIds: Set<WindowToken>,
         snapshot: NiriWorkspaceSnapshot
-    ) -> (newWindowToken: WindowToken?, rememberedFocusToken: WindowToken?) {
+    ) -> ArrivalContext {
         let wasEmpty = existingHandleIds.isEmpty
+        let newTokens = insertion.newTokens
 
-        var newWindowToken: WindowToken?
+        var activateWindowToken: WindowToken?
         var rememberedFocusToken: WindowToken?
+        var hasNewWindowArrival = false
+        var shouldStartScrollForNewWindow = false
         if snapshot.hasCompletedInitialRefresh,
            let newToken = newTokens.last,
            let newNode = pass.engine.findNode(for: newToken),
            snapshot.isActiveWorkspace
         {
+            let isTabLocalArrival = insertion.tabLocalTokens.contains(newToken)
             state.selectedNodeId = newNode.id
 
             if wasEmpty {
@@ -622,6 +703,13 @@ enum NiriWindowMoveResult {
                         viewFrame: pass.monitor.frame
                     )
                 }
+            } else if isTabLocalArrival {
+                activateTabLocalWindow(
+                    newNode,
+                    pass: pass,
+                    state: &state,
+                    viewOrigin: insertion.viewOriginBeforeInsertion
+                )
             } else if let newCol = pass.engine.column(of: newNode),
                       let newColIdx = pass.engine.columnIndex(of: newCol, in: pass.wsId)
             {
@@ -648,17 +736,20 @@ enum NiriWindowMoveResult {
             }
             rememberedFocusToken = newToken
             pass.engine.updateFocusTimestamp(for: newNode.id)
-            newWindowToken = newToken
+            activateWindowToken = newToken
+            hasNewWindowArrival = true
+            shouldStartScrollForNewWindow = !isTabLocalArrival
         }
 
+        let animatedNewTokens = newTokens.filter { !insertion.tabLocalTokens.contains($0) }
         if snapshot.hasCompletedInitialRefresh,
            snapshot.isActiveWorkspace,
-           !newTokens.isEmpty
+           !animatedNewTokens.isEmpty
         {
             let reduceMotionScale: CGFloat = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0.25 : 1.0
             let appearOffset = 16.0 * reduceMotionScale
 
-            for token in newTokens {
+            for token in animatedNewTokens {
                 guard let window = pass.engine.findNode(for: token),
                       !window.isHiddenInTabbedMode else { continue }
 
@@ -674,7 +765,64 @@ enum NiriWindowMoveResult {
             }
         }
 
-        return (newWindowToken, rememberedFocusToken)
+        return ArrivalContext(
+            activateWindowToken: activateWindowToken,
+            rememberedFocusToken: rememberedFocusToken,
+            hasNewWindowArrival: hasNewWindowArrival,
+            shouldStartScrollForNewWindow: shouldStartScrollForNewWindow
+        )
+    }
+
+    private func activateTabLocalWindow(
+        _ node: NiriNode,
+        pass: NiriLayoutPass,
+        state: inout ViewportState,
+        viewOrigin: CGFloat?
+    ) {
+        guard let column = pass.engine.column(of: node),
+              let columnIndex = pass.engine.columnIndex(of: column, in: pass.wsId)
+        else { return }
+
+        if let window = node as? NiriWindow,
+           let tileIndex = column.windowNodes.firstIndex(where: { $0 === window })
+        {
+            column.setActiveTileIdx(tileIndex)
+            pass.engine.updateTabbedColumnVisibility(column: column)
+        }
+
+        state.activeColumnIndex = columnIndex
+        state.activatePrevColumnOnRemoval = nil
+        state.viewOffsetToRestore = nil
+        state.selectionProgress = 0
+
+        if let viewOrigin {
+            restoreViewOrigin(viewOrigin, pass: pass, state: &state)
+        } else {
+            state.viewOffsetPixels = .static(state.viewOffsetPixels.current())
+        }
+    }
+
+    private func resolveColumnWidthsIfNeeded(pass: NiriLayoutPass) {
+        for column in pass.engine.columns(in: pass.wsId) where column.cachedWidth <= 0 {
+            column.resolveAndCacheWidth(workingAreaWidth: pass.insetFrame.width, gaps: pass.gap)
+        }
+    }
+
+    private func currentViewOrigin(pass: NiriLayoutPass, state: ViewportState) -> CGFloat? {
+        let columns = pass.engine.columns(in: pass.wsId)
+        guard !columns.isEmpty else { return nil }
+        resolveColumnWidthsIfNeeded(pass: pass)
+        return state.viewPosPixels(columns: columns, gap: pass.gap)
+    }
+
+    private func restoreViewOrigin(_ viewOrigin: CGFloat, pass: NiriLayoutPass, state: inout ViewportState) {
+        let columns = pass.engine.columns(in: pass.wsId)
+        guard !columns.isEmpty else { return }
+        resolveColumnWidthsIfNeeded(pass: pass)
+        let activeColumnIndex = state.activeColumnIndex.clamped(to: 0 ... columns.count - 1)
+        state.activeColumnIndex = activeColumnIndex
+        let activeColumnX = state.columnX(at: activeColumnIndex, columns: columns, gap: pass.gap)
+        state.viewOffsetPixels = .static(viewOrigin - activeColumnX)
     }
 
     private func resetViewportForSingleWindowAspectRatio(state: inout ViewportState) {
@@ -690,7 +838,9 @@ enum NiriWindowMoveResult {
         motion: MotionSnapshot,
         state: ViewportState,
         rememberedFocusToken: WindowToken?,
-        newWindowToken: WindowToken?,
+        activateWindowToken: WindowToken?,
+        hasNewWindowArrival: Bool,
+        shouldStartScrollForNewWindow: Bool,
         viewportNeedsRecalc: Bool,
         snapshot: NiriWorkspaceSnapshot
     ) -> WorkspaceLayoutPlan {
@@ -719,16 +869,18 @@ enum NiriWindowMoveResult {
         var directives: [AnimationDirective] = []
 
         if !snapshot.useScrollAnimationPath {
-            if viewportNeedsRecalc, newWindowToken == nil {
+            if viewportNeedsRecalc, !hasNewWindowArrival {
                 directives.append(.startNiriScroll(workspaceId: pass.wsId))
             } else if hasColumnAnimations {
                 directives.append(.startNiriScroll(workspaceId: pass.wsId))
             }
         }
 
-        if let newWindowToken {
-            directives.append(.startNiriScroll(workspaceId: pass.wsId))
-            directives.append(.activateWindow(token: newWindowToken))
+        if let activateWindowToken {
+            if shouldStartScrollForNewWindow {
+                directives.append(.startNiriScroll(workspaceId: pass.wsId))
+            }
+            directives.append(.activateWindow(token: activateWindowToken))
         }
 
         if let removalSeed = snapshot.removalSeed, !removalSeed.oldFrames.isEmpty {
@@ -756,14 +908,16 @@ enum NiriWindowMoveResult {
             engine: pass.engine,
             canRestoreHiddenWorkspaceWindows: snapshot.isActiveWorkspace
         )
-
         return WorkspaceLayoutPlan(
             workspaceId: pass.wsId,
             monitor: snapshot.monitor,
+            runtimeRevision: snapshot.runtimeRevision,
             sessionPatch: WorkspaceSessionPatch(
                 workspaceId: pass.wsId,
                 viewportState: state,
-                rememberedFocusToken: rememberedFocusToken
+                rememberedFocusToken: rememberedFocusToken,
+                baseSelectionRevision: snapshot.viewportState.selectionRevision,
+                runtimeRevision: snapshot.runtimeRevision
             ),
             diff: diff,
             animationDirectives: directives
@@ -892,7 +1046,11 @@ enum NiriWindowMoveResult {
             guard let workspace = controller.workspaceManager.activeWorkspaceOrFirst(on: monitor.id)
             else { continue }
 
-            infos.append(contentsOf: tabbedColumnOverlayInfos(engine: engine, workspaceId: workspace.id, monitor: monitor))
+            infos.append(contentsOf: tabbedColumnOverlayInfos(
+                engine: engine,
+                workspaceId: workspace.id,
+                monitor: monitor
+            ))
         }
 
         controller.tabbedOverlayManager.updateOverlays(infos, forceOrdering: forceOrdering)
@@ -906,14 +1064,6 @@ enum NiriWindowMoveResult {
         guard let controller, let engine = controller.niriEngine else { return }
         let infos = tabbedColumnOverlayInfos(engine: engine, workspaceId: workspaceId, monitor: monitor)
         controller.tabbedOverlayManager.updateOverlays(infos, in: workspaceId, forceOrdering: forceOrdering)
-    }
-
-    func tabbedColumnOverlayInfosForTests(
-        workspaceId: WorkspaceDescriptor.ID,
-        monitor: Monitor
-    ) -> [TabbedColumnOverlayInfo] {
-        guard let controller, let engine = controller.niriEngine else { return [] }
-        return tabbedColumnOverlayInfos(engine: engine, workspaceId: workspaceId, monitor: monitor)
     }
 
     private func tabbedColumnOverlayInfos(
@@ -948,6 +1098,7 @@ enum NiriWindowMoveResult {
                 TabbedColumnOverlayInfo(
                     workspaceId: workspaceId,
                     columnId: column.id,
+                    runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId),
                     columnFrame: frame,
                     visibleColumnFrame: visibleColumnFrame,
                     tabCount: windows.count,
@@ -988,6 +1139,7 @@ enum NiriWindowMoveResult {
             tabs.append(
                 TabbedColumnOverlayTabInfo(
                     visualIndex: visualIndex,
+                    token: window.token,
                     windowId: entry?.windowId,
                     appName: appName,
                     title: title,
@@ -998,8 +1150,21 @@ enum NiriWindowMoveResult {
         return tabs
     }
 
-    func selectTabInNiri(workspaceId: WorkspaceDescriptor.ID, columnId: NodeId, visualIndex: Int) {
+    func selectTabInNiri(
+        info: TabbedColumnOverlayInfo,
+        visualIndex: Int,
+        expectedToken: WindowToken?
+    ) {
         guard let controller, let engine = controller.niriEngine else { return }
+        let workspaceId = info.workspaceId
+        guard controller.workspaceManager.isRuntimeRevisionCurrent(
+            info.runtimeRevision,
+            for: workspaceId,
+            domains: .layoutCommit
+        ) else {
+            return
+        }
+        let columnId = info.columnId
         guard let column = engine.columns(in: workspaceId).first(where: { $0.id == columnId }) else { return }
 
         let windows = column.windowNodes
@@ -1009,10 +1174,14 @@ enum NiriWindowMoveResult {
             return
         }
 
+        let target = windows[storageIndex]
+        if let expectedToken, target.token != expectedToken {
+            return
+        }
+
         column.setActiveTileIdx(storageIndex)
         engine.updateTabbedColumnVisibility(column: column)
 
-        let target = windows[storageIndex]
         var state = controller.workspaceManager.niriViewportState(for: workspaceId)
         if let monitor = controller.workspaceManager.monitor(for: workspaceId) {
             let gap = CGFloat(controller.workspaceManager.gaps)
@@ -1033,7 +1202,8 @@ enum NiriWindowMoveResult {
             .init(
                 workspaceId: workspaceId,
                 viewportState: state,
-                rememberedFocusToken: nil
+                rememberedFocusToken: nil,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
         let updatedState = controller.workspaceManager.niriViewportState(for: workspaceId)
@@ -1082,7 +1252,8 @@ enum NiriWindowMoveResult {
                 .init(
                     workspaceId: wsId,
                     viewportState: state,
-                    rememberedFocusToken: nil
+                    rememberedFocusToken: nil,
+                    runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
                 )
             )
             return
@@ -1107,20 +1278,26 @@ enum NiriWindowMoveResult {
         ) {
             activateNode(
                 newNode, in: wsId, state: &state,
-                options: .init(activateWindow: false, ensureVisible: false)
+                options: .init(
+                    activateWindow: false,
+                    ensureVisible: false,
+                    layoutRefresh: false,
+                    axFocus: false
+                )
             )
+            _ = controller.workspaceManager.applySessionPatch(
+                .init(
+                    workspaceId: wsId,
+                    viewportState: state,
+                    rememberedFocusToken: nil,
+                    runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
+                )
+            )
+            requestSelectedWindowFocusAfterLayout(in: wsId)
         }
-        _ = controller.workspaceManager.applySessionPatch(
-            .init(
-                workspaceId: wsId,
-                viewportState: state,
-                rememberedFocusToken: nil
-            )
-        )
     }
 
     func toggleFullscreen() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, _, _ in
             guard let currentId = state.selectedNodeId,
                   let currentNode = engine.findNode(by: currentId),
@@ -1129,13 +1306,12 @@ enum NiriWindowMoveResult {
 
             engine.toggleFullscreen(windowNode, motion: motion, state: &state)
 
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func cycleSize(forward: Bool) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow,
@@ -1151,13 +1327,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func cycleWindowWidth(forward: Bool) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow
@@ -1172,13 +1347,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func cycleWindowHeight(forward: Bool) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, _, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow
@@ -1191,13 +1365,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func toggleColumnFullWidth() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow,
@@ -1212,13 +1385,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func expandColumnToAvailableWidth() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow,
@@ -1233,26 +1405,24 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func resetWindowHeight() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, _, state, _, _, _ in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow
             else { return }
 
             engine.resetWindowHeight(windowNode, in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func centerColumn() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard engine.centerColumn(
                 in: wsId,
@@ -1262,13 +1432,12 @@ enum NiriWindowMoveResult {
                 gaps: gaps
             ) else { return }
 
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func centerVisibleColumns() {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard engine.centerVisibleColumns(
                 in: wsId,
@@ -1278,13 +1447,12 @@ enum NiriWindowMoveResult {
                 gaps: gaps
             ) else { return }
 
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func setColumnWidth(_ change: NiriSizeChange) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow,
@@ -1300,13 +1468,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func setWindowWidth(_ change: NiriSizeChange) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow
@@ -1321,13 +1488,12 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
 
     func setWindowHeight(_ change: NiriSizeChange) {
-        guard let controller else { return }
         withNiriWorkspaceContext { engine, wsId, _, state, _, workingFrame, gaps in
             guard let currentId = state.selectedNodeId,
                   let windowNode = engine.findNode(by: currentId) as? NiriWindow
@@ -1340,7 +1506,7 @@ enum NiriWindowMoveResult {
                 workingFrame: workingFrame,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             startScrollAnimationIfNeeded(for: wsId, state: state, engine: engine)
         }
     }
@@ -1354,7 +1520,7 @@ enum NiriWindowMoveResult {
                 workingAreaWidth: workingFrame.width,
                 gaps: gaps
             )
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            requestLayoutCommandRelayout(in: wsId)
             if engine.hasAnyColumnAnimationsRunning(in: wsId) {
                 controller.layoutRefreshController.startScrollAnimation(for: wsId)
             }
@@ -1481,15 +1647,8 @@ enum NiriWindowMoveResult {
 
         if options.layoutRefresh {
             let focusToken = options.axFocus ? (node as? NiriWindow)?.token : nil
-            if let focusToken {
-                _ = controller.workspaceManager.beginManagedFocusRequest(
-                    focusToken,
-                    in: workspaceId,
-                    onMonitor: controller.workspaceManager.monitorId(for: workspaceId)
-                )
-            }
-            controller.layoutRefreshController.requestImmediateRelayout(
-                reason: .layoutCommand
+            requestLayoutCommandRelayout(
+                in: workspaceId
             ) { [weak controller] in
                 if let focusToken {
                     controller?.focusWindow(focusToken)
@@ -1538,6 +1697,7 @@ enum NiriWindowMoveResult {
             rebaseViewportAnchor(
                 from: currentIndex,
                 to: targetIndex,
+                workspaceId: workspaceId,
                 columns: columns,
                 gap: gap,
                 state: &state,
@@ -1550,6 +1710,7 @@ enum NiriWindowMoveResult {
             rebaseViewportAnchor(
                 from: currentIndex,
                 to: targetIndex,
+                workspaceId: workspaceId,
                 columns: columns,
                 gap: gap,
                 state: &state,
@@ -1561,6 +1722,7 @@ enum NiriWindowMoveResult {
     private func rebaseViewportAnchor(
         from currentIndex: Int,
         to targetIndex: Int,
+        workspaceId: WorkspaceDescriptor.ID,
         columns: [NiriContainer],
         gap: CGFloat,
         state: inout ViewportState,
@@ -1850,6 +2012,12 @@ struct NodeActivationOptions {
         hasPendingNiriAnimationWork(state: state, engine: engine, workspaceId: wsId)
     }
 
+    private func requestLayoutCommandRelayout() {
+        controller.layoutRefreshController.requestLayoutCommandRelayout(
+            affectedWorkspaceIds: [wsId]
+        )
+    }
+
     func commitWithPredictedAnimation(
         state: ViewportState,
         oldFrames: [WindowToken: CGRect]
@@ -1881,7 +2049,7 @@ struct NodeActivationOptions {
             newFrames: newFrames,
             motion: motion
         )
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        requestLayoutCommandRelayout()
         return hasPendingAnimationWork(state: state)
     }
 
@@ -1889,7 +2057,7 @@ struct NodeActivationOptions {
         state: ViewportState,
         oldFrames: [WindowToken: CGRect]
     ) -> Bool {
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        requestLayoutCommandRelayout()
         let newFrames = engine.captureWindowFrames(in: wsId)
         _ = engine.triggerMoveAnimations(
             in: wsId,
@@ -1901,7 +2069,7 @@ struct NodeActivationOptions {
     }
 
     func commitSimple(state: ViewportState) -> Bool {
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+        requestLayoutCommandRelayout()
         return hasPendingAnimationWork(state: state)
     }
 }

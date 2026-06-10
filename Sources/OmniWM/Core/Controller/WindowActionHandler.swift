@@ -55,7 +55,6 @@ final class WindowActionHandler {
     weak var controller: WMController?
     private let orderWindow: (UInt32) -> Void
     private let visibleWindowInfoProvider: () -> [WindowServerInfo]
-    private let axWindowRefProvider: (UInt32, pid_t) -> AXWindowRef?
     private let visibleOwnedWindowsProvider: () -> [NSWindow]
     private let frontOwnedWindow: (NSWindow) -> Void
 
@@ -80,9 +79,6 @@ final class WindowActionHandler {
         visibleWindowInfoProvider: @escaping () -> [WindowServerInfo] = {
             SkyLight.shared.queryAllVisibleWindows()
         },
-        axWindowRefProvider: @escaping (UInt32, pid_t) -> AXWindowRef? = { windowId, pid in
-            AXWindowService.axWindowRef(for: windowId, pid: pid)
-        },
         visibleOwnedWindowsProvider: @escaping () -> [NSWindow] = {
             OwnedWindowRegistry.shared.visibleWindows(kind: .utility)
         },
@@ -94,7 +90,6 @@ final class WindowActionHandler {
         self.controller = controller
         self.orderWindow = orderWindow
         self.visibleWindowInfoProvider = visibleWindowInfoProvider
-        self.axWindowRefProvider = axWindowRefProvider
         self.visibleOwnedWindowsProvider = visibleOwnedWindowsProvider
         self.frontOwnedWindow = frontOwnedWindow
     }
@@ -120,10 +115,6 @@ final class WindowActionHandler {
 
     func isPointInOverview(_ point: CGPoint) -> Bool {
         overviewController.isPointInside(point)
-    }
-
-    func selectedOverviewWindowForTests() -> WindowHandle? {
-        overviewController.selectedWindowHandleForTests()
     }
 
     private func activateWindowFromOverview(handle: WindowHandle, workspaceId: WorkspaceDescriptor.ID) {
@@ -264,7 +255,7 @@ final class WindowActionHandler {
 
             let pid = pid_t(windowInfo.pid)
             guard controller.workspaceManager.entry(forPid: pid, windowId: windowId) == nil else { return nil }
-            guard let axRef = axWindowRefProvider(windowInfo.id, pid) else { return nil }
+            guard let axRef = AXWindowService.axWindowRef(for: windowInfo.id, pid: pid) else { return nil }
 
             let evaluation = controller.evaluateWindowDisposition(
                 axRef: axRef,
@@ -452,7 +443,8 @@ final class WindowActionHandler {
             .init(
                 workspaceId: workspaceId,
                 viewportState: targetState,
-                rememberedFocusToken: token
+                rememberedFocusToken: token,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
         controller.layoutRefreshController
@@ -570,10 +562,13 @@ final class WindowActionHandler {
             .init(
                 workspaceId: workspaceId,
                 viewportState: nil,
-                rememberedFocusToken: rememberedFocusToken ?? token
+                rememberedFocusToken: rememberedFocusToken ?? token,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
             )
         )
-        controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand) { [weak controller] in
+        controller.layoutRefreshController.requestLayoutCommandRelayout(
+            affectedWorkspaceIds: [workspaceId]
+        ) { [weak controller] in
             controller?.focusWindow(token)
         }
         if startNiriScrollAnimation {

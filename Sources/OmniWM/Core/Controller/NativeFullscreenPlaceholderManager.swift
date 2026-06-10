@@ -18,39 +18,12 @@ struct NativeFullscreenPlaceholderSnapshot: Equatable {
 
 @MainActor
 final class NativeFullscreenPlaceholderManager {
-    static var materializesWindowsForTests = true
-
     var onActivate: ((WindowToken) -> Void)?
 
     private var windowsByToken: [WindowToken: NativeFullscreenPlaceholderWindow] = [:]
-    private var snapshotsByToken: [WindowToken: NativeFullscreenPlaceholderSnapshot] = [:]
 
     func update(placeholders: [NativeFullscreenPlaceholderUpdate], in workspaceId: WorkspaceDescriptor.ID) {
         let desiredTokens = Set(placeholders.map(\.token))
-        let staleSnapshotTokens = snapshotsByToken.compactMap { token, snapshot in
-            snapshot.workspaceId == workspaceId && !desiredTokens.contains(token) ? token : nil
-        }
-        for token in staleSnapshotTokens {
-            snapshotsByToken.removeValue(forKey: token)
-            windowsByToken.removeValue(forKey: token)?.destroy()
-        }
-
-        for placeholder in placeholders {
-            snapshotsByToken[placeholder.token] = NativeFullscreenPlaceholderSnapshot(
-                workspaceId: placeholder.workspaceId,
-                frame: placeholder.frame,
-                selected: placeholder.selected,
-                appName: placeholder.appName
-            )
-        }
-
-        guard Self.materializesWindowsForTests else {
-            for token in desiredTokens {
-                windowsByToken.removeValue(forKey: token)?.destroy()
-            }
-            return
-        }
-
         let staleWindowTokens = windowsByToken.compactMap { token, window in
             window.workspaceId == workspaceId && !desiredTokens.contains(token) ? token : nil
         }
@@ -72,16 +45,12 @@ final class NativeFullscreenPlaceholderManager {
     }
 
     func remove(_ token: WindowToken) {
-        snapshotsByToken.removeValue(forKey: token)
         guard let window = windowsByToken.removeValue(forKey: token) else { return }
         window.destroy()
     }
 
     func rekey(from oldToken: WindowToken, to newToken: WindowToken) {
         guard oldToken != newToken else { return }
-        if let snapshot = snapshotsByToken.removeValue(forKey: oldToken) {
-            snapshotsByToken[newToken] = snapshot
-        }
         if let window = windowsByToken.removeValue(forKey: oldToken) {
             window.rekey(to: newToken)
             windowsByToken[newToken] = window
@@ -93,31 +62,6 @@ final class NativeFullscreenPlaceholderManager {
             window.destroy()
         }
         windowsByToken.removeAll()
-        snapshotsByToken.removeAll()
-    }
-
-    func snapshotForTests() -> [WindowToken: NativeFullscreenPlaceholderSnapshot] {
-        snapshotsByToken
-    }
-
-    func collectionBehaviorForTests(_ token: WindowToken) -> NSWindow.CollectionBehavior? {
-        windowsByToken[token]?.collectionBehavior
-    }
-
-    func appearanceForTests(_ token: WindowToken) -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?)? {
-        windowsByToken[token]?.appearanceForTests()
-    }
-
-    func windowNumberForTests(_ token: WindowToken) -> Int? {
-        windowsByToken[token]?.windowNumber
-    }
-
-    func activateForTests(_ token: WindowToken) {
-        if let window = windowsByToken[token] {
-            window.activate()
-        } else if snapshotsByToken[token] != nil {
-            onActivate?(token)
-        }
     }
 }
 
@@ -219,10 +163,6 @@ private final class NativeFullscreenPlaceholderWindow: NSPanel {
         unregisterSurface()
         orderOut(nil)
         close()
-    }
-
-    func appearanceForTests() -> (isOpaque: Bool, backgroundColor: NSColor?, contentBackgroundColor: NSColor?) {
-        (isOpaque, backgroundColor, placeholderView.layer?.backgroundColor.map(NSColor.init(cgColor:)) ?? nil)
     }
 
     private func registerSurfaceIfNeeded() {

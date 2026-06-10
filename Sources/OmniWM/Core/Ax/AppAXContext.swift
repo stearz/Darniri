@@ -109,7 +109,6 @@ final class AppAXContext {
 
     @MainActor static var contexts: [pid_t: AppAXContext] = [:]
     @MainActor private static var inFlightCreations: [pid_t: Task<AppAXContext?, Error>] = [:]
-    @MainActor static var contextFactoryForTests: ((NSRunningApplication) async throws -> AppAXContext?)?
 
     private nonisolated init(
         _ nsApp: NSRunningApplication,
@@ -135,7 +134,7 @@ final class AppAXContext {
         let pid = nsApp.processIdentifier
 
         if let existing = contexts[pid] { return existing }
-        if contextFactoryForTests == nil, pid == ProcessInfo.processInfo.processIdentifier { return nil }
+        if pid == ProcessInfo.processInfo.processIdentifier { return nil }
 
         try Task.checkCancellation()
 
@@ -146,13 +145,7 @@ final class AppAXContext {
         let task = Task<AppAXContext?, Error> { @MainActor in
             defer { inFlightCreations.removeValue(forKey: pid) }
 
-            let context: AppAXContext?
-            if let contextFactoryForTests {
-                context = try await contextFactoryForTests(nsApp)
-            } else {
-                context = try await createContext(nsApp)
-            }
-
+            let context = try await createContext(nsApp)
             if let context {
                 contexts[pid] = context
             }
@@ -258,7 +251,6 @@ final class AppAXContext {
             assertionFailure("Received AX destroy callback without a valid windowId refcon")
             return
         }
-
         scheduleOnMainRunLoop {
             if let handler {
                 handler(pid, windowId)
@@ -510,50 +502,10 @@ final class AppAXContext {
         }
     }
 
-    func subscribedWindowCountForTests() async -> Int {
-        guard let thread else { return 0 }
-        nonisolated(unsafe) let appThread = thread
-        return (try? await appThread.runInLoop { [subscribedWindows] _ in
-            subscribedWindows.value.count
-        }) ?? 0
-    }
-
-    func installSubscribedWindowsForTests(_ windowRefs: [AXWindowRef]) async throws {
-        guard let thread else { return }
-        nonisolated(unsafe) let appThread = thread
-        _ = try await appThread.runInLoop { [subscribedWindows] _ in
-            subscribedWindows.value = Dictionary(uniqueKeysWithValues: windowRefs.map { ($0.windowId, $0.element) })
-        }
-    }
-
-    func installWindowAndSubscriptionForTests(_ windowRef: AXWindowRef) async throws {
-        guard let thread else { return }
-        nonisolated(unsafe) let appThread = thread
-        _ = try await appThread.runInLoop { [windows, subscribedWindows] _ in
-            windows.value[windowRef.windowId] = windowRef.element
-            subscribedWindows.value[windowRef.windowId] = windowRef.element
-        }
-    }
-
-    func removeMissingWindowForTests(windowId: Int) async throws {
-        guard let thread else { return }
-        nonisolated(unsafe) let appThread = thread
-        _ = try await appThread.runInLoop { [windows, axObserver, subscribedWindows] _ in
-            let didRemoveSubscription = AppAXContext.removeMissingWindowSubscription(
-                windowId: windowId,
-                existingElement: windows[windowId],
-                observer: axObserver.value,
-                subscribedWindows: subscribedWindows
-            )
-            if didRemoveSubscription {
-                windows[windowId] = nil
-            }
-        }
-    }
-
     func suppressFrameWrites(for windowIds: [Int]) {
         guard !windowIds.isEmpty else { return }
         for windowId in windowIds {
+            _ = frameWriteGenerations.nextGeneration(for: windowId)
             suppressedFrameWindowIds.insert(windowId)
         }
     }
@@ -683,7 +635,8 @@ final class AppAXContext {
                     applyFrameWriteRequest(
                         request,
                         pid: currentPid,
-                        windows: windows
+                        windows: windows,
+                        generations: generations
                     )
                 )
             }
@@ -726,60 +679,6 @@ final class AppAXContext {
         thread = nil
     }
 
-    static func makeForTests(
-        processIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier
-    ) async -> AppAXContext? {
-        let nsApp = NSRunningApplication(processIdentifier: processIdentifier)
-            ?? NSWorkspace.shared.frontmostApplication
-            ?? NSWorkspace.shared.runningApplications.first(where: { !$0.isTerminated })
-        guard let nsApp else {
-            return nil
-        }
-        let resolvedPid = nsApp.processIdentifier
-
-        return await withCheckedContinuation { continuation in
-            let thread = Thread {
-                $appThreadToken.withValue(AppThreadToken(pid: resolvedPid)) {
-                    let axApp = AXUIElementCreateApplication(resolvedPid)
-                    let guardedAxApp = ThreadGuardedValue(axApp)
-                    let guardedWindows = ThreadGuardedValue([Int: AXUIElement]())
-                    let guardedObserver = ThreadGuardedValue<AXObserver?>(nil)
-                    let guardedFocusedWindowObserver = ThreadGuardedValue<AXObserver?>(nil)
-                    let guardedSubscribedWindows = ThreadGuardedValue([Int: AXUIElement]())
-                    let currentThread = Thread.current
-
-                    Task { @MainActor in
-                        continuation.resume(
-                            returning: AppAXContext(
-                                nsApp,
-                                guardedAxApp,
-                                guardedWindows,
-                                guardedObserver,
-                                guardedFocusedWindowObserver,
-                                guardedSubscribedWindows,
-                                currentThread
-                            )
-                        )
-                    }
-
-                    let port = NSMachPort()
-                    RunLoop.current.add(port, forMode: .default)
-                    CFRunLoopRun()
-                }
-            }
-            thread.name = "OmniWM-AX-Test-\(resolvedPid)"
-            thread.start()
-        }
-    }
-
-    func installWindowsForTests(_ windowRefs: [AXWindowRef]) async throws {
-        guard let thread else { return }
-        nonisolated(unsafe) let appThread = thread
-        _ = try await appThread.runInLoop { [windows] _ in
-            windows.value = Dictionary(uniqueKeysWithValues: windowRefs.map { ($0.windowId, $0.element) })
-        }
-    }
-
     static func garbageCollect() {
         for (_, context) in contexts {
             if context.nsApp.isTerminated {
@@ -792,28 +691,46 @@ final class AppAXContext {
 private func applyFrameWriteRequest(
     _ request: AppAXFrameWriteRequest,
     pid: pid_t,
-    windows: ThreadGuardedValue<[Int: AXUIElement]>
+    windows: ThreadGuardedValue<[Int: AXUIElement]>,
+    generations: LockedWindowGenerationMap
 ) -> AXFrameApplyResult {
     let targetFrame = request.frame
     let currentFrameHint = request.currentFrameHint
     let windowId = request.windowId
 
+    guard generations.isCurrent(request.generation, for: windowId) else {
+        return cancelledFrameApplyResult(for: request)
+    }
+
     if let element = windows[windowId] {
         let axRef = AXWindowRef(element: element, windowId: windowId)
+        guard generations.isCurrent(request.generation, for: windowId) else {
+            return cancelledFrameApplyResult(for: request)
+        }
         let initialResult = AXWindowService.setFrame(
             axRef,
             frame: targetFrame,
             currentFrameHint: currentFrameHint
         )
+        guard generations.isCurrent(request.generation, for: windowId) else {
+            return cancelledFrameApplyResult(for: request)
+        }
         if initialResult.shouldRetryAfterRefresh,
+           generations.isCurrent(request.generation, for: windowId),
            let refreshedAXRef = AXWindowService.axWindowRef(for: UInt32(windowId), pid: pid)
         {
             windows[windowId] = refreshedAXRef.element
+            guard generations.isCurrent(request.generation, for: windowId) else {
+                return cancelledFrameApplyResult(for: request)
+            }
             let retryResult = AXWindowService.setFrame(
                 refreshedAXRef,
                 frame: targetFrame,
                 currentFrameHint: currentFrameHint
             )
+            guard generations.isCurrent(request.generation, for: windowId) else {
+                return cancelledFrameApplyResult(for: request)
+            }
             return AXFrameApplyResult(
                 requestId: request.requestId,
                 pid: pid,
@@ -833,13 +750,21 @@ private func applyFrameWriteRequest(
         )
     }
 
-    if let refreshedAXRef = AXWindowService.axWindowRef(for: UInt32(windowId), pid: pid) {
+    if generations.isCurrent(request.generation, for: windowId),
+       let refreshedAXRef = AXWindowService.axWindowRef(for: UInt32(windowId), pid: pid)
+    {
         windows[windowId] = refreshedAXRef.element
+        guard generations.isCurrent(request.generation, for: windowId) else {
+            return cancelledFrameApplyResult(for: request)
+        }
         let refreshedResult = AXWindowService.setFrame(
             refreshedAXRef,
             frame: targetFrame,
             currentFrameHint: currentFrameHint
         )
+        guard generations.isCurrent(request.generation, for: windowId) else {
+            return cancelledFrameApplyResult(for: request)
+        }
         return AXFrameApplyResult(
             requestId: request.requestId,
             pid: pid,
@@ -860,6 +785,21 @@ private func applyFrameWriteRequest(
             targetFrame: targetFrame,
             currentFrameHint: currentFrameHint,
             failureReason: .cacheMiss
+        )
+    )
+}
+
+private func cancelledFrameApplyResult(for request: AppAXFrameWriteRequest) -> AXFrameApplyResult {
+    AXFrameApplyResult(
+        requestId: request.requestId,
+        pid: request.pid,
+        windowId: request.windowId,
+        targetFrame: request.frame,
+        currentFrameHint: request.currentFrameHint,
+        writeResult: .skipped(
+            targetFrame: request.frame,
+            currentFrameHint: request.currentFrameHint,
+            failureReason: .cancelled
         )
     )
 }

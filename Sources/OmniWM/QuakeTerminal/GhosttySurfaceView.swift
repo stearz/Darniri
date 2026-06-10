@@ -59,9 +59,6 @@ final class GhosttySurfaceView: NSView, @preconcurrency NSTextInputClient {
     private var interactionMode: InteractionMode = .terminal
     private(set) var isInteracting: Bool = false
     var onFrameChanged: ((NSRect) -> Void)?
-    var onSurfaceSizeSyncForTesting: ((CGSize, CGFloat) -> Void)?
-    var surfaceSizeProviderForTesting: (() -> ghostty_surface_size_s)?
-    var surfaceSizeApplyForTesting: ((GhosttySurfacePixelSize) -> Void)?
 
     override var acceptsFirstResponder: Bool {
         true
@@ -69,12 +66,6 @@ final class GhosttySurfaceView: NSView, @preconcurrency NSTextInputClient {
 
     override var isFlipped: Bool {
         false
-    }
-
-    init(testFrame: NSRect = NSRect(x: 0, y: 0, width: 800, height: 400)) {
-        super.init(frame: testFrame)
-        wantsLayer = true
-        layerContentsRedrawPolicy = .duringViewResize
     }
 
     init(ghosttyApp: ghostty_app_t, userdata: UnsafeMutableRawPointer) {
@@ -189,15 +180,8 @@ final class GhosttySurfaceView: NSView, @preconcurrency NSTextInputClient {
 
     func syncGhosttySurfaceSize(backingScale explicitBackingScale: CGFloat? = nil) {
         let scale = explicitBackingScale ?? window?.backingScaleFactor ?? 1.0
-        onSurfaceSizeSyncForTesting?(frame.size, scale)
-
-        let surfaceSize: ghostty_surface_size_s
-        if let surfaceSizeProviderForTesting {
-            surfaceSize = surfaceSizeProviderForTesting()
-        } else {
-            guard let surface = ghosttySurface else { return }
-            surfaceSize = ghostty_surface_size(surface)
-        }
+        guard let surface = ghosttySurface else { return }
+        let surfaceSize = ghostty_surface_size(surface)
 
         let pixelSize = GhosttySurfacePixelSizeNormalizer.normalize(
             pointSize: frame.size,
@@ -206,13 +190,6 @@ final class GhosttySurfaceView: NSView, @preconcurrency NSTextInputClient {
         )
         guard let pixelSize, pixelSize != lastAppliedSurfacePixelSize else { return }
 
-        if let surfaceSizeApplyForTesting {
-            surfaceSizeApplyForTesting(pixelSize)
-            lastAppliedSurfacePixelSize = pixelSize
-            return
-        }
-
-        guard let surface = ghosttySurface else { return }
         ghostty_surface_set_size(surface, pixelSize.widthPx, pixelSize.heightPx)
         lastAppliedSurfacePixelSize = pixelSize
     }

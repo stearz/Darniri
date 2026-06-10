@@ -123,10 +123,11 @@ final class WorkspaceManager {
         case temporarilyUnavailable
     }
 
-    struct NativeFullscreenRecord {
+    struct NativeFullscreenRecord: Equatable {
         let originalToken: WindowToken
         var currentToken: WindowToken
         var workspaceId: WorkspaceDescriptor.ID
+        var transitionId: UInt64
         var exitRequestedByCommand: Bool
         var transition: NativeFullscreenTransition
         var availability: NativeFullscreenAvailability
@@ -153,6 +154,7 @@ final class WorkspaceManager {
                 var token: WindowToken?
                 var workspaceId: WorkspaceDescriptor.ID?
                 var monitorId: Monitor.ID?
+                var requestId: UInt64?
             }
 
             var focusedToken: WindowToken?
@@ -201,11 +203,22 @@ final class WorkspaceManager {
     private let bootPersistedWindowRestoreCatalog: PersistedWindowRestoreCatalog
     private var nativeFullscreenRecordsByOriginalToken: [WindowToken: NativeFullscreenRecord] = [:]
     private var nativeFullscreenOriginalTokenByCurrentToken: [WindowToken: WindowToken] = [:]
+    private var nextNativeFullscreenTransitionId: UInt64 = 1
     private var consumedBootPersistedWindowRestoreEntries: Set<PersistedWindowRestoreConsumptionKey> = []
     private var persistedWindowRestoreCatalogDirty = false
     private var persistedWindowRestoreCatalogSaveScheduled = false
     private var persistedWindowRestoreCatalogBuildInFlight = false
     private var persistedWindowRestoreCatalogRevision: UInt64 = 0
+    private var runtimeRevisionSerial: UInt64 = 0
+    private var globalWorkspaceRevision: UInt64 = 0
+    private var globalLayoutRevision: UInt64 = 0
+    private var globalFocusRevision: UInt64 = 0
+    private var globalFullscreenRevision: UInt64 = 0
+    private var workspaceRevisions: [WorkspaceDescriptor.ID: UInt64] = [:]
+    private var layoutRevisions: [WorkspaceDescriptor.ID: UInt64] = [:]
+    private var focusRevisions: [WorkspaceDescriptor.ID: UInt64] = [:]
+    private var fullscreenRevisions: [WorkspaceDescriptor.ID: UInt64] = [:]
+    var persistedRestoreBundleIdProvider: ((pid_t) -> String?)?
 
     private var _cachedSortedMonitors: [Monitor]?
     private var _cachedTopologyProfile: TopologyProfile?
@@ -222,6 +235,7 @@ final class WorkspaceManager {
 
     var onGapsChanged: (() -> Void)?
     var onSessionStateChanged: (() -> Void)?
+    var onRuntimeRevisionChanged: ((WorkspaceDescriptor.ID?, RuntimeRevisionDomain) -> Void)?
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -271,7 +285,8 @@ final class WorkspaceManager {
             pendingManagedFocus: PendingManagedFocusSnapshot(
                 token: sessionState.focus.pendingManagedFocus.token,
                 workspaceId: sessionState.focus.pendingManagedFocus.workspaceId,
-                monitorId: sessionState.focus.pendingManagedFocus.monitorId
+                monitorId: sessionState.focus.pendingManagedFocus.monitorId,
+                requestId: sessionState.focus.pendingManagedFocus.requestId
             ),
             focusLease: sessionState.focus.focusLease,
             isNonManagedFocusActive: sessionState.focus.isNonManagedFocusActive,
@@ -281,20 +296,45 @@ final class WorkspaceManager {
         )
     }
 
-    func reconcileTraceSnapshotForTests() -> [ReconcileTraceRecord] {
-        reconcileTrace.snapshot()
-    }
-
-    func replayReconcileTraceForTests() -> [ActionPlan] {
-        StateReducer.replay(reconcileTrace.snapshot())
-    }
-
     func reconcileSnapshotDump() -> String {
         ReconcileDebugDump.snapshot(reconcileSnapshot())
     }
 
     func reconcileTraceDump(limit: Int? = nil) -> String {
         ReconcileDebugDump.trace(reconcileTrace.snapshot(), limit: limit)
+    }
+
+    func runtimeRevision(for workspaceId: WorkspaceDescriptor.ID) -> RuntimeRevision {
+        RuntimeRevision(
+            runtime: runtimeRevisionSerial,
+            workspace: workspaceRevisions[workspaceId, default: 0],
+            layout: layoutRevisions[workspaceId, default: 0],
+            focus: focusRevisions[workspaceId, default: 0],
+            fullscreen: fullscreenRevisions[workspaceId, default: 0]
+        )
+    }
+
+    func runtimeEpoch(for domains: RuntimeRevisionDomain) -> RuntimeRevision {
+        RuntimeRevision(
+            runtime: runtimeRevisionSerial,
+            workspace: globalWorkspaceRevision,
+            layout: globalLayoutRevision,
+            focus: globalFocusRevision,
+            fullscreen: globalFullscreenRevision
+        )
+    }
+
+    func isRuntimeEpochCurrent(_ epoch: RuntimeRevision, domains: RuntimeRevisionDomain) -> Bool {
+        epoch.matches(runtimeEpoch(for: domains), domains: domains)
+    }
+
+    func isRuntimeRevisionCurrent(
+        _ revision: RuntimeRevision,
+        for workspaceId: WorkspaceDescriptor.ID,
+        domains: RuntimeRevisionDomain
+    ) -> Bool {
+        guard workspacesById[workspaceId] != nil else { return false }
+        return revision.matches(runtimeRevision(for: workspaceId), domains: domains)
     }
 
     @discardableResult
@@ -313,7 +353,7 @@ final class WorkspaceManager {
             from: restoreEventPlan,
             snapshot: snapshot
         )
-        return runtimeStore.transact(
+        let txn = runtimeStore.transact(
             event: event,
             existingEntry: entry,
             monitors: monitors,
@@ -336,6 +376,10 @@ final class WorkspaceManager {
                 return self.applyActionPlan(plan, to: token)
             }
         )
+        if txn.plan.mutatesRuntimeState || eventRequiresRuntimeInvalidation(event) {
+            bumpRuntimeRevision(for: event)
+        }
+        return txn
     }
 
     @discardableResult
@@ -376,7 +420,7 @@ final class WorkspaceManager {
             source: .workspaceManager
         )
 
-        return runtimeStore.transact(
+        let txn = runtimeStore.transact(
             event: event,
             existingEntry: nil,
             monitors: normalizedMonitors,
@@ -399,6 +443,35 @@ final class WorkspaceManager {
                 return self.applyActionPlan(plan, to: nil)
             }
         )
+        if txn.plan.mutatesRuntimeState || eventRequiresRuntimeInvalidation(event) {
+            bumpRuntimeRevision(for: event)
+        }
+        return txn
+    }
+
+    private func eventRequiresRuntimeInvalidation(_ event: WMEvent) -> Bool {
+        switch event {
+        case .topologyChanged,
+             .activeSpaceChanged,
+             .systemSleep,
+             .systemWake:
+            return true
+        case .windowAdmitted,
+             .windowRekeyed,
+             .windowRemoved,
+             .workspaceAssigned,
+             .windowModeChanged,
+             .floatingGeometryUpdated,
+             .hiddenStateChanged,
+             .nativeFullscreenTransition,
+             .managedReplacementMetadataChanged,
+             .focusLeaseChanged,
+             .managedFocusRequested,
+             .managedFocusConfirmed,
+             .managedFocusCancelled,
+             .nonManagedFocusChanged:
+            return false
+        }
     }
 
     private func applyActionPlan(
@@ -406,6 +479,7 @@ final class WorkspaceManager {
         to token: WindowToken?
     ) -> ActionPlan {
         var resolvedPlan = plan
+        resolvedPlan.restoreIntent = nil
 
         if let restoreRefresh = plan.restoreRefresh {
             applyRestoreRefresh(restoreRefresh)
@@ -445,8 +519,10 @@ final class WorkspaceManager {
         }
         if let entry = windows.entry(for: token) {
             let restoreIntent = StateReducer.restoreIntent(for: entry, monitors: monitors)
-            windows.setRestoreIntent(restoreIntent, for: token)
-            resolvedPlan.restoreIntent = restoreIntent
+            if entry.restoreIntent != restoreIntent {
+                windows.setRestoreIntent(restoreIntent, for: token)
+                resolvedPlan.restoreIntent = restoreIntent
+            }
         }
         if !resolvedPlan.isEmpty {
             schedulePersistedWindowRestoreCatalogSave()
@@ -460,7 +536,8 @@ final class WorkspaceManager {
         sessionState.focus.pendingManagedFocus = .init(
             token: focusSession.pendingManagedFocus.token,
             workspaceId: focusSession.pendingManagedFocus.workspaceId,
-            monitorId: focusSession.pendingManagedFocus.monitorId
+            monitorId: focusSession.pendingManagedFocus.monitorId,
+            requestId: focusSession.pendingManagedFocus.requestId
         )
         sessionState.focus.focusLease = focusSession.focusLease
         sessionState.focus.isNonManagedFocusActive = focusSession.isNonManagedFocusActive
@@ -508,8 +585,20 @@ final class WorkspaceManager {
             schedulePersistedWindowRestoreCatalogSave()
         }
 
+        let previousWorkspaceId = sessionState.interactionMonitorId
+            .flatMap { currentActiveWorkspace(on: $0)?.id }
+        let nextWorkspaceId = plan.interactionMonitorId
+            .flatMap { currentActiveWorkspace(on: $0)?.id }
+        let interactionChanged = sessionState.interactionMonitorId != plan.interactionMonitorId
+            || sessionState.previousInteractionMonitorId != plan.previousInteractionMonitorId
         sessionState.interactionMonitorId = plan.interactionMonitorId
         sessionState.previousInteractionMonitorId = plan.previousInteractionMonitorId
+        if interactionChanged {
+            bumpFocusRevision(
+                previousWorkspaceId: previousWorkspaceId,
+                currentWorkspaceId: nextWorkspaceId
+            )
+        }
     }
 
     private func applyTopologyTransition(_ transition: TopologyTransitionPlan) {
@@ -568,7 +657,8 @@ final class WorkspaceManager {
     }
 
     private func plannedPersistedHydrationMutation(for token: WindowToken) -> PersistedHydrationMutation? {
-        guard let metadata = windows.managedReplacementMetadata(for: token),
+        guard let entry = windows.entry(for: token),
+              let metadata = persistedRestoreMetadata(for: entry),
               let hydrationPlan = restorePlanner.planPersistedHydration(
                   .init(
                       token: token,
@@ -714,22 +804,6 @@ final class WorkspaceManager {
         flushPersistedWindowRestoreCatalogSynchronously()
     }
 
-    func persistedWindowRestoreCatalogForTests() -> PersistedWindowRestoreCatalog {
-        buildPersistedWindowRestoreCatalog()
-    }
-
-    func bootPersistedWindowRestoreCatalogForTests() -> PersistedWindowRestoreCatalog {
-        bootPersistedWindowRestoreCatalog
-    }
-
-    func consumedBootPersistedWindowRestoreKeysForTests() -> Set<PersistedWindowRestoreKey> {
-        Set(consumedBootPersistedWindowRestoreEntries.map(\.key))
-    }
-
-    func consumedBootPersistedWindowRestoreEntryCountForTests() -> Int {
-        consumedBootPersistedWindowRestoreEntries.count
-    }
-
     private func schedulePersistedWindowRestoreCatalogSave() {
         markPersistedWindowRestoreCatalogDirty()
         enqueuePersistedWindowRestoreCatalogSave()
@@ -747,7 +821,11 @@ final class WorkspaceManager {
         persistedWindowRestoreCatalogSaveScheduled = true
 
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 75_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 75_000_000)
+            } catch {
+                return
+            }
             guard let self else { return }
             self.persistedWindowRestoreCatalogSaveScheduled = false
             self.startPersistedWindowRestoreCatalogBuildIfNeeded()
@@ -793,13 +871,45 @@ final class WorkspaceManager {
         PersistedWindowRestoreCatalogBuilder.build(from: persistedWindowRestoreCatalogBuildSnapshot())
     }
 
+    private func persistedRestoreMetadata(for entry: WindowModel.Entry) -> ManagedReplacementMetadata? {
+        let bundleId = entry.managedReplacementMetadata?.bundleId
+            ?? persistedRestoreBundleIdProvider?(entry.pid)
+        guard bundleId != nil || entry.managedReplacementMetadata != nil else {
+            return nil
+        }
+
+        let fallback = ManagedReplacementMetadata(
+            bundleId: bundleId,
+            workspaceId: entry.workspaceId,
+            mode: entry.mode,
+            role: nil,
+            subrole: nil,
+            title: nil,
+            windowLevel: nil,
+            parentWindowId: nil,
+            frame: entry.observedState.frame ?? entry.desiredState.floatingFrame ?? entry.floatingState?.lastFrame,
+            transientWindowServerEvidence: entry.managedReplacementMetadata?.transientWindowServerEvidence ?? false,
+            degradedWindowServerChildEvidence: entry.managedReplacementMetadata?
+                .degradedWindowServerChildEvidence ?? false
+        )
+
+        guard let metadata = entry.managedReplacementMetadata else {
+            return fallback
+        }
+
+        var merged = fallback.mergingNonNilValues(from: metadata)
+        merged.workspaceId = entry.workspaceId
+        merged.mode = entry.mode
+        return merged
+    }
+
     private func persistedWindowRestoreCatalogBuildSnapshot() -> PersistedWindowRestoreCatalogBuildSnapshot {
         let context = monitorResolutionContext()
         let topologyProfile = context.topologyProfile
         var snapshotEntries: [PersistedWindowRestoreCatalogBuildEntry] = []
 
         for entry in windows.allEntries() {
-            guard let metadata = entry.managedReplacementMetadata,
+            guard let metadata = persistedRestoreMetadata(for: entry),
                   let restoreIntent = entry.restoreIntent,
                   let workspaceName = descriptor(for: entry.workspaceId)?.name
             else {
@@ -922,6 +1032,9 @@ final class WorkspaceManager {
         onMonitor monitorId: Monitor.ID? = nil
     ) -> Bool {
         let normalizedMonitorId = monitorId.flatMap { self.monitor(byId: $0)?.id }
+        guard canConfirmManagedFocus(token, in: workspaceId, requestId: nil) else {
+            return false
+        }
         var changed = rememberFocus(token, in: workspaceId)
         if let normalizedMonitorId {
             changed = updateInteractionMonitor(normalizedMonitorId, preservePrevious: true, notify: false) || changed
@@ -934,6 +1047,7 @@ final class WorkspaceManager {
                 workspaceId: workspaceId,
                 monitorId: normalizedMonitorId,
                 appFullscreen: appFullscreen,
+                requestId: nil,
                 source: .workspaceManager
             )
         ) || changed
@@ -947,7 +1061,8 @@ final class WorkspaceManager {
     func beginManagedFocusRequest(
         _ token: WindowToken,
         in workspaceId: WorkspaceDescriptor.ID,
-        onMonitor monitorId: Monitor.ID? = nil
+        onMonitor monitorId: Monitor.ID? = nil,
+        requestId: UInt64
     ) -> Bool {
         let normalizedMonitorId = monitorId.flatMap { self.monitor(byId: $0)?.id }
         var changed = rememberFocus(token, in: workspaceId)
@@ -956,6 +1071,7 @@ final class WorkspaceManager {
                 token: token,
                 workspaceId: workspaceId,
                 monitorId: normalizedMonitorId,
+                requestId: requestId,
                 source: .workspaceManager
             )
         ) || changed
@@ -1005,9 +1121,13 @@ final class WorkspaceManager {
         in workspaceId: WorkspaceDescriptor.ID,
         onMonitor monitorId: Monitor.ID? = nil,
         appFullscreen: Bool,
-        activateWorkspaceOnMonitor: Bool
+        activateWorkspaceOnMonitor: Bool,
+        requestId: UInt64? = nil
     ) -> Bool {
         let normalizedMonitorId = monitorId.flatMap { self.monitor(byId: $0)?.id } ?? self.monitorId(for: workspaceId)
+        guard canConfirmManagedFocus(token, in: workspaceId, requestId: requestId) else {
+            return false
+        }
         var changed = false
 
         if activateWorkspaceOnMonitor,
@@ -1034,6 +1154,7 @@ final class WorkspaceManager {
                 workspaceId: workspaceId,
                 monitorId: normalizedMonitorId,
                 appFullscreen: appFullscreen,
+                requestId: requestId,
                 source: .workspaceManager
             )
         ) || changed
@@ -1045,15 +1166,42 @@ final class WorkspaceManager {
         return changed
     }
 
+    func canConfirmManagedFocus(
+        _ token: WindowToken,
+        in workspaceId: WorkspaceDescriptor.ID,
+        requestId: UInt64?
+    ) -> Bool {
+        if let requestId {
+            return pendingManagedFocusMatches(
+                token: token,
+                workspaceId: workspaceId,
+                requestId: requestId
+            )
+        }
+        let request = sessionState.focus.pendingManagedFocus
+        guard request.token != nil
+            || request.workspaceId != nil
+            || request.monitorId != nil
+            || request.requestId != nil
+        else {
+            return true
+        }
+        return request.requestId == nil
+            && request.token == token
+            && request.workspaceId == workspaceId
+    }
+
     @discardableResult
     func cancelManagedFocusRequest(
         matching token: WindowToken? = nil,
-        workspaceId: WorkspaceDescriptor.ID? = nil
+        workspaceId: WorkspaceDescriptor.ID? = nil,
+        requestId: UInt64?
     ) -> Bool {
         let changed = applyFocusReconcileEvent(
             .managedFocusCancelled(
                 token: token,
                 workspaceId: workspaceId,
+                requestId: requestId,
                 source: .workspaceManager
             )
         )
@@ -1063,6 +1211,30 @@ final class WorkspaceManager {
         }
 
         return changed
+    }
+
+    @discardableResult
+    func cancelCurrentManagedFocusRequest(
+        matching token: WindowToken? = nil,
+        workspaceId: WorkspaceDescriptor.ID? = nil
+    ) -> Bool {
+        let request = sessionState.focus.pendingManagedFocus
+        let matchesToken = token.map { request.token == $0 } ?? true
+        let matchesWorkspace = workspaceId.map { request.workspaceId == $0 } ?? true
+        guard matchesToken,
+              matchesWorkspace,
+              request.token != nil
+              || request.workspaceId != nil
+              || request.monitorId != nil
+              || request.requestId != nil
+        else {
+            return false
+        }
+        return cancelManagedFocusRequest(
+            matching: token,
+            workspaceId: workspaceId,
+            requestId: request.requestId
+        )
     }
 
     @discardableResult
@@ -1101,6 +1273,7 @@ final class WorkspaceManager {
             originalToken: originalToken,
             currentToken: token,
             workspaceId: workspaceId,
+            transitionId: 0,
             exitRequestedByCommand: false,
             transition: .enterRequested,
             availability: .present,
@@ -1149,6 +1322,7 @@ final class WorkspaceManager {
             originalToken: originalToken,
             currentToken: token,
             workspaceId: entry.workspaceId,
+            transitionId: 0,
             exitRequestedByCommand: false,
             transition: .suspended,
             availability: .present,
@@ -1209,6 +1383,7 @@ final class WorkspaceManager {
             originalToken: originalToken,
             currentToken: token,
             workspaceId: workspaceId,
+            transitionId: 0,
             exitRequestedByCommand: initiatedByCommand,
             transition: .exitRequested,
             availability: .present,
@@ -1272,7 +1447,7 @@ final class WorkspaceManager {
         if record.unavailableSince == nil {
             record.unavailableSince = now
         }
-        upsertNativeFullscreenRecord(record)
+        record = upsertNativeFullscreenRecord(record)
         _ = setManagedAppFullscreen(false)
         return record
     }
@@ -1290,23 +1465,26 @@ final class WorkspaceManager {
             originalToken: token,
             currentToken: token,
             workspaceId: entry.workspaceId,
+            transitionId: 0,
             exitRequestedByCommand: false,
             transition: .enterRequested,
             availability: .temporarilyUnavailable,
             unavailableSince: now
         )
-        upsertNativeFullscreenRecord(record)
+        let storedRecord = upsertNativeFullscreenRecord(record)
         _ = setManagedAppFullscreen(false)
-        return record
+        return storedRecord
     }
 
     func nativeFullscreenUnavailableCandidate(
         for pid: pid_t,
-        activeWorkspaceId: WorkspaceDescriptor.ID?
+        activeWorkspaceId: WorkspaceDescriptor.ID?,
+        now: Date = Date()
     ) -> NativeFullscreenRecord? {
         let candidates = nativeFullscreenRecordsByOriginalToken.values.filter { record in
             guard record.currentToken.pid == pid,
-                  record.availability == .temporarilyUnavailable
+                  record.availability == .temporarilyUnavailable,
+                  isNativeFullscreenUnavailableCandidateFresh(record, now: now)
             else {
                 return false
             }
@@ -1328,6 +1506,14 @@ final class WorkspaceManager {
 
         guard candidates.count == 1 else { return nil }
         return candidates[0]
+    }
+
+    private func isNativeFullscreenUnavailableCandidateFresh(
+        _ record: NativeFullscreenRecord,
+        now: Date
+    ) -> Bool {
+        guard let unavailableSince = record.unavailableSince else { return false }
+        return now.timeIntervalSince(unavailableSince) < Self.staleUnavailableNativeFullscreenTimeout
     }
 
     @discardableResult
@@ -1376,49 +1562,43 @@ final class WorkspaceManager {
     }
 
     @discardableResult
-    func expireStaleTemporarilyUnavailableNativeFullscreenRecords(
+    func expireStaleTemporarilyUnavailableNativeFullscreenRecord(
+        originalToken: WindowToken,
+        transitionId: UInt64,
         now: Date = Date(),
         staleInterval: TimeInterval = staleUnavailableNativeFullscreenTimeout
-    ) -> [WindowModel.Entry] {
-        let expiredOriginalTokens = nativeFullscreenRecordsByOriginalToken.values.compactMap { record -> WindowToken? in
-            guard record.availability == .temporarilyUnavailable,
-                  let unavailableSince = record.unavailableSince,
-                  now.timeIntervalSince(unavailableSince) >= staleInterval
-            else {
-                return nil
-            }
-            return record.originalToken
+    ) -> WindowModel.Entry? {
+        guard let record = nativeFullscreenRecordsByOriginalToken[originalToken],
+              record.transitionId == transitionId,
+              record.availability == .temporarilyUnavailable,
+              let unavailableSince = record.unavailableSince,
+              now.timeIntervalSince(unavailableSince) >= staleInterval
+        else {
+            return nil
         }
 
-        guard !expiredOriginalTokens.isEmpty else { return [] }
-
-        var removedEntries: [WindowModel.Entry] = []
-        removedEntries.reserveCapacity(expiredOriginalTokens.count)
-
-        for originalToken in expiredOriginalTokens {
-            guard let record = removeNativeFullscreenRecord(originalToken: originalToken) else {
-                continue
-            }
-            if layoutReason(for: record.currentToken) == .nativeFullscreen {
-                _ = restoreFromNativeState(for: record.currentToken)
-            }
-            if let removed = removeWindow(pid: record.currentToken.pid, windowId: record.currentToken.windowId) {
-                removedEntries.append(removed)
-            }
+        guard let removedRecord = removeNativeFullscreenRecord(originalToken: originalToken) else {
+            return nil
         }
-
-        return removedEntries
+        if layoutReason(for: removedRecord.currentToken) == .nativeFullscreen {
+            _ = restoreFromNativeState(for: removedRecord.currentToken)
+        }
+        return removeWindow(pid: removedRecord.currentToken.pid, windowId: removedRecord.currentToken.windowId)
     }
 
     @discardableResult
     func rememberFocus(_ token: WindowToken, in workspaceId: WorkspaceDescriptor.ID) -> Bool {
         let mode = windowMode(for: token) ?? .tiling
-        return setRememberedFocus(
+        let changed = setRememberedFocus(
             token,
             in: workspaceId,
             mode: mode,
             focus: &sessionState.focus
         )
+        if changed {
+            bumpRuntimeRevision(for: workspaceId, domains: .focus)
+        }
+        return changed
     }
 
     @discardableResult
@@ -1442,7 +1622,9 @@ final class WorkspaceManager {
         if let nodeId {
             let currentSelection = niriViewportState(for: workspaceId).selectedNodeId
             if currentSelection != nodeId {
-                withNiriViewportState(for: workspaceId) { $0.selectedNodeId = nodeId }
+                withNiriViewportState(for: workspaceId) {
+                    $0.selectedNodeId = nodeId
+                }
                 changed = true
             }
         }
@@ -1460,14 +1642,27 @@ final class WorkspaceManager {
 
     @discardableResult
     func applySessionPatch(_ patch: WorkspaceSessionPatch) -> Bool {
+        guard isRuntimeRevisionCurrent(
+            patch.runtimeRevision,
+            for: patch.workspaceId,
+            domains: .layoutCommit
+        ) else {
+            return false
+        }
+
         var changed = false
 
         if var viewportState = patch.viewportState {
-            // Guard against a stale gesture snapshot overwriting an in-progress snap animation.
-            // Layout plans are built asynchronously and may arrive after endGesture() has already
-            // transitioned the viewport from .gesture to .spring. Preserve the spring animation.
+            let currentState = niriViewportState(for: patch.workspaceId)
+            let patchHasStaleSelection = patch.baseSelectionRevision
+                .map { $0 < currentState.selectionRevision } ?? false
+            if patchHasStaleSelection {
+                viewportState.selectedNodeId = currentState.selectedNodeId
+                viewportState.activeColumnIndex = currentState.activeColumnIndex
+                viewportState.selectionProgress = currentState.selectionProgress
+                viewportState.selectionRevision = currentState.selectionRevision
+            }
             if viewportState.viewOffsetPixels.isGesture {
-                let currentState = niriViewportState(for: patch.workspaceId)
                 if case .spring = currentState.viewOffsetPixels {
                     viewportState.viewOffsetPixels = currentState.viewOffsetPixels
                     viewportState.activeColumnIndex = currentState.activeColumnIndex
@@ -1478,7 +1673,13 @@ final class WorkspaceManager {
         }
 
         if let rememberedFocusToken = patch.rememberedFocusToken {
-            changed = rememberFocus(rememberedFocusToken, in: patch.workspaceId) || changed
+            if isRuntimeRevisionCurrent(
+                patch.runtimeRevision,
+                for: patch.workspaceId,
+                domains: .focusCommit
+            ) {
+                changed = rememberFocus(rememberedFocusToken, in: patch.workspaceId) || changed
+            }
         }
 
         return changed
@@ -1583,6 +1784,7 @@ final class WorkspaceManager {
             var focusChanged = self.clearPendingManagedFocusRequest(
                 matching: nil,
                 workspaceId: workspaceId,
+                requestId: focus.pendingManagedFocus.requestId,
                 focus: &focus
             )
 
@@ -1640,11 +1842,38 @@ final class WorkspaceManager {
         notify: Bool,
         _ mutate: (inout SessionState.FocusSession) -> Bool
     ) -> Bool {
+        let previousRevisionWorkspaceId = focusRevisionWorkspaceId(for: sessionState.focus)
         let changed = mutate(&sessionState.focus)
+        if changed {
+            bumpFocusRevision(
+                previousWorkspaceId: previousRevisionWorkspaceId,
+                currentWorkspaceId: focusRevisionWorkspaceId(for: sessionState.focus)
+            )
+        }
         if changed, notify {
             notifySessionStateChanged()
         }
         return changed
+    }
+
+    private func focusRevisionWorkspaceId(for focus: SessionState.FocusSession) -> WorkspaceDescriptor.ID? {
+        focus.pendingManagedFocus.workspaceId
+            ?? focus.focusedToken.flatMap { windows.entry(for: $0)?.workspaceId }
+    }
+
+    private func bumpFocusRevision(
+        previousWorkspaceId: WorkspaceDescriptor.ID?,
+        currentWorkspaceId: WorkspaceDescriptor.ID?
+    ) {
+        if let currentWorkspaceId {
+            bumpRuntimeRevision(for: currentWorkspaceId, domains: .focus)
+        }
+        if let previousWorkspaceId, previousWorkspaceId != currentWorkspaceId {
+            bumpRuntimeRevision(for: previousWorkspaceId, domains: .focus)
+        }
+        if previousWorkspaceId == nil, currentWorkspaceId == nil {
+            bumpAllRuntimeRevisions(domains: .focus)
+        }
     }
 
     private func applyConfirmedManagedFocus(
@@ -1677,6 +1906,7 @@ final class WorkspaceManager {
         _ token: WindowToken,
         workspaceId: WorkspaceDescriptor.ID,
         monitorId: Monitor.ID?,
+        requestId: UInt64?,
         focus: inout SessionState.FocusSession
     ) -> Bool {
         var changed = false
@@ -1693,6 +1923,10 @@ final class WorkspaceManager {
             focus.pendingManagedFocus.monitorId = monitorId
             changed = true
         }
+        if focus.pendingManagedFocus.requestId != requestId {
+            focus.pendingManagedFocus.requestId = requestId
+            changed = true
+        }
 
         return changed
     }
@@ -1703,6 +1937,7 @@ final class WorkspaceManager {
         guard focus.pendingManagedFocus.token != nil
             || focus.pendingManagedFocus.workspaceId != nil
             || focus.pendingManagedFocus.monitorId != nil
+            || focus.pendingManagedFocus.requestId != nil
         else {
             return false
         }
@@ -1713,15 +1948,34 @@ final class WorkspaceManager {
     private func clearPendingManagedFocusRequest(
         matching token: WindowToken?,
         workspaceId: WorkspaceDescriptor.ID?,
+        requestId: UInt64? = nil,
         focus: inout SessionState.FocusSession
     ) -> Bool {
         let request = focus.pendingManagedFocus
         let matchesHandle = token.map { request.token == $0 } ?? true
         let matchesWorkspace = workspaceId.map { request.workspaceId == $0 } ?? true
-        guard matchesHandle, matchesWorkspace else { return false }
-        guard request.token != nil || request.workspaceId != nil || request.monitorId != nil else { return false }
+        let matchesRequest = requestId.map { request.requestId == $0 } ?? (request.requestId == nil)
+        guard matchesHandle, matchesWorkspace, matchesRequest else { return false }
+        guard request.token != nil
+            || request.workspaceId != nil
+            || request.monitorId != nil
+            || request.requestId != nil
+        else {
+            return false
+        }
         focus.pendingManagedFocus = .init()
         return true
+    }
+
+    func pendingManagedFocusMatches(
+        token: WindowToken,
+        workspaceId: WorkspaceDescriptor.ID,
+        requestId: UInt64
+    ) -> Bool {
+        let request = sessionState.focus.pendingManagedFocus
+        return request.token == token
+            && request.workspaceId == workspaceId
+            && request.requestId == requestId
     }
 
     private func eligibleFocusCandidate(
@@ -1830,8 +2084,18 @@ final class WorkspaceManager {
 
     @discardableResult
     private func updateScratchpadToken(_ token: WindowToken?, notify: Bool) -> Bool {
-        guard sessionState.scratchpadToken != token else { return false }
+        let previousToken = sessionState.scratchpadToken
+        guard previousToken != token else { return false }
+        let previousWorkspaceId = previousToken.flatMap { windows.entry(for: $0)?.workspaceId }
+        let nextWorkspaceId = token.flatMap { windows.entry(for: $0)?.workspaceId }
+        if token != nil, nextWorkspaceId == nil {
+            return false
+        }
         sessionState.scratchpadToken = token
+        let affectedWorkspaceIds = Set([previousWorkspaceId, nextWorkspaceId].compactMap { $0 })
+        for workspaceId in affectedWorkspaceIds {
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus])
+        }
         if notify {
             notifySessionStateChanged()
         }
@@ -2167,6 +2431,7 @@ final class WorkspaceManager {
         let clamped = max(0, min(64, size))
         guard clamped != gaps else { return }
         gaps = clamped
+        bumpAllRuntimeRevisions(domains: [.workspace, .layout])
         onGapsChanged?()
     }
 
@@ -2185,7 +2450,14 @@ final class WorkspaceManager {
             return
         }
         outerGaps = newGaps
+        bumpAllRuntimeRevisions(domains: [.workspace, .layout])
         onGapsChanged?()
+    }
+
+    func invalidateLayoutRevision(for workspaceIds: Set<WorkspaceDescriptor.ID>) {
+        for workspaceId in workspaceIds {
+            bumpRuntimeRevision(for: workspaceId, domains: .layout)
+        }
     }
 
     func monitorForWorkspace(_ workspaceId: WorkspaceDescriptor.ID) -> Monitor? {
@@ -2294,12 +2566,9 @@ final class WorkspaceManager {
             self.replaceRememberedFocus(from: oldToken, to: newToken, focus: &focus)
         }
 
-        let scratchpadChanged: Bool
-        if sessionState.scratchpadToken == oldToken {
-            sessionState.scratchpadToken = newToken
-            scratchpadChanged = true
-        } else {
-            scratchpadChanged = false
+        let scratchpadChanged = sessionState.scratchpadToken == oldToken
+        if scratchpadChanged {
+            _ = updateScratchpadToken(newToken, notify: false)
         }
 
         if focusChanged || scratchpadChanged {
@@ -2531,7 +2800,10 @@ final class WorkspaceManager {
     }
 
     func setFloatingState(_ state: WindowModel.FloatingState?, for token: WindowToken) {
+        guard let entry = windows.entry(for: token) else { return }
+        guard windows.floatingState(for: token) != state else { return }
         windows.setFloatingState(state, for: token)
+        bumpRuntimeRevision(for: entry.workspaceId, domains: .layout)
         schedulePersistedWindowRestoreCatalogSave()
     }
 
@@ -2540,7 +2812,10 @@ final class WorkspaceManager {
     }
 
     func setManualLayoutOverride(_ override: ManualWindowOverride?, for token: WindowToken) {
+        guard let entry = windows.entry(for: token) else { return }
+        guard windows.manualLayoutOverride(for: token) != override else { return }
         windows.setManualLayoutOverride(override, for: token)
+        bumpRuntimeRevision(for: entry.workspaceId, domains: .layout)
     }
 
     func updateFloatingGeometry(
@@ -2560,15 +2835,15 @@ final class WorkspaceManager {
             in: referenceVisibleFrame
         )
 
-        windows.setFloatingState(
-            .init(
-                lastFrame: frame,
-                normalizedOrigin: normalizedOrigin,
-                referenceMonitorId: resolvedReferenceMonitor?.id,
-                restoreToFloating: restoreToFloating
-            ),
-            for: token
+        let state = WindowModel.FloatingState(
+            lastFrame: frame,
+            normalizedOrigin: normalizedOrigin,
+            referenceMonitorId: resolvedReferenceMonitor?.id,
+            restoreToFloating: restoreToFloating
         )
+        guard windows.floatingState(for: token) != state else { return }
+
+        windows.setFloatingState(state, for: token)
         recordReconcileEvent(
             .floatingGeometryUpdated(
                 token: token,
@@ -2613,20 +2888,25 @@ final class WorkspaceManager {
         )
     }
 
-    func removeMissing(keys activeKeys: Set<WindowModel.WindowKey>, requiredConsecutiveMisses: Int = 1) {
+    @discardableResult
+    func removeMissing(
+        keys activeKeys: Set<WindowModel.WindowKey>,
+        requiredConsecutiveMisses: Int = 1
+    ) -> [WindowModel.Entry] {
         let confirmedMissingKeys = windows.confirmedMissingKeys(
             keys: activeKeys,
             requiredConsecutiveMisses: requiredConsecutiveMisses
         )
-        var removedAny = false
+        var removedEntries: [WindowModel.Entry] = []
+        removedEntries.reserveCapacity(confirmedMissingKeys.count)
         for key in confirmedMissingKeys {
             guard let entry = windows.entry(for: key) else { continue }
-            _ = removeTrackedWindow(entry)
-            removedAny = true
+            removedEntries.append(removeTrackedWindow(entry))
         }
-        if removedAny {
+        if !removedEntries.isEmpty {
             schedulePersistedWindowRestoreCatalogSave()
         }
+        return removedEntries
     }
 
     @discardableResult
@@ -2671,6 +2951,7 @@ final class WorkspaceManager {
 
     func setWorkspace(for token: WindowToken, to workspace: WorkspaceDescriptor.ID) {
         let previousWorkspace = windows.workspace(for: token)
+        guard previousWorkspace != workspace else { return }
         windows.updateWorkspace(for: token, workspace: workspace)
         if let originalToken = nativeFullscreenOriginalToken(for: token),
            var record = nativeFullscreenRecordsByOriginalToken[originalToken],
@@ -2700,6 +2981,7 @@ final class WorkspaceManager {
     }
 
     func setHiddenState(_ state: WindowModel.HiddenState?, for token: WindowToken) {
+        guard windows.hiddenState(for: token) != state else { return }
         windows.setHiddenState(state, for: token)
         if let workspaceId = workspace(for: token) {
             recordReconcileEvent(
@@ -2727,6 +3009,7 @@ final class WorkspaceManager {
     }
 
     func setLayoutReason(_ reason: LayoutReason, for token: WindowToken) {
+        guard windows.layoutReason(for: token) != reason else { return }
         windows.setLayoutReason(reason, for: token)
         guard let workspaceId = workspace(for: token) else { return }
         switch reason {
@@ -2794,12 +3077,54 @@ final class WorkspaceManager {
         return nativeFullscreenOriginalTokenByCurrentToken[token]
     }
 
-    private func upsertNativeFullscreenRecord(_ record: NativeFullscreenRecord) {
+    @discardableResult
+    private func upsertNativeFullscreenRecord(_ incomingRecord: NativeFullscreenRecord) -> NativeFullscreenRecord {
+        var record = incomingRecord
         if let previous = nativeFullscreenRecordsByOriginalToken[record.originalToken] {
             nativeFullscreenOriginalTokenByCurrentToken.removeValue(forKey: previous.currentToken)
+            if shouldMintNativeFullscreenTransitionId(previous: previous, next: record) {
+                record.transitionId = mintNativeFullscreenTransitionId()
+            } else {
+                record.transitionId = previous.transitionId
+            }
+            if previous != record {
+                bumpRuntimeRevision(for: previous.workspaceId, domains: [.workspace, .layout, .focus, .fullscreen])
+                if previous.workspaceId != record.workspaceId {
+                    bumpRuntimeRevision(for: record.workspaceId, domains: [.workspace, .layout, .focus, .fullscreen])
+                }
+            }
+        } else {
+            record.transitionId = record.transitionId == 0
+                ? mintNativeFullscreenTransitionId()
+                : record.transitionId
+            bumpRuntimeRevision(for: record.workspaceId, domains: [.workspace, .layout, .focus, .fullscreen])
         }
         nativeFullscreenRecordsByOriginalToken[record.originalToken] = record
         nativeFullscreenOriginalTokenByCurrentToken[record.currentToken] = record.originalToken
+        return record
+    }
+
+    private func shouldMintNativeFullscreenTransitionId(
+        previous: NativeFullscreenRecord,
+        next: NativeFullscreenRecord
+    ) -> Bool {
+        if previous.availability == .temporarilyUnavailable,
+           next.availability == .temporarilyUnavailable
+        {
+            return previous.exitRequestedByCommand != next.exitRequestedByCommand
+                || previous.transition != next.transition
+        }
+        return previous.currentToken != next.currentToken
+            || previous.workspaceId != next.workspaceId
+            || previous.exitRequestedByCommand != next.exitRequestedByCommand
+            || previous.transition != next.transition
+            || previous.availability != next.availability
+    }
+
+    private func mintNativeFullscreenTransitionId() -> UInt64 {
+        let id = nextNativeFullscreenTransitionId
+        nextNativeFullscreenTransitionId &+= 1
+        return id
     }
 
     @discardableResult
@@ -2808,6 +3133,7 @@ final class WorkspaceManager {
             return nil
         }
         nativeFullscreenOriginalTokenByCurrentToken.removeValue(forKey: record.currentToken)
+        bumpRuntimeRevision(for: record.workspaceId, domains: [.workspace, .layout, .focus, .fullscreen])
         return record
     }
 
@@ -2824,7 +3150,9 @@ final class WorkspaceManager {
     }
 
     func setCachedConstraints(_ constraints: WindowSizeConstraints, for token: WindowToken) {
-        windows.setCachedConstraints(constraints, for: token)
+        guard windows.entry(for: token) != nil else { return }
+        let normalized = constraints.normalized()
+        windows.setCachedConstraints(normalized, for: token)
     }
 
     func resizePlaceholderState(for token: WindowToken) -> ResizePlaceholderState? {
@@ -2832,10 +3160,17 @@ final class WorkspaceManager {
     }
 
     func setResizePlaceholderState(_ state: ResizePlaceholderState?, for token: WindowToken) {
+        guard let entry = windows.entry(for: token) else { return }
+        let previous = windows.resizePlaceholderState(for: token)
+        guard previous != state else { return }
         windows.setResizePlaceholderState(state, for: token)
+        bumpRuntimeRevision(for: entry.workspaceId, domains: .layout)
     }
 
-    func resizePlaceholderStates(in workspaceId: WorkspaceDescriptor.ID) -> [(token: WindowToken, state: ResizePlaceholderState)] {
+    func resizePlaceholderStates(in workspaceId: WorkspaceDescriptor.ID) -> [(
+        token: WindowToken,
+        state: ResizePlaceholderState
+    )] {
         windows.resizePlaceholderStates(in: workspaceId)
     }
 
@@ -2895,6 +3230,8 @@ final class WorkspaceManager {
             workspace.assignedMonitorPoint = monitor2.workspaceAnchorPoint
         }
 
+        bumpRuntimeRevision(for: workspace1Id, domains: [.workspace, .layout, .focus])
+        bumpRuntimeRevision(for: workspace2Id, domains: [.workspace, .layout, .focus])
         notifySessionStateChanged()
         return true
     }
@@ -2928,10 +3265,52 @@ final class WorkspaceManager {
         return newState
     }
 
-    func updateNiriViewportState(_ state: ViewportState, for workspaceId: WorkspaceDescriptor.ID) {
+    func updateNiriViewportState(
+        _ state: ViewportState,
+        for workspaceId: WorkspaceDescriptor.ID
+    ) {
         var workspaceSession = sessionState.workspaceSessions[workspaceId] ?? SessionState.WorkspaceSession()
-        workspaceSession.niriViewportState = state
+        let currentState = workspaceSession.niriViewportState
+        var nextState = state
+        if let currentState {
+            if nextState.selectedNodeId != currentState.selectedNodeId {
+                nextState.selectionRevision = max(nextState.selectionRevision, currentState.selectionRevision &+ 1)
+            } else {
+                nextState.selectionRevision = max(nextState.selectionRevision, currentState.selectionRevision)
+            }
+        } else if nextState.selectedNodeId != nil {
+            nextState.selectionRevision = max(nextState.selectionRevision, 1)
+        }
+        workspaceSession.niriViewportState = nextState
         sessionState.workspaceSessions[workspaceId] = workspaceSession
+        if shouldBumpNiriViewportRevision(previous: currentState, next: nextState) {
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout])
+        }
+    }
+
+    private func shouldBumpNiriViewportRevision(
+        previous: ViewportState?,
+        next: ViewportState
+    ) -> Bool {
+        guard let previous else {
+            return next.selectedNodeId != nil || !next.viewOffsetPixels.isAnimating
+        }
+        if previous.selectedNodeId != next.selectedNodeId {
+            return true
+        }
+        if previous.activeColumnIndex != next.activeColumnIndex {
+            return true
+        }
+        if previous.viewOffsetPixels.target() != next.viewOffsetPixels.target() {
+            return true
+        }
+        if previous.viewOffsetToRestore != next.viewOffsetToRestore {
+            return true
+        }
+        if previous.activatePrevColumnOnRemoval != next.activatePrevColumnOnRemoval {
+            return true
+        }
+        return false
     }
 
     func withNiriViewportState(
@@ -3143,11 +3522,18 @@ final class WorkspaceManager {
         guard !ids.isEmpty else { return }
 
         let toRemove = Set(ids)
+        for id in toRemove {
+            bumpRuntimeRevision(for: id, domains: [.workspace, .layout, .focus])
+        }
         for id in ids {
             workspacesById.removeValue(forKey: id)
             sessionState.workspaceSessions.removeValue(forKey: id)
             sessionState.focus.lastTiledFocusedByWorkspace.removeValue(forKey: id)
             sessionState.focus.lastFloatingFocusedByWorkspace.removeValue(forKey: id)
+            workspaceRevisions.removeValue(forKey: id)
+            layoutRevisions.removeValue(forKey: id)
+            focusRevisions.removeValue(forKey: id)
+            fullscreenRevisions.removeValue(forKey: id)
         }
 
         _cachedSortedWorkspaces = nil
@@ -3611,11 +3997,23 @@ final class WorkspaceManager {
 
         if updateInteractionMonitor {
             let interactionChanged = self.updateInteractionMonitor(monitorId, preservePrevious: true, notify: false)
+            if workspaceVisibilityChanged || interactionChanged {
+                bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus])
+                if let previousWorkspaceOnMonitor {
+                    bumpRuntimeRevision(for: previousWorkspaceOnMonitor, domains: [.workspace, .layout, .focus])
+                }
+            }
             if notify, workspaceVisibilityChanged || interactionChanged {
                 notifySessionStateChanged()
             }
-        } else if workspaceVisibilityChanged, notify {
-            notifySessionStateChanged()
+        } else if workspaceVisibilityChanged {
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus])
+            if let previousWorkspaceOnMonitor {
+                bumpRuntimeRevision(for: previousWorkspaceOnMonitor, domains: [.workspace, .layout, .focus])
+            }
+            if notify {
+                notifySessionStateChanged()
+            }
         }
 
         return true
@@ -3634,6 +4032,7 @@ final class WorkspaceManager {
         }
         invalidateWorkspaceProjectionCaches()
         if previousWorkspace != workspace {
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout])
             schedulePersistedWindowRestoreCatalogSave()
         }
     }
@@ -3646,6 +4045,7 @@ final class WorkspaceManager {
         workspaceIdByName[workspace.name] = workspace.id
         _cachedSortedWorkspaces = nil
         invalidateWorkspaceProjectionCaches()
+        bumpRuntimeRevision(for: workspace.id, domains: [.workspace, .layout, .focus])
         return workspace.id
     }
 
@@ -3699,6 +4099,10 @@ final class WorkspaceManager {
         notify: Bool
     ) -> Bool {
         guard sessionState.interactionMonitorId != monitorId else { return false }
+        let previousWorkspaceId = sessionState.interactionMonitorId
+            .flatMap { currentActiveWorkspace(on: $0)?.id }
+        let nextWorkspaceId = monitorId
+            .flatMap { currentActiveWorkspace(on: $0)?.id }
         if preservePrevious,
            let currentMonitorId = sessionState.interactionMonitorId,
            currentMonitorId != monitorId
@@ -3706,6 +4110,10 @@ final class WorkspaceManager {
             sessionState.previousInteractionMonitorId = currentMonitorId
         }
         sessionState.interactionMonitorId = monitorId
+        bumpFocusRevision(
+            previousWorkspaceId: previousWorkspaceId,
+            currentWorkspaceId: nextWorkspaceId
+        )
         if notify {
             notifySessionStateChanged()
         }
@@ -3743,6 +4151,112 @@ final class WorkspaceManager {
 
     private func notifySessionStateChanged() {
         onSessionStateChanged?()
+    }
+
+    private func bumpRuntimeRevision(for event: WMEvent) {
+        switch event {
+        case let .windowAdmitted(_, workspaceId, _, _, _),
+             let .windowModeChanged(_, workspaceId, _, _, _),
+             let .hiddenStateChanged(_, workspaceId, _, _, _),
+             let .managedReplacementMetadataChanged(_, workspaceId, _, _):
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus])
+
+        case let .floatingGeometryUpdated(_, workspaceId, _, _, _, _):
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout])
+
+        case let .windowRekeyed(_, _, workspaceId, _, _, _):
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus])
+
+        case let .workspaceAssigned(_, fromWorkspaceId, toWorkspaceId, _, _):
+            bumpRuntimeRevision(for: toWorkspaceId, domains: [.workspace, .layout, .focus])
+            if let fromWorkspaceId {
+                bumpRuntimeRevision(for: fromWorkspaceId, domains: [.workspace, .layout, .focus])
+            }
+
+        case let .windowRemoved(token, workspaceId, _):
+            bumpRuntimeRevision(
+                for: workspaceId ?? windows.entry(for: token)?.workspaceId,
+                domains: [.workspace, .layout, .focus, .fullscreen]
+            )
+
+        case let .nativeFullscreenTransition(_, workspaceId, _, _, _):
+            bumpRuntimeRevision(for: workspaceId, domains: [.workspace, .layout, .focus, .fullscreen])
+
+        case let .managedFocusRequested(_, workspaceId, _, _, _),
+             let .managedFocusConfirmed(_, workspaceId, _, _, _, _):
+            bumpRuntimeRevision(for: workspaceId, domains: .focus)
+
+        case let .managedFocusCancelled(token, workspaceId, _, _):
+            bumpRuntimeRevision(
+                for: workspaceId ?? token.flatMap { windows.entry(for: $0)?.workspaceId },
+                domains: .focus
+            )
+
+        case .focusLeaseChanged,
+             .nonManagedFocusChanged:
+            bumpAllRuntimeRevisions(domains: .focus)
+
+        case .topologyChanged,
+             .activeSpaceChanged,
+             .systemSleep,
+             .systemWake:
+            bumpAllRuntimeRevisions(domains: [.workspace, .layout, .focus, .fullscreen])
+        }
+    }
+
+    private func bumpRuntimeRevision(
+        for workspaceId: WorkspaceDescriptor.ID?,
+        domains: RuntimeRevisionDomain
+    ) {
+        runtimeRevisionSerial &+= 1
+        guard let workspaceId else {
+            for workspaceId in allRuntimeRevisionWorkspaceIds() {
+                bumpRuntimeRevisionDomains(for: workspaceId, domains: domains)
+            }
+            onRuntimeRevisionChanged?(nil, domains)
+            return
+        }
+        bumpRuntimeRevisionDomains(for: workspaceId, domains: domains)
+        onRuntimeRevisionChanged?(workspaceId, domains)
+    }
+
+    private func bumpRuntimeRevisionDomains(
+        for workspaceId: WorkspaceDescriptor.ID,
+        domains: RuntimeRevisionDomain
+    ) {
+        if domains.contains(.workspace) {
+            globalWorkspaceRevision &+= 1
+            workspaceRevisions[workspaceId, default: 0] &+= 1
+        }
+        if domains.contains(.layout) {
+            globalLayoutRevision &+= 1
+            layoutRevisions[workspaceId, default: 0] &+= 1
+        }
+        if domains.contains(.focus) {
+            globalFocusRevision &+= 1
+            focusRevisions[workspaceId, default: 0] &+= 1
+        }
+        if domains.contains(.fullscreen) {
+            globalFullscreenRevision &+= 1
+            fullscreenRevisions[workspaceId, default: 0] &+= 1
+        }
+    }
+
+    private func bumpAllRuntimeRevisions(domains: RuntimeRevisionDomain) {
+        runtimeRevisionSerial &+= 1
+        for workspaceId in allRuntimeRevisionWorkspaceIds() {
+            bumpRuntimeRevisionDomains(for: workspaceId, domains: domains)
+        }
+        onRuntimeRevisionChanged?(nil, domains)
+    }
+
+    private func allRuntimeRevisionWorkspaceIds() -> Set<WorkspaceDescriptor.ID> {
+        Set(workspacesById.keys)
+            .union(windows.allEntries().map(\.workspaceId))
+            .union(workspaceRevisions.keys)
+            .union(layoutRevisions.keys)
+            .union(focusRevisions.keys)
+            .union(fullscreenRevisions.keys)
     }
 }
 

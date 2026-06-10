@@ -235,35 +235,56 @@ final class CommandHandler {
 
     private func focusPreviousInNiri() {
         guard let controller else { return }
-        controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, _, workingFrame, gaps in
-            if let currentId = state.selectedNodeId {
-                engine.updateFocusTimestamp(for: currentId)
-            }
+        guard let engine = controller.niriEngine else { return }
+        guard let wsId = controller.activeWorkspace()?.id else { return }
+        guard let monitor = controller.workspaceManager.monitor(for: wsId) else { return }
+        var state = controller.workspaceManager.niriViewportState(for: wsId)
+        let motion = controller.motionPolicy.snapshot()
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        let gaps = CGFloat(controller.workspaceManager.gaps)
 
-            if let currentId = state.selectedNodeId {
-                engine.activateWindow(currentId)
-            }
+        if let currentId = state.selectedNodeId {
+            engine.updateFocusTimestamp(for: currentId)
+        }
 
-            guard let previousWindow = engine.focusPrevious(
-                currentNodeId: state.selectedNodeId,
-                in: wsId,
-                motion: motion,
-                state: &state,
-                workingFrame: workingFrame,
-                gaps: gaps,
-                limitToWorkspace: true
-            ) else {
-                return
-            }
+        if let currentId = state.selectedNodeId {
+            engine.activateWindow(currentId)
+        }
 
-            controller.niriLayoutHandler.activateNode(
-                previousWindow, in: wsId, state: &state,
-                options: .init(ensureVisible: false, updateTimestamp: false, startAnimation: false)
+        guard let previousWindow = engine.focusPrevious(
+            currentNodeId: state.selectedNodeId,
+            in: wsId,
+            motion: motion,
+            state: &state,
+            workingFrame: workingFrame,
+            gaps: gaps,
+            limitToWorkspace: true
+        ) else {
+            return
+        }
+
+        controller.niriLayoutHandler.activateNode(
+            previousWindow, in: wsId, state: &state,
+            options: .init(
+                ensureVisible: false,
+                updateTimestamp: false,
+                layoutRefresh: false,
+                axFocus: false,
+                startAnimation: false
             )
+        )
+        _ = controller.workspaceManager.applySessionPatch(
+            .init(
+                workspaceId: wsId,
+                viewportState: state,
+                rememberedFocusToken: nil,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
+            )
+        )
+        controller.niriLayoutHandler.requestSelectedWindowFocusAfterLayout(in: wsId)
 
-            if state.viewOffsetPixels.isAnimating {
-                controller.layoutRefreshController.startScrollAnimation(for: wsId)
-            }
+        if state.viewOffsetPixels.isAnimating {
+            controller.layoutRefreshController.startScrollAnimation(for: wsId)
         }
     }
 
@@ -465,18 +486,24 @@ final class CommandHandler {
             onNoTarget?()
             return
         }
-
         controller.niriLayoutHandler.activateNode(
             newNode, in: wsId, state: &state,
-            options: .init(activateWindow: false, ensureVisible: false)
+            options: .init(
+                activateWindow: false,
+                ensureVisible: false,
+                layoutRefresh: false,
+                axFocus: false
+            )
         )
         _ = controller.workspaceManager.applySessionPatch(
             .init(
                 workspaceId: wsId,
                 viewportState: state,
-                rememberedFocusToken: nil
+                rememberedFocusToken: nil,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: wsId)
             )
         )
+        controller.niriLayoutHandler.requestSelectedWindowFocusAfterLayout(in: wsId)
     }
 
     private func moveWindow(direction: Direction) {
@@ -629,7 +656,9 @@ final class CommandHandler {
         guard let controller else { return }
         controller.niriLayoutHandler.withNiriWorkspaceContext { engine, wsId, motion, state, _, _, _ in
             if engine.toggleColumnTabbed(in: wsId, state: state, motion: motion) {
-                controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+                controller.layoutRefreshController.requestLayoutCommandRelayout(
+                    affectedWorkspaceIds: [wsId]
+                )
                 if engine.hasAnyWindowAnimationsRunning(in: wsId) {
                     controller.layoutRefreshController.startScrollAnimation(for: wsId)
                 }
@@ -648,7 +677,9 @@ final class CommandHandler {
         controller.dwindleLayoutHandler.withDwindleContext { engine, wsId in
             let stable = controller.settings.dwindleMoveToRootStable
             engine.moveSelectionToRoot(stable: stable, in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 
@@ -656,7 +687,9 @@ final class CommandHandler {
         guard let controller else { return }
         controller.dwindleLayoutHandler.withDwindleContext { engine, wsId in
             engine.toggleOrientation(in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 
@@ -664,7 +697,9 @@ final class CommandHandler {
         guard let controller else { return }
         controller.dwindleLayoutHandler.withDwindleContext { engine, wsId in
             engine.swapSplit(in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 
@@ -673,7 +708,9 @@ final class CommandHandler {
         controller.dwindleLayoutHandler.withDwindleContext { engine, wsId in
             let delta = grow ? engine.settings.resizeStep : -engine.settings.resizeStep
             engine.resizeSelected(by: delta, direction: direction, in: wsId)
-            controller.layoutRefreshController.requestImmediateRelayout(reason: .layoutCommand)
+            controller.layoutRefreshController.requestLayoutCommandRelayout(
+                affectedWorkspaceIds: [wsId]
+            )
         }
     }
 

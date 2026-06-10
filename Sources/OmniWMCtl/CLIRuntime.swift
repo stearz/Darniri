@@ -49,30 +49,6 @@ enum CLIRuntime {
     typealias WatchChildRunner = @Sendable (IPCEventEnvelope, [String], CLIWatchProcessState) async throws
         -> WatchChildResult
 
-    private final class WatchChildExecutionHooks: @unchecked Sendable {
-        private let lock = NSLock()
-        private var runner: WatchChildRunner?
-
-        func setRunner(_ runner: WatchChildRunner?) {
-            lock.lock()
-            self.runner = runner
-            lock.unlock()
-        }
-
-        func currentRunner() -> WatchChildRunner? {
-            lock.lock()
-            let runner = runner
-            lock.unlock()
-            return runner
-        }
-    }
-
-    private static let watchChildExecutionHooks = WatchChildExecutionHooks()
-
-    static func setWatchChildRunnerForTests(_ runner: WatchChildRunner?) {
-        watchChildExecutionHooks.setRunner(runner)
-    }
-
     static func run(arguments: [String], client: IPCClient = IPCClient()) async -> Int32 {
         let outputFormat = CLIParser.outputFormat(arguments: arguments)
 
@@ -243,10 +219,6 @@ enum CLIRuntime {
         childArguments: [String],
         processState: CLIWatchProcessState
     ) async throws -> WatchChildResult {
-        if let runner = watchChildExecutionHooks.currentRunner() {
-            return try await runner(event, childArguments, processState)
-        }
-
         return try await defaultWatchChildRunner(
             event: event,
             childArguments: childArguments,

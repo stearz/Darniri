@@ -1,6 +1,23 @@
 import Carbon
 import Foundation
 
+private func secureInputMonitorEventTapCallback(
+    proxy: CGEventTapProxy,
+    type: CGEventType,
+    event: CGEvent,
+    refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    let disabledByUserInput = type == .tapDisabledByUserInput
+    let disabledByTimeout = type == .tapDisabledByTimeout
+    MainActor.assumeIsolated {
+        SecureInputMonitor.handleEventTap(
+            disabledByUserInput: disabledByUserInput,
+            disabledByTimeout: disabledByTimeout
+        )
+    }
+    return Unmanaged.passUnretained(event)
+}
+
 @MainActor @Observable
 final class SecureInputMonitor {
     private(set) var isSecureInputActive: Bool = false
@@ -36,35 +53,12 @@ final class SecureInputMonitor {
     private func setupEventTap() {
         let eventMask: CGEventMask = 1 << CGEventType.keyDown.rawValue
 
-        let callback: CGEventTapCallBack = { _, type, event, _ in
-            switch type {
-            case .tapDisabledByUserInput:
-                Task { @MainActor in
-                    SecureInputMonitor.sharedMonitor?.handleSecureInputDetected()
-                }
-                if let tap = SecureInputMonitor.sharedMonitor?.eventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-            case .tapDisabledByTimeout:
-                if let tap = SecureInputMonitor.sharedMonitor?.eventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-            default:
-                if SecureInputMonitor.sharedMonitor?.isSecureInputActive ?? false {
-                    Task { @MainActor in
-                        SecureInputMonitor.sharedMonitor?.checkSecureInputEnded()
-                    }
-                }
-            }
-            return Unmanaged.passUnretained(event)
-        }
-
         eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .listenOnly,
             eventsOfInterest: eventMask,
-            callback: callback,
+            callback: secureInputMonitorEventTapCallback,
             userInfo: nil
         )
 
@@ -74,6 +68,32 @@ final class SecureInputMonitor {
                 CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             }
             CGEvent.tapEnable(tap: tap, enable: true)
+        }
+    }
+
+    fileprivate static func handleEventTap(
+        disabledByUserInput: Bool,
+        disabledByTimeout: Bool
+    ) {
+        if disabledByUserInput {
+            Task { @MainActor in
+                sharedMonitor?.handleSecureInputDetected()
+            }
+            if let tap = sharedMonitor?.eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return
+        }
+        if disabledByTimeout {
+            if let tap = sharedMonitor?.eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return
+        }
+        if sharedMonitor?.isSecureInputActive ?? false {
+            Task { @MainActor in
+                sharedMonitor?.checkSecureInputEnded()
+            }
         }
     }
 

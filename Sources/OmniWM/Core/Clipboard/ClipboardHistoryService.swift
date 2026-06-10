@@ -153,13 +153,6 @@ final class ClipboardHistoryService: @unchecked Sendable {
         return snapshots
     }
 
-    func handleCaptureForTests(_ capture: ClipboardPasteboardCapture?) async -> [ClipboardPaletteItem] {
-        guard let capture, configuration.isEnabled else { return paletteItems }
-        let snapshots = await store.handleCapture(capture)
-        applyPaletteItems(snapshots)
-        return snapshots
-    }
-
     private func pollPasteboard() {
         guard configuration.isEnabled else { return }
         let changeCount = environment.pasteboardChangeCount()

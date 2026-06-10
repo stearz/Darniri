@@ -2,18 +2,47 @@ import AppKit
 import Observation
 
 @MainActor @Observable
-final class AppBootstrapState {
+public final class AppBootstrapState {
     var settings: SettingsStore?
     var controller: WMController?
     var updateCoordinator: (any AppUpdateCoordinating)?
+
+    public init() {}
+
+    public var isReady: Bool {
+        settings != nil && controller != nil
+    }
+
+    public func registerRedirectWindow(_ window: NSWindow) {
+        OwnedWindowRegistry.shared.register(window)
+    }
+
+    public func unregisterRedirectWindow(_ window: NSWindow) {
+        OwnedWindowRegistry.shared.unregister(window)
+    }
+
+    public func showSettingsAndCloseRedirectWindow(_ window: NSWindow?) {
+        guard let settings, let controller else { return }
+        SettingsWindowController.shared.show(
+            settings: settings,
+            controller: controller,
+            updateCoordinator: updateCoordinator
+        )
+        guard let window else { return }
+        unregisterRedirectWindow(window)
+        DispatchQueue.main.async {
+            window.close()
+        }
+    }
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    nonisolated(unsafe) weak static var sharedBootstrap: AppBootstrapState?
-    static var ipcServerFactoryForTests: ((WMController) -> IPCServerLifecycle)?
-    static var updateCoordinatorFactoryForTests: ((SettingsStore, WMController, RuntimeStateStore)
-        -> any AppUpdateCoordinating)?
+public final class AppDelegate: NSObject, NSApplicationDelegate {
+    public nonisolated(unsafe) weak static var sharedBootstrap: AppBootstrapState?
+
+    public override init() {
+        super.init()
+    }
 
     private var statusBarController: StatusBarController?
     private var ipcServer: IPCServerLifecycle?
@@ -21,16 +50,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updateCoordinator: (any AppUpdateCoordinating)?
     private var runtimeStateStore: RuntimeStateStore?
 
-    func applicationDidFinishLaunching(_: Notification) {
+    public func applicationDidFinishLaunching(_: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         bootstrapApplication()
     }
 
-    func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
+    public func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
         return .terminateNow
     }
 
-    func applicationWillTerminate(_: Notification) {
+    public func applicationWillTerminate(_: Notification) {
         if let controller = AppDelegate.sharedBootstrap?.controller {
             controller.serviceLifecycleManager.stop()
             controller.workspaceManager.flushPersistedWindowRestoreCatalogNow()
@@ -67,8 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.applyPersistedSettings(settings)
         let cliManager = AppCLIManager()
-        let updateCoordinator = Self.updateCoordinatorFactoryForTests?(settings, controller, runtimeState)
-            ?? UpdateCoordinator(settings: settings, runtimeState: runtimeState)
+        let updateCoordinator = UpdateCoordinator(settings: settings, runtimeState: runtimeState)
         self.cliManager = cliManager
         self.updateCoordinator = updateCoordinator
 
@@ -121,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ipcServer != nil {
             stopIPCServer()
         }
-        let server = Self.ipcServerFactoryForTests?(controller) ?? IPCServer(controller: controller)
+        let server = IPCServer(controller: controller)
         try server.start()
         ipcServer = server
     }

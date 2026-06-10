@@ -46,6 +46,7 @@ struct WorkspaceRefreshInput {
     let monitor: LayoutMonitorSnapshot
     let windows: [LayoutWindowSnapshot]
     let isActiveWorkspace: Bool
+    let runtimeRevision: RuntimeRevision
 }
 
 struct NiriWindowRemovalSeed {
@@ -57,6 +58,7 @@ struct NiriWorkspaceSnapshot {
     let workspaceId: WorkspaceDescriptor.ID
     let monitor: LayoutMonitorSnapshot
     let windows: [LayoutWindowSnapshot]
+    let runtimeRevision: RuntimeRevision
     let viewportState: ViewportState
     let preferredFocusToken: WindowToken?
     let confirmedFocusedToken: WindowToken?
@@ -74,6 +76,7 @@ struct DwindleWorkspaceSnapshot {
     let workspaceId: WorkspaceDescriptor.ID
     let monitor: LayoutMonitorSnapshot
     let windows: [LayoutWindowSnapshot]
+    let runtimeRevision: RuntimeRevision
     let preferredFocusToken: WindowToken?
     let confirmedFocusedToken: WindowToken?
     let selectedToken: WindowToken?
@@ -130,6 +133,8 @@ struct WorkspaceSessionPatch {
     let workspaceId: WorkspaceDescriptor.ID
     var viewportState: ViewportState?
     var rememberedFocusToken: WindowToken?
+    var baseSelectionRevision: UInt64? = nil
+    var runtimeRevision: RuntimeRevision
 }
 
 struct WorkspaceSessionTransfer {
@@ -145,9 +150,7 @@ enum AnimationDirective {
     case updateTabbedOverlays
 }
 
-struct RefreshVisibilityEffect {
-    let activeWorkspaceIds: Set<WorkspaceDescriptor.ID>
-}
+struct RefreshVisibilityEffect: Equatable {}
 
 struct RefreshExecutionEffects {
     var visibility: RefreshVisibilityEffect?
@@ -155,6 +158,7 @@ struct RefreshExecutionEffects {
     var updateTabbedOverlays: Bool = false
     var refreshFocusedBorderForVisibilityState: Bool = false
     var focusValidationWorkspaceIds: [WorkspaceDescriptor.ID] = []
+    var focusValidationPreferredTokens: [WorkspaceDescriptor.ID: WindowToken] = [:]
     var markInitialRefreshComplete: Bool = false
     var drainDeferredCreatedWindows: Bool = false
     var subscribeManagedWindows: Bool = false
@@ -163,12 +167,85 @@ struct RefreshExecutionEffects {
 struct WorkspaceLayoutPlan {
     let workspaceId: WorkspaceDescriptor.ID
     let monitor: LayoutMonitorSnapshot
+    var runtimeRevision: RuntimeRevision
     var sessionPatch: WorkspaceSessionPatch
     var diff: WorkspaceLayoutDiff
+    var niriRestorePlacements: [WindowToken: PersistedNiriPlacement] = [:]
     var animationDirectives: [AnimationDirective] = []
 }
 
-typealias RefreshPostLayoutAction = @MainActor () -> Void
+struct RefreshPostLayoutAction {
+    let workspaceRevisions: [WorkspaceDescriptor.ID: RuntimeRevision]
+    let domains: RuntimeRevisionDomain
+    private let action: @MainActor () -> Void
+
+    init(
+        workspaceRevisions: [WorkspaceDescriptor.ID: RuntimeRevision] = [:],
+        domains: RuntimeRevisionDomain = [.workspace, .layout, .focus, .fullscreen],
+        action: @escaping @MainActor () -> Void
+    ) {
+        self.workspaceRevisions = workspaceRevisions
+        self.domains = domains
+        self.action = action
+    }
+
+    @MainActor
+    func isCurrent(using workspaceManager: WorkspaceManager) -> Bool {
+        for (workspaceId, revision) in workspaceRevisions {
+            guard workspaceManager.isRuntimeRevisionCurrent(
+                revision,
+                for: workspaceId,
+                domains: domains
+            ) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    func hasWorkspace(in workspaceIds: Set<WorkspaceDescriptor.ID>) -> Bool {
+        guard !workspaceRevisions.isEmpty else { return false }
+        for workspaceId in workspaceRevisions.keys where workspaceIds.contains(workspaceId) {
+            return true
+        }
+        return false
+    }
+
+    func refreshingAcceptedRevisions(
+        _ acceptedRevisions: [WorkspaceDescriptor.ID: AcceptedRuntimeRevision]
+    ) -> RefreshPostLayoutAction {
+        var revisions = workspaceRevisions
+        var changed = false
+        for (workspaceId, revision) in workspaceRevisions {
+            guard let accepted = acceptedRevisions[workspaceId],
+                  accepted.domains.intersection(domains) == domains,
+                  revision.matches(accepted.before, domains: domains)
+            else {
+                continue
+            }
+            revisions[workspaceId] = accepted.after
+            changed = true
+        }
+        guard changed else { return self }
+        return RefreshPostLayoutAction(
+            workspaceRevisions: revisions,
+            domains: domains,
+            action: action
+        )
+    }
+
+    @MainActor
+    func runIfCurrent(using workspaceManager: WorkspaceManager) {
+        guard isCurrent(using: workspaceManager) else { return }
+        action()
+    }
+}
+
+struct AcceptedRuntimeRevision {
+    let before: RuntimeRevision
+    let after: RuntimeRevision
+    let domains: RuntimeRevisionDomain
+}
 
 struct RefreshExecutionPlan {
     var workspacePlans: [WorkspaceLayoutPlan] = []
