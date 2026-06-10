@@ -36,19 +36,16 @@ struct ManagedReplacementFocusKey: Hashable, Equatable {
 struct ManagedReplacementFocusTransaction: Equatable {
     let key: ManagedReplacementFocusKey
     var anchorToken: WindowToken
-    var selectedNodeId: NodeId?
     var protectedTokens: Set<WindowToken>
     var isBurstOpen: Bool
 
     init(
         key: ManagedReplacementFocusKey,
         anchorToken: WindowToken,
-        selectedNodeId: NodeId?,
         protectedToken: WindowToken
     ) {
         self.key = key
         self.anchorToken = anchorToken
-        self.selectedNodeId = selectedNodeId
         self.protectedTokens = [anchorToken, protectedToken]
         self.isBurstOpen = true
     }
@@ -208,7 +205,7 @@ final class AXEventHandler: CGSEventDelegate {
         let axRef: AXWindowRef
         let ruleEffects: ManagedWindowRuleEffects
         let replacementMetadata: ManagedReplacementMetadata
-        let hasStructuralReplacementWorkspaceMatch: Bool
+        let structuralReplacementMatch: StructuralReplacementMatch?
         let requiresPostCreateLifecycleVerification: Bool
 
         var bundleId: String? {
@@ -360,9 +357,15 @@ final class AXEventHandler: CGSEventDelegate {
         }
     }
 
+    private enum StructuralReplacementMatchSource {
+        case pendingDestroy
+        case liveInvisible
+    }
+
     private struct StructuralReplacementMatch {
         let token: WindowToken
         let workspaceId: WorkspaceDescriptor.ID
+        let source: StructuralReplacementMatchSource
     }
 
     private static let managedReplacementGraceDelay: Duration = .milliseconds(150)
@@ -408,10 +411,16 @@ final class AXEventHandler: CGSEventDelegate {
     private var createFocusTrace: [NiriCreateFocusTraceEvent] = []
     private var managedReplacementTrace: [ManagedReplacementTraceEvent] = []
     private var nextManagedReplacementEventSequence: UInt64 = 0
+    var visibleWindowInfoProvider: () -> [WindowServerInfo]
+
     init(
-        controller: WMController
+        controller: WMController,
+        visibleWindowInfoProvider: @escaping () -> [WindowServerInfo] = {
+            SkyLight.shared.queryAllVisibleWindows()
+        }
     ) {
         self.controller = controller
+        self.visibleWindowInfoProvider = visibleWindowInfoProvider
     }
 
     func setup() {
@@ -559,6 +568,9 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         cancelCreatedWindowRetry(windowId: windowId)
+        if completeLiveStructuralReplacementCreate(candidate) {
+            return
+        }
         if shouldDelayManagedReplacementCreate(candidate) {
             enqueueManagedReplacementCreate(candidate)
             return
@@ -713,7 +725,7 @@ final class AXEventHandler: CGSEventDelegate {
 
     private func selectedNiriWindowToken(
         in workspaceId: WorkspaceDescriptor.ID
-    ) -> (token: WindowToken, nodeId: NodeId)? {
+    ) -> WindowToken? {
         guard let controller else { return nil }
         let state = controller.workspaceManager.niriViewportState(for: workspaceId)
         guard let selectedNodeId = state.selectedNodeId,
@@ -721,12 +733,12 @@ final class AXEventHandler: CGSEventDelegate {
         else {
             return nil
         }
-        return (node.token, selectedNodeId)
+        return node.token
     }
 
     private func niriManagedFocusAnchor(
         for key: ManagedReplacementFocusKey
-    ) -> (token: WindowToken, selectedNodeId: NodeId?)? {
+    ) -> WindowToken? {
         guard let controller else { return nil }
 
         func eligible(_ token: WindowToken?) -> Bool {
@@ -743,15 +755,15 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         if let selected = selectedNiriWindowToken(in: key.workspaceId),
-           eligible(selected.token)
+           eligible(selected)
         {
-            return (selected.token, selected.nodeId)
+            return selected
         }
 
         if let focusedToken = controller.workspaceManager.focusedToken,
            eligible(focusedToken)
         {
-            return (focusedToken, selectedNiriWindowToken(in: key.workspaceId)?.nodeId)
+            return focusedToken
         }
 
         return nil
@@ -772,12 +784,11 @@ final class AXEventHandler: CGSEventDelegate {
         guard let anchor = niriManagedFocusAnchor(for: key) else { return }
         let transaction = ManagedReplacementFocusTransaction(
             key: key,
-            anchorToken: anchor.token,
-            selectedNodeId: anchor.selectedNodeId,
+            anchorToken: anchor,
             protectedToken: token
         )
         managedReplacementFocusTransactions[key] = transaction
-        cancelSameAppCloseProbe(matchingFocusedToken: anchor.token, reason: "managed_replacement_focus_transaction")
+        cancelSameAppCloseProbe(matchingFocusedToken: anchor, reason: "managed_replacement_focus_transaction")
     }
 
     private func markManagedReplacementFocusBurstClosed(for key: ManagedReplacementKey) {
@@ -799,7 +810,6 @@ final class AXEventHandler: CGSEventDelegate {
         let nextTransaction = ManagedReplacementFocusTransaction(
             key: newKey,
             anchorToken: transaction.anchorToken,
-            selectedNodeId: transaction.selectedNodeId,
             protectedToken: newToken
         )
         var mergedTransaction = nextTransaction
@@ -1082,6 +1092,9 @@ final class AXEventHandler: CGSEventDelegate {
                 continue
             }
             cancelCreatedWindowRetry(windowId: windowId)
+            if completeLiveStructuralReplacementCreate(candidate) {
+                continue
+            }
             if shouldDelayManagedReplacementCreate(candidate) {
                 enqueueManagedReplacementCreate(candidate)
             } else {
@@ -2062,6 +2075,26 @@ final class AXEventHandler: CGSEventDelegate {
         guard candidate.token == token else { return false }
 
         cancelCreatedWindowRetry(windowId: windowId)
+        if completeLiveStructuralReplacementCreate(candidate) {
+            guard let entry = controller.workspaceManager.entry(for: candidate.token) else {
+                return true
+            }
+            let targetMonitor = controller.workspaceManager.monitor(for: entry.workspaceId)
+            let isWorkspaceActive = targetMonitor.map { monitor in
+                controller.workspaceManager.activeWorkspace(on: monitor.id)?.id == entry.workspaceId
+            } ?? false
+            return completeFocusedManagedAdmission(
+                entry: entry,
+                isWorkspaceActive: isWorkspaceActive,
+                activation: .init(
+                    source: source,
+                    origin: origin,
+                    appFullscreen: appFullscreen,
+                    request: .init(requestDisposition)
+                ),
+                requestDisposition: requestDisposition
+            )
+        }
         if shouldDelayManagedReplacementCreate(candidate) {
             enqueueManagedReplacementCreate(
                 candidate,
@@ -2861,7 +2894,7 @@ final class AXEventHandler: CGSEventDelegate {
         subscribeToWindows([windowId])
 
         let resolvedBundleId = bundleId ?? evaluation.facts.ax.bundleId
-        let structuralReplacementWorkspaceId = structuralReplacementWorkspaceIdForCreate(
+        let replacementMatch = structuralReplacementMatch(
             token: token,
             bundleId: resolvedBundleId,
             mode: trackedMode,
@@ -2880,7 +2913,7 @@ final class AXEventHandler: CGSEventDelegate {
             parentWindowId: evaluation.facts.windowServer?.parentId,
             inheritTrackedParentWorkspace: inheritTrackedParentWorkspace,
             preferSameAppSiblingWorkspace: preferSameAppSiblingWorkspace,
-            structuralReplacementWorkspaceId: structuralReplacementWorkspaceId,
+            structuralReplacementWorkspaceId: replacementMatch?.workspaceId,
             restrictWorkspaceRuleToPlacementMonitor: trackedMode != .floating,
             createPlacementContext: createPlacementContext,
             windowFrame: placementFrame,
@@ -2905,7 +2938,7 @@ final class AXEventHandler: CGSEventDelegate {
                 mode: trackedMode,
                 facts: evaluation.facts
             ),
-            hasStructuralReplacementWorkspaceMatch: structuralReplacementWorkspaceId != nil,
+            structuralReplacementMatch: replacementMatch,
             requiresPostCreateLifecycleVerification: requiresPostCreateLifecycleVerification(
                 trackedMode: trackedMode,
                 facts: evaluation.facts
@@ -3094,7 +3127,17 @@ final class AXEventHandler: CGSEventDelegate {
             return true
         }
 
-        return candidate.hasStructuralReplacementWorkspaceMatch
+        return candidate.structuralReplacementMatch?.source == .pendingDestroy
+    }
+
+    private func completeLiveStructuralReplacementCreate(_ candidate: PreparedCreate) -> Bool {
+        guard let match = candidate.structuralReplacementMatch,
+              match.source == .liveInvisible
+        else {
+            return false
+        }
+
+        return rekeyManagedReplacement(from: match.token, to: candidate)
     }
 
     private func shouldDelayManagedReplacementDestroy(_ candidate: PreparedDestroy) -> Bool {
@@ -3405,11 +3448,25 @@ final class AXEventHandler: CGSEventDelegate {
         guard managedReplacementCorrelationPolicy(for: baseMetadata) != nil else { return nil }
 
         var match: StructuralReplacementMatch?
-        func recordMatch(token: WindowToken, workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        var visibleWindowIds: Set<Int>?
+
+        func oldLiveTokenIsInvisible(_ token: WindowToken) -> Bool {
+            if visibleWindowIds == nil {
+                visibleWindowIds = Set(visibleWindowInfoProvider().map { Int($0.id) })
+            }
+            guard let visibleWindowIds, !visibleWindowIds.isEmpty else { return false }
+            return !visibleWindowIds.contains(token.windowId)
+        }
+
+        func recordMatch(
+            token: WindowToken,
+            workspaceId: WorkspaceDescriptor.ID,
+            source: StructuralReplacementMatchSource
+        ) -> Bool {
             if match != nil {
                 return false
             }
-            match = StructuralReplacementMatch(token: token, workspaceId: workspaceId)
+            match = StructuralReplacementMatch(token: token, workspaceId: workspaceId, source: source)
             return true
         }
 
@@ -3428,7 +3485,11 @@ final class AXEventHandler: CGSEventDelegate {
             for destroy in burst.destroys where destroy.candidate.token.pid == token.pid {
                 let metadata = destroy.candidate.replacementMetadata
                 if matches(metadata, oldToken: destroy.candidate.token),
-                   !recordMatch(token: destroy.candidate.token, workspaceId: metadata.workspaceId)
+                   !recordMatch(
+                       token: destroy.candidate.token,
+                       workspaceId: metadata.workspaceId,
+                       source: .pendingDestroy
+                   )
                 {
                     return nil
                 }
@@ -3436,12 +3497,18 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         for entry in controller.workspaceManager.entries(forPid: token.pid) where entry.token != token {
+            guard oldLiveTokenIsInvisible(entry.token) else { continue }
+
             let cachedMetadata = cachedManagedReplacementMetadata(
                 for: entry,
                 fallbackBundleId: bundleId
             )
             if matches(cachedMetadata, oldToken: entry.token),
-               !recordMatch(token: entry.token, workspaceId: cachedMetadata.workspaceId)
+               !recordMatch(
+                   token: entry.token,
+                   workspaceId: cachedMetadata.workspaceId,
+                   source: .liveInvisible
+               )
             {
                 return nil
             }
@@ -3454,7 +3521,11 @@ final class AXEventHandler: CGSEventDelegate {
             )
             if liveMetadata != cachedMetadata,
                matches(liveMetadata, oldToken: entry.token),
-               !recordMatch(token: entry.token, workspaceId: liveMetadata.workspaceId)
+               !recordMatch(
+                   token: entry.token,
+                   workspaceId: liveMetadata.workspaceId,
+                   source: .liveInvisible
+               )
             {
                 return nil
             }

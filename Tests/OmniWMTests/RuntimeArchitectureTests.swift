@@ -158,7 +158,6 @@ final class RuntimeArchitectureTests: XCTestCase {
         var transaction = ManagedReplacementFocusTransaction(
             key: key,
             anchorToken: oldToken,
-            selectedNodeId: nil,
             protectedToken: tempToken
         )
 
@@ -184,7 +183,6 @@ final class RuntimeArchitectureTests: XCTestCase {
         let transaction = ManagedReplacementFocusTransaction(
             key: key,
             anchorToken: anchorToken,
-            selectedNodeId: nil,
             protectedToken: tempToken
         )
 
@@ -1659,6 +1657,260 @@ final class RuntimeArchitectureTests: XCTestCase {
     }
 
     @MainActor
+    func testNiriLiveCreateInSelectedTabbedColumnCreatesNormalColumn() async throws {
+        let columnWidth: CGFloat = 320
+        let controller = Self.controller()
+        let workspaceId = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
+        _ = controller.workspaceManager.focusWorkspace(named: "1")
+        controller.niriLayoutHandler.enableNiriLayout()
+        controller.layoutRefreshController.layoutState.hasCompletedInitialRefresh = true
+
+        let existingTokens = Self.addNiriRuntimeWindows(
+            count: 2,
+            pidBase: 765_500,
+            windowBase: 765_600,
+            to: workspaceId,
+            controller: controller
+        )
+        let engine = try XCTUnwrap(controller.niriEngine)
+        Self.seedNiriEngineColumns(
+            tokens: existingTokens,
+            workspaceId: workspaceId,
+            engine: engine,
+            columnWidth: columnWidth,
+            tabbedColumnIndex: 0
+        )
+
+        var state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let initialColumns = engine.columns(in: workspaceId)
+        let selectedNode = try XCTUnwrap(initialColumns[0].windowNodes.first)
+        state.selectedNodeId = selectedNode.id
+        state.activeColumnIndex = 0
+        state.viewOffsetPixels = .static(0)
+        _ = controller.workspaceManager.applySessionPatch(
+            WorkspaceSessionPatch(
+                workspaceId: workspaceId,
+                viewportState: state,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
+            )
+        )
+
+        let newToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(765_502), windowId: 765_602),
+            pid: 765_502,
+            windowId: 765_602,
+            to: workspaceId
+        )
+
+        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(activeWorkspaces: [workspaceId])
+        let plan = try XCTUnwrap(plans.first)
+        let patchedState = try XCTUnwrap(plan.sessionPatch.viewportState)
+        let finalColumns = engine.columns(in: workspaceId)
+        let newNode = try XCTUnwrap(engine.findNode(for: newToken))
+        let newColumn = try XCTUnwrap(engine.column(of: newNode))
+
+        XCTAssertEqual(finalColumns.count, initialColumns.count + 1)
+        XCTAssertEqual(finalColumns[0].displayMode, .tabbed)
+        XCTAssertEqual(finalColumns[0].windowNodes.map(\.token), [existingTokens[0]])
+        XCTAssertEqual(newColumn.displayMode, .normal)
+        XCTAssertEqual(newColumn.windowNodes.map(\.token), [newToken])
+        XCTAssertTrue(plan.animationDirectives.containsStartNiriScroll(for: workspaceId))
+        XCTAssertTrue(engine.hasAnyColumnAnimationsRunning(in: workspaceId))
+        XCTAssertEqual(patchedState.selectedNodeId, newNode.id)
+        XCTAssertTrue(plan.animationDirectives.containsActivateWindow(newToken))
+    }
+
+    @MainActor
+    func testNiriVisibleSameAppCreateDoesNotRekeyOrAutoTab() async throws {
+        let controller = Self.controller()
+        let workspaceId = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
+        _ = controller.workspaceManager.focusWorkspace(named: "1")
+        controller.niriLayoutHandler.enableNiriLayout()
+        controller.layoutRefreshController.layoutState.hasCompletedInitialRefresh = true
+
+        let frame = CGRect(x: 160, y: 120, width: 720, height: 520)
+        let existingToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(765_510), windowId: 765_610),
+            pid: 765_510,
+            windowId: 765_610,
+            to: workspaceId,
+            managedReplacementMetadata: Self.managedReplacementMetadata(
+                workspaceId: workspaceId,
+                pid: 765_510,
+                frame: frame
+            )
+        )
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let existingNode = engine.addWindow(
+            token: existingToken,
+            to: workspaceId,
+            afterSelection: nil
+        )
+        var state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        state.selectedNodeId = existingNode.id
+        state.activeColumnIndex = 0
+        state.viewOffsetPixels = .static(0)
+        _ = controller.workspaceManager.applySessionPatch(
+            WorkspaceSessionPatch(
+                workspaceId: workspaceId,
+                viewportState: state,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
+            )
+        )
+
+        let newToken = WindowToken(pid: 765_510, windowId: 765_611)
+        controller.axEventHandler.visibleWindowInfoProvider = {
+            [
+                Self.visibleWindowInfo(pid: existingToken.pid, windowId: existingToken.windowId, frame: frame),
+                Self.visibleWindowInfo(pid: newToken.pid, windowId: newToken.windowId, frame: frame)
+            ]
+        }
+        XCTAssertFalse(
+            controller.axEventHandler.rekeyStructuralManagedReplacementIfNeeded(
+                token: newToken,
+                windowId: UInt32(newToken.windowId),
+                axRef: AXWindowRef(
+                    element: AXUIElementCreateApplication(newToken.pid),
+                    windowId: newToken.windowId
+                ),
+                bundleId: Self.nativeTabBundleId(pid: newToken.pid),
+                mode: .tiling,
+                facts: Self.nativeTabFacts(pid: newToken.pid, windowId: newToken.windowId, frame: frame)
+            )
+        )
+        _ = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(newToken.pid), windowId: newToken.windowId),
+            pid: newToken.pid,
+            windowId: newToken.windowId,
+            to: workspaceId,
+            managedReplacementMetadata: Self.managedReplacementMetadata(
+                workspaceId: workspaceId,
+                pid: newToken.pid,
+                frame: frame
+            )
+        )
+
+        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(activeWorkspaces: [workspaceId])
+        let plan = try XCTUnwrap(plans.first)
+        let newNode = try XCTUnwrap(engine.findNode(for: newToken))
+        let leaderColumn = try XCTUnwrap(engine.column(of: existingNode))
+        let newColumn = try XCTUnwrap(engine.column(of: newNode))
+
+        XCTAssertFalse(leaderColumn === newColumn)
+        XCTAssertEqual(engine.columns(in: workspaceId).count, 2)
+        XCTAssertEqual(leaderColumn.displayMode, .normal)
+        XCTAssertEqual(newColumn.displayMode, .normal)
+        XCTAssertTrue(plan.animationDirectives.containsStartNiriScroll(for: workspaceId))
+        XCTAssertTrue(plan.animationDirectives.containsActivateWindow(newToken))
+    }
+
+    @MainActor
+    func testNiriNativeMacOSTabRekeysInvisibleSiblingWithoutOmniWMTab() async throws {
+        let columnWidth: CGFloat = 320
+        let controller = Self.controller()
+        let workspaceId = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
+        _ = controller.workspaceManager.focusWorkspace(named: "1")
+        controller.niriLayoutHandler.enableNiriLayout()
+        controller.layoutRefreshController.layoutState.hasCompletedInitialRefresh = true
+
+        let nativeFrame = CGRect(x: 160, y: 120, width: 720, height: 520)
+        let leftToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(765_520), windowId: 765_620),
+            pid: 765_520,
+            windowId: 765_620,
+            to: workspaceId
+        )
+        let oldToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(765_521), windowId: 765_621),
+            pid: 765_521,
+            windowId: 765_621,
+            to: workspaceId,
+            managedReplacementMetadata: Self.managedReplacementMetadata(
+                workspaceId: workspaceId,
+                pid: 765_521,
+                frame: nativeFrame
+            )
+        )
+        let rightToken = controller.workspaceManager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(765_522), windowId: 765_622),
+            pid: 765_522,
+            windowId: 765_622,
+            to: workspaceId
+        )
+        let engine = try XCTUnwrap(controller.niriEngine)
+        Self.seedNiriEngineColumns(
+            tokens: [leftToken, oldToken, rightToken],
+            workspaceId: workspaceId,
+            engine: engine,
+            columnWidth: columnWidth,
+            tabbedColumnIndex: -1
+        )
+
+        let monitor = try XCTUnwrap(controller.workspaceManager.monitor(for: workspaceId))
+        var state = controller.workspaceManager.niriViewportState(for: workspaceId)
+        let initialColumns = engine.columns(in: workspaceId)
+        let oldNode = try XCTUnwrap(engine.findNode(for: oldToken))
+        let gap = CGFloat(controller.workspaceManager.gaps)
+        let selectedColumnX = state.columnX(at: 1, columns: initialColumns, gap: gap)
+        let viewOrigin = selectedColumnX - (monitor.visibleFrame.width - columnWidth) / 2
+        state.selectedNodeId = oldNode.id
+        state.activeColumnIndex = 1
+        state.viewOffsetPixels = .static(viewOrigin - selectedColumnX)
+        _ = controller.workspaceManager.applySessionPatch(
+            WorkspaceSessionPatch(
+                workspaceId: workspaceId,
+                viewportState: state,
+                runtimeRevision: controller.workspaceManager.runtimeRevision(for: workspaceId)
+            )
+        )
+
+        let newToken = WindowToken(pid: oldToken.pid, windowId: 765_623)
+        controller.axEventHandler.visibleWindowInfoProvider = {
+            [
+                Self.visibleWindowInfo(pid: newToken.pid, windowId: newToken.windowId, frame: nativeFrame)
+            ]
+        }
+
+        XCTAssertTrue(
+            controller.axEventHandler.rekeyStructuralManagedReplacementIfNeeded(
+                token: newToken,
+                windowId: UInt32(newToken.windowId),
+                axRef: AXWindowRef(
+                    element: AXUIElementCreateApplication(newToken.pid),
+                    windowId: newToken.windowId
+                ),
+                bundleId: Self.nativeTabBundleId(pid: newToken.pid),
+                mode: .tiling,
+                facts: Self.nativeTabFacts(pid: newToken.pid, windowId: newToken.windowId, frame: nativeFrame)
+            )
+        )
+        XCTAssertNil(controller.workspaceManager.entry(for: oldToken))
+        XCTAssertNotNil(controller.workspaceManager.entry(for: newToken))
+
+        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+            activeWorkspaces: [workspaceId],
+            useScrollAnimationPath: true
+        )
+        let plan = try XCTUnwrap(plans.first)
+        let patchedState = try XCTUnwrap(plan.sessionPatch.viewportState)
+        let finalColumns = engine.columns(in: workspaceId)
+        let newNode = try XCTUnwrap(engine.findNode(for: newToken))
+        let patchedViewOrigin = patchedState.viewPosPixels(columns: finalColumns, gap: gap)
+
+        XCTAssertNil(engine.findNode(for: oldToken))
+        XCTAssertEqual(newNode.id, oldNode.id)
+        XCTAssertEqual(finalColumns.count, initialColumns.count)
+        XCTAssertEqual(finalColumns[1].displayMode, .normal)
+        XCTAssertEqual(finalColumns[1].windowNodes.map(\.token), [newToken])
+        XCTAssertFalse(plan.animationDirectives.containsStartNiriScroll(for: workspaceId))
+        XCTAssertFalse(engine.hasAnyColumnAnimationsRunning(in: workspaceId))
+        XCTAssertFalse(engine.hasAnyWindowAnimationsRunning(in: workspaceId))
+        XCTAssertFalse(patchedState.viewOffsetPixels.isAnimating)
+        XCTAssertEqual(patchedViewOrigin, viewOrigin, accuracy: 0.001)
+        XCTAssertEqual(patchedState.selectedNodeId, newNode.id)
+    }
+
+    @MainActor
     func testNiriFocusedRemovalPreferredRecoveryUsesLayoutRememberedToken() async throws {
         var focusedTokens: [WindowToken] = []
         let controller = Self.controller(
@@ -2158,6 +2410,70 @@ final class RuntimeArchitectureTests: XCTestCase {
                 savedHeight: nil,
                 windowWidth: .auto(weight: 1)
             )
+        )
+    }
+
+    private static func managedReplacementMetadata(
+        workspaceId: WorkspaceDescriptor.ID,
+        pid: pid_t,
+        frame: CGRect
+    ) -> ManagedReplacementMetadata {
+        ManagedReplacementMetadata(
+            bundleId: nativeTabBundleId(pid: pid),
+            workspaceId: workspaceId,
+            mode: .tiling,
+            role: kAXWindowRole as String,
+            subrole: kAXStandardWindowSubrole as String,
+            title: "native-tab",
+            windowLevel: 0,
+            parentWindowId: nil,
+            frame: frame
+        )
+    }
+
+    private static func nativeTabBundleId(pid: pid_t) -> String {
+        "com.omniwm.tests.native-tabs.\(pid)"
+    }
+
+    private static func nativeTabFacts(
+        pid: pid_t,
+        windowId: Int,
+        frame: CGRect
+    ) -> WindowRuleFacts {
+        WindowRuleFacts(
+            appName: "Native Tabs",
+            ax: AXWindowFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                title: "native-tab",
+                hasCloseButton: true,
+                hasFullscreenButton: true,
+                fullscreenButtonEnabled: true,
+                hasZoomButton: true,
+                hasMinimizeButton: true,
+                appPolicy: .regular,
+                bundleId: nativeTabBundleId(pid: pid),
+                attributeFetchSucceeded: true
+            ),
+            sizeConstraints: nil,
+            windowServer: visibleWindowInfo(pid: pid, windowId: windowId, frame: frame)
+        )
+    }
+
+    private static func visibleWindowInfo(
+        pid: pid_t,
+        windowId: Int,
+        frame: CGRect
+    ) -> WindowServerInfo {
+        WindowServerInfo(
+            id: UInt32(windowId),
+            pid: pid,
+            level: 0,
+            frame: frame,
+            tags: 1,
+            attributes: 2,
+            parentId: 0,
+            title: nil
         )
     }
 

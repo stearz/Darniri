@@ -124,22 +124,6 @@ extension NiriLayoutEngine {
             root.columns.last
         }
 
-        if let refCol = referenceColumn, refCol.displayMode == .tabbed {
-            let windowNode = NiriWindow(token: token)
-            refCol.appendChild(windowNode)
-            tokenToNode[token] = windowNode
-            return windowNode
-        }
-
-        for col in root.columns where col.displayMode == .tabbed {
-            if col.windowNodes.contains(where: { $0.token.pid == token.pid }) {
-                let windowNode = NiriWindow(token: token)
-                col.appendChild(windowNode)
-                tokenToNode[token] = windowNode
-                return windowNode
-            }
-        }
-
         let newColumn = NiriContainer()
         initializeNewColumnWidth(newColumn, in: workspaceId)
         if let refCol = referenceColumn {
