@@ -2,76 +2,50 @@
 import Carbon
 import Foundation
 
-enum HotkeyRegistrationAction: Equatable {
-    case command(HotkeyCommand)
-    case sequencePrefix(KeyBinding)
-}
-
 struct HotkeyPlannedRegistration: Equatable {
     let binding: KeyBinding
-    let action: HotkeyRegistrationAction
+    let command: HotkeyCommand
 
     init(binding: KeyBinding, command: HotkeyCommand) {
         self.binding = binding
-        action = .command(command)
-    }
-
-    init(binding: KeyBinding, action: HotkeyRegistrationAction) {
-        self.binding = binding
-        self.action = action
+        self.command = command
     }
 }
 
 enum HotkeyRegistrationFailureReason: Equatable {
     case duplicateBinding
-    case duplicateSequence
-    case prefixAmbiguity
-    case invalidSequenceRoot
-    case sequenceRootConflict
-    case hyperLeaderConflict
+    case hyperTriggerConflict
     case unsupportedHyperModifiers
-    case unsupportedSequenceHyperStep
-    case inputMonitoringDenied
     case eventTapUnavailable
     case systemReserved
-}
-
-struct HotkeySequenceNode: Equatable {
-    var children: [KeyBinding: Int] = [:]
-    var command: HotkeyCommand?
 }
 
 struct HotkeyRegistrationPlan: Equatable {
     let registrations: [HotkeyPlannedRegistration]
     let virtualHyperRegistrations: [HotkeyPlannedRegistration]
     var failures: [HotkeyCommand: HotkeyRegistrationFailureReason]
-    let sequenceNodes: [HotkeySequenceNode]
-    let sequenceCommands: Set<HotkeyCommand>
 }
 
 struct HotkeyRuntimeConfiguration: Equatable {
     let bindings: [HotkeyBinding]
     let hyperTrigger: HyperKeyTrigger
-    let leaderKey: KeyBinding
-    let sequenceTimeoutMilliseconds: Int
+    let hyperKeyHoldThresholdMilliseconds: Int
 
     init(
         bindings: [HotkeyBinding] = [],
         hyperTrigger: HyperKeyTrigger = .default,
-        leaderKey: KeyBinding = .defaultLeader,
-        sequenceTimeoutMilliseconds: Int = 800
+        hyperKeyHoldThresholdMilliseconds: Int = 150
     ) {
         self.bindings = bindings
         self.hyperTrigger = hyperTrigger
-        self.leaderKey = leaderKey.isUnassigned ? .defaultLeader : leaderKey
-        self.sequenceTimeoutMilliseconds = max(100, sequenceTimeoutMilliseconds)
+        self.hyperKeyHoldThresholdMilliseconds = max(0, min(1500, hyperKeyHoldThresholdMilliseconds))
     }
 }
 
 enum VirtualHyperKeyDownDecision: Equatable {
     case passThrough
     case suppress
-    case dispatch(HotkeyRegistrationAction)
+    case dispatch(HotkeyCommand)
 }
 
 struct SmallValueSet<Element: Equatable>: Equatable {
@@ -140,18 +114,83 @@ struct SmallValueSet<Element: Equatable>: Equatable {
 }
 
 struct VirtualHyperEventState: Equatable {
+    private enum PendingTrigger: Equatable {
+        case key(UInt32)
+        case mouseButton(Int64)
+    }
+
     var isActive = false
     var consumedKeyCodes = SmallValueSet<UInt32>()
     var consumedMouseButtons = SmallValueSet<Int64>()
+    private var pendingTrigger: PendingTrigger?
+
+    var isPending: Bool {
+        pendingTrigger != nil
+    }
 
     mutating func reset() {
         isActive = false
+        pendingTrigger = nil
         consumedKeyCodes.removeAll(keepingCapacity: true)
         consumedMouseButtons.removeAll(keepingCapacity: true)
     }
 
+    func pendingKeyMatches(_ keyCode: UInt32, trigger: HyperKeyTrigger) -> Bool {
+        guard trigger.keyboardKeyCode == keyCode,
+              case let .key(pendingKeyCode) = pendingTrigger
+        else { return false }
+        return pendingKeyCode == keyCode
+    }
+
+    func pendingMouseButtonMatches(_ button: Int64, trigger: HyperKeyTrigger) -> Bool {
+        guard trigger.mouseButtonNumber == button,
+              case let .mouseButton(pendingButton) = pendingTrigger
+        else { return false }
+        return pendingButton == button
+    }
+
+    mutating func beginPendingKeyDown(_ keyCode: UInt32, trigger: HyperKeyTrigger) -> Bool {
+        guard trigger.keyboardKeyCode == keyCode,
+              pendingTrigger == nil,
+              !isActive
+        else { return false }
+        pendingTrigger = .key(keyCode)
+        consumedKeyCodes.insert(keyCode)
+        return true
+    }
+
+    mutating func beginPendingMouseDown(_ button: Int64, trigger: HyperKeyTrigger) -> Bool {
+        guard trigger.mouseButtonNumber == button,
+              pendingTrigger == nil,
+              !isActive
+        else { return false }
+        pendingTrigger = .mouseButton(button)
+        consumedMouseButtons.insert(button)
+        return true
+    }
+
+    mutating func promotePending() -> Bool {
+        guard pendingTrigger != nil else { return false }
+        pendingTrigger = nil
+        isActive = true
+        return true
+    }
+
+    mutating func cancelPending() -> Bool {
+        guard let pendingTrigger else { return false }
+        switch pendingTrigger {
+        case let .key(keyCode):
+            consumedKeyCodes.remove(keyCode)
+        case let .mouseButton(button):
+            consumedMouseButtons.remove(button)
+        }
+        self.pendingTrigger = nil
+        return true
+    }
+
     mutating func handleTriggerMouseDown(_ button: Int64, trigger: HyperKeyTrigger) -> Bool {
         guard trigger.mouseButtonNumber == button else { return false }
+        pendingTrigger = nil
         isActive = true
         consumedMouseButtons.insert(button)
         return true
@@ -168,6 +207,7 @@ struct VirtualHyperEventState: Equatable {
 
     mutating func handleTriggerKeyDown(_ keyCode: UInt32, trigger: HyperKeyTrigger) -> Bool {
         guard trigger.keyboardKeyCode == keyCode else { return false }
+        pendingTrigger = nil
         isActive = true
         consumedKeyCodes.insert(keyCode)
         return true
@@ -217,8 +257,7 @@ struct VirtualHyperEventState: Equatable {
         keyCode: UInt32,
         isAutorepeat: Bool,
         trigger: HyperKeyTrigger,
-        sequenceIsActive: Bool,
-        action: HotkeyRegistrationAction?
+        command: HotkeyCommand?
     ) -> VirtualHyperKeyDownDecision {
         if handleTriggerKeyDown(keyCode, trigger: trigger) {
             return .suppress
@@ -226,18 +265,15 @@ struct VirtualHyperEventState: Equatable {
         guard isActive else {
             return consumedKeyCodes.contains(keyCode) ? .suppress : .passThrough
         }
-        guard !sequenceIsActive else {
-            return .passThrough
-        }
 
-        guard let action else {
+        guard let command else {
             return .passThrough
         }
         if isAutorepeat {
             return .suppress
         }
         consumeKeyCode(keyCode)
-        return .dispatch(action)
+        return .dispatch(command)
     }
 
     private static func modifierFlagIsActive(for keyCode: UInt32, flags: CGEventFlags) -> Bool? {
@@ -259,34 +295,29 @@ struct VirtualHyperEventState: Equatable {
 @MainActor
 final class HotkeyCenter {
     var onCommand: ((HotkeyCommand) -> Void)?
-    var sequenceEventAccessProvider: () -> Bool = { HotkeyCenter.sequenceEventAccessGranted() }
-    var sequenceTapSetupOverride: (() -> Bool)?
     var virtualHyperTapSetupOverride: (() -> Bool)?
 
     private var refs: [EventHotKeyRef?] = []
     private var handler: EventHandlerRef?
     private var isRunning = false
-    private var idToAction: [UInt32: HotkeyRegistrationAction] = [:]
+    private var idToCommand: [UInt32: HotkeyCommand] = [:]
 
     private var configuration = HotkeyRuntimeConfiguration()
-    private var sequenceNodes: [HotkeySequenceNode] = []
-    private var activeSequenceNode: Int?
-    private var consumedSequenceKeyCodes = SmallValueSet<UInt32>()
-    private var sequenceTimeoutWorkItem: DispatchWorkItem?
-    private var sequenceTap: CFMachPort?
-    private var sequenceRunLoopSource: CFRunLoopSource?
-    private var pendingSequenceCommands: [HotkeyCommand] = []
-    private var pendingSequenceDrainScheduled = false
-    private var virtualHyperRegistrations: [KeyBinding: HotkeyRegistrationAction] = [:]
+    private var pendingCommands: [HotkeyCommand] = []
+    private var pendingCommandDrainScheduled = false
+    private var virtualHyperRegistrations: [KeyBinding: HotkeyCommand] = [:]
     private var virtualHyperTap: CFMachPort?
     private var virtualHyperRunLoopSource: CFRunLoopSource?
     private var virtualHyperState = VirtualHyperEventState()
+    private var pendingVirtualHyperDownEvent: CGEvent?
+    private var virtualHyperHoldWorkItem: DispatchWorkItem?
 
     private(set) var registrationFailures: [HotkeyCommand: HotkeyRegistrationFailureReason] = [:]
 
+    private nonisolated static let virtualHyperReplayEventUserData: Int64 = 0x4F4D_4E49_5648_5950
+
     deinit {
         MainActor.assumeIsolated {
-            stopSequenceTap()
             stopVirtualHyperTap()
         }
     }
@@ -333,15 +364,13 @@ final class HotkeyCenter {
     func updateBindings(
         _ newBindings: [HotkeyBinding],
         hyperTrigger newHyperTrigger: HyperKeyTrigger = .default,
-        leaderKey newLeaderKey: KeyBinding = .defaultLeader,
-        sequenceTimeoutMilliseconds newSequenceTimeoutMilliseconds: Int = 800,
+        hyperKeyHoldThresholdMilliseconds newHyperKeyHoldThresholdMilliseconds: Int = 150,
         force: Bool = false
     ) {
         let nextConfiguration = HotkeyRuntimeConfiguration(
             bindings: newBindings,
             hyperTrigger: newHyperTrigger,
-            leaderKey: newLeaderKey,
-            sequenceTimeoutMilliseconds: newSequenceTimeoutMilliseconds
+            hyperKeyHoldThresholdMilliseconds: newHyperKeyHoldThresholdMilliseconds
         )
         guard force || nextConfiguration != configuration else { return }
         configuration = nextConfiguration
@@ -351,55 +380,37 @@ final class HotkeyCenter {
     }
 
     private func unregisterAll() {
-        cancelActiveSequence()
         for ref in refs {
             if let ref { UnregisterEventHotKey(ref) }
         }
         refs.removeAll()
-        idToAction.removeAll()
-        sequenceNodes.removeAll()
-        pendingSequenceCommands.removeAll()
-        pendingSequenceDrainScheduled = false
+        idToCommand.removeAll()
+        pendingCommands.removeAll()
+        pendingCommandDrainScheduled = false
         virtualHyperRegistrations.removeAll()
-        stopSequenceTap()
         stopVirtualHyperTap()
     }
 
     private func registerHotkeys() {
         unregisterAll()
-        var plan = Self.registrationPlan(
+        let plan = Self.registrationPlan(
             for: configuration.bindings,
-            hyperTrigger: configuration.hyperTrigger,
-            leaderKey: configuration.leaderKey,
-            sequenceEventAccessGranted: sequenceEventAccessProvider()
+            hyperTrigger: configuration.hyperTrigger
         )
-        sequenceNodes = plan.sequenceNodes
         virtualHyperRegistrations = Dictionary(
-            plan.virtualHyperRegistrations.map { ($0.binding, $0.action) },
+            plan.virtualHyperRegistrations.map { ($0.binding, $0.command) },
             uniquingKeysWith: { first, _ in first }
         )
-        var virtualHyperUnavailableActions: [HotkeyRegistrationAction] = []
-        if !plan.sequenceCommands.isEmpty, !setupSequenceTapIfNeeded() {
-            for command in plan.sequenceCommands {
-                plan.failures[command] = .eventTapUnavailable
-            }
-            sequenceNodes.removeAll()
-            virtualHyperRegistrations = virtualHyperRegistrations.filter { _, action in
-                if case .sequencePrefix = action {
-                    return false
-                }
-                return true
-            }
-        }
+        var virtualHyperUnavailableCommands: [HotkeyCommand] = []
         if !virtualHyperRegistrations.isEmpty, configuration.hyperTrigger.requiresEventTap, !setupVirtualHyperTapIfNeeded() {
-            virtualHyperUnavailableActions = Array(virtualHyperRegistrations.values)
+            virtualHyperUnavailableCommands = Array(virtualHyperRegistrations.values)
             virtualHyperRegistrations.removeAll()
         }
         registrationFailures = plan.failures
         var nextId: UInt32 = 1
 
         for registration in plan.registrations {
-            guard registrationFailuresForAction(registration.action).isEmpty else {
+            guard registrationFailures[registration.command] == nil else {
                 continue
             }
             var ref: EventHotKeyRef?
@@ -414,175 +425,30 @@ final class HotkeyCenter {
             )
             if status == noErr, let ref {
                 refs.append(ref)
-                idToAction[nextId] = registration.action
+                idToCommand[nextId] = registration.command
             } else {
-                markSystemReservedFailure(for: registration.action)
+                markSystemReservedFailure(for: registration.command)
             }
             nextId += 1
         }
 
-        for action in virtualHyperUnavailableActions {
-            markEventTapUnavailableFailure(for: action)
+        for command in virtualHyperUnavailableCommands {
+            markEventTapUnavailableFailure(for: command)
         }
-    }
-
-    private func registrationFailuresForAction(_ action: HotkeyRegistrationAction) -> [HotkeyRegistrationFailureReason] {
-        switch action {
-        case let .command(command):
-            return registrationFailures[command].map { [$0] } ?? []
-        case let .sequencePrefix(root):
-            guard let rootNode = sequenceNodes.first?.children[root] else { return [.invalidSequenceRoot] }
-            return sequenceCommands(from: rootNode).compactMap { registrationFailures[$0] }
-        }
-    }
-
-    private func markSystemReservedFailure(for action: HotkeyRegistrationAction) {
-        switch action {
-        case let .command(command):
-            registrationFailures[command] = .systemReserved
-        case let .sequencePrefix(root):
-            guard let rootNode = sequenceNodes.first?.children[root] else { return }
-            for command in sequenceCommands(from: rootNode) {
-                registrationFailures[command] = .systemReserved
-            }
-        }
-    }
-
-    private func markEventTapUnavailableFailure(for action: HotkeyRegistrationAction) {
-        switch action {
-        case let .command(command):
-            if registrationFailures[command] == nil {
-                registrationFailures[command] = .eventTapUnavailable
-            }
-        case let .sequencePrefix(root):
-            guard let rootNode = sequenceNodes.first?.children[root] else { return }
-            for command in sequenceCommands(from: rootNode) where registrationFailures[command] == nil {
-                registrationFailures[command] = .eventTapUnavailable
-            }
-        }
-    }
-
-    private func sequenceCommands(from nodeIndex: Int) -> [HotkeyCommand] {
-        guard sequenceNodes.indices.contains(nodeIndex) else { return [] }
-        var commands: [HotkeyCommand] = []
-        var stack = [nodeIndex]
-        while let current = stack.popLast() {
-            guard sequenceNodes.indices.contains(current) else { continue }
-            if let command = sequenceNodes[current].command {
-                commands.append(command)
-            }
-            stack.append(contentsOf: sequenceNodes[current].children.values)
-        }
-        return commands
     }
 
     private func dispatch(id: UInt32) {
-        guard let action = idToAction[id] else { return }
-        switch action {
-        case let .command(command):
-            onCommand?(command)
-        case let .sequencePrefix(root):
-            activateSequence(root: root)
-        }
+        guard let command = idToCommand[id] else { return }
+        onCommand?(command)
     }
 
-    private func activateSequence(root: KeyBinding, suppressRootKeyUp: Bool = true) {
-        guard let nextNode = sequenceNodes.first?.children[root],
-              sequenceTap != nil
-        else { return }
-        activeSequenceNode = nextNode
-        consumedSequenceKeyCodes.reserveCapacity(4)
-        if suppressRootKeyUp {
-            consumedSequenceKeyCodes.insert(root.keyCode)
-        }
-        if let tap = sequenceTap {
-            CGEvent.tapEnable(tap: tap, enable: true)
-        }
-        scheduleSequenceTimeout()
+    private func markSystemReservedFailure(for command: HotkeyCommand) {
+        registrationFailures[command] = .systemReserved
     }
 
-    private func cancelActiveSequence() {
-        activeSequenceNode = nil
-        sequenceTimeoutWorkItem?.cancel()
-        sequenceTimeoutWorkItem = nil
-        disableSequenceTapIfDrained()
-    }
-
-    private func resetSequenceState() {
-        activeSequenceNode = nil
-        consumedSequenceKeyCodes.removeAll(keepingCapacity: true)
-        sequenceTimeoutWorkItem?.cancel()
-        sequenceTimeoutWorkItem = nil
-        disableSequenceTapIfDrained()
-    }
-
-    private func disableSequenceTapIfDrained() {
-        if activeSequenceNode == nil, consumedSequenceKeyCodes.isEmpty, let tap = sequenceTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-    }
-
-    private func finishActiveSequence() {
-        activeSequenceNode = nil
-        sequenceTimeoutWorkItem?.cancel()
-        sequenceTimeoutWorkItem = nil
-        disableSequenceTapIfDrained()
-    }
-
-    private func scheduleSequenceTimeout() {
-        sequenceTimeoutWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            self?.cancelActiveSequence()
-        }
-        sequenceTimeoutWorkItem = item
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(configuration.sequenceTimeoutMilliseconds),
-            execute: item
-        )
-    }
-
-    private func setupSequenceTapIfNeeded() -> Bool {
-        if sequenceTap != nil { return true }
-        if let sequenceTapSetupOverride {
-            return sequenceTapSetupOverride()
-        }
-        let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
-        let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passUnretained(event) }
-            let center = Unmanaged<HotkeyCenter>.fromOpaque(userInfo).takeUnretainedValue()
-            return MainActor.assumeIsolated {
-                center.handleSequenceEvent(type: type, event: event)
-            }
-        }
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        sequenceTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
-            callback: callback,
-            userInfo: selfPtr
-        )
-        guard let tap = sequenceTap else { return false }
-        sequenceRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        guard let source = sequenceRunLoopSource else {
-            sequenceTap = nil
-            return false
-        }
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: false)
-        return true
-    }
-
-    private func stopSequenceTap() {
-        resetSequenceState()
-        if let source = sequenceRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-            sequenceRunLoopSource = nil
-        }
-        if let tap = sequenceTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            sequenceTap = nil
+    private func markEventTapUnavailableFailure(for command: HotkeyCommand) {
+        if registrationFailures[command] == nil {
+            registrationFailures[command] = .eventTapUnavailable
         }
     }
 
@@ -625,7 +491,7 @@ final class HotkeyCenter {
     }
 
     private func stopVirtualHyperTap() {
-        virtualHyperState.reset()
+        resetVirtualHyperState()
         if let source = virtualHyperRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             virtualHyperRunLoopSource = nil
@@ -636,86 +502,30 @@ final class HotkeyCenter {
         }
     }
 
-    private func handleSequenceEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        switch type {
-        case .tapDisabledByTimeout:
-            if (activeSequenceNode != nil || !consumedSequenceKeyCodes.isEmpty), let tap = sequenceTap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            }
-            return Unmanaged.passUnretained(event)
-        case .tapDisabledByUserInput:
-            cancelActiveSequence()
-            return Unmanaged.passUnretained(event)
-        case .keyDown:
-            return handleSequenceKeyDown(event)
-        case .keyUp:
-            return handleSequenceKeyUp(event)
-        default:
-            return Unmanaged.passUnretained(event)
-        }
-    }
-
-    private func handleSequenceKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        guard let activeSequenceNode else {
-            return consumedSequenceKeyCodes.contains(keyCode) ? nil : Unmanaged.passUnretained(event)
-        }
-        if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
-            return consumedSequenceKeyCodes.contains(keyCode) ? nil : Unmanaged.passUnretained(event)
-        }
-        let binding = KeyBinding(keyCode: keyCode, modifiers: matchingModifiers(from: event.flags))
-        if binding.keyCode == UInt32(kVK_Escape) {
-            consumedSequenceKeyCodes.insert(binding.keyCode)
-            cancelActiveSequence()
-            return nil
-        }
-        guard sequenceNodes.indices.contains(activeSequenceNode),
-              let nextNode = sequenceNodes[activeSequenceNode].children[binding]
-        else {
-            cancelActiveSequence()
-            return Unmanaged.passUnretained(event)
-        }
-        self.activeSequenceNode = nextNode
-        consumedSequenceKeyCodes.insert(binding.keyCode)
-        if let command = sequenceNodes[nextNode].command {
-            finishActiveSequence()
-            dispatchSequenceCommandLater(command)
-        } else {
-            scheduleSequenceTimeout()
-        }
-        return nil
-    }
-
-    private func dispatchSequenceCommandLater(_ command: HotkeyCommand) {
-        pendingSequenceCommands.append(command)
-        guard !pendingSequenceDrainScheduled else { return }
-        pendingSequenceDrainScheduled = true
+    private func dispatchCommandLater(_ command: HotkeyCommand) {
+        pendingCommands.append(command)
+        guard !pendingCommandDrainScheduled else { return }
+        pendingCommandDrainScheduled = true
         DispatchQueue.main.async { [weak self] in
-            self?.drainPendingSequenceCommands()
+            self?.drainPendingCommands()
         }
     }
 
-    private func drainPendingSequenceCommands() {
-        pendingSequenceDrainScheduled = false
+    private func drainPendingCommands() {
+        pendingCommandDrainScheduled = false
         var index = 0
-        while index < pendingSequenceCommands.count {
-            let command = pendingSequenceCommands[index]
+        while index < pendingCommands.count {
+            let command = pendingCommands[index]
             index += 1
             onCommand?(command)
         }
-        pendingSequenceCommands.removeAll(keepingCapacity: true)
-    }
-
-    private func handleSequenceKeyUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        guard consumedSequenceKeyCodes.remove(keyCode) != nil else {
-            return Unmanaged.passUnretained(event)
-        }
-        disableSequenceTapIfDrained()
-        return nil
+        pendingCommands.removeAll(keepingCapacity: true)
     }
 
     private func handleVirtualHyperEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if Self.isSyntheticVirtualHyperReplayEvent(event) {
+            return Unmanaged.passUnretained(event)
+        }
         switch type {
         case .tapDisabledByTimeout:
             if let tap = virtualHyperTap {
@@ -723,7 +533,7 @@ final class HotkeyCenter {
             }
             return Unmanaged.passUnretained(event)
         case .tapDisabledByUserInput:
-            virtualHyperState.reset()
+            resetVirtualHyperState()
             return Unmanaged.passUnretained(event)
         case .otherMouseDown:
             return handleVirtualHyperMouseDown(event)
@@ -742,6 +552,19 @@ final class HotkeyCenter {
 
     private func handleVirtualHyperMouseDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let button = event.getIntegerValueField(.mouseEventButtonNumber)
+        if configuration.hyperKeyHoldThresholdMilliseconds > 0 {
+            if virtualHyperState.pendingMouseButtonMatches(button, trigger: configuration.hyperTrigger) {
+                return nil
+            }
+            if virtualHyperState.beginPendingMouseDown(button, trigger: configuration.hyperTrigger) {
+                pendingVirtualHyperDownEvent = event.copy()
+                scheduleVirtualHyperHoldPromotion()
+                return nil
+            }
+        }
+        if virtualHyperState.isPending {
+            promotePendingVirtualHyper()
+        }
         guard virtualHyperState.handleTriggerMouseDown(button, trigger: configuration.hyperTrigger) else {
             return Unmanaged.passUnretained(event)
         }
@@ -750,6 +573,10 @@ final class HotkeyCenter {
 
     private func handleVirtualHyperMouseUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let button = event.getIntegerValueField(.mouseEventButtonNumber)
+        if virtualHyperState.pendingMouseButtonMatches(button, trigger: configuration.hyperTrigger) {
+            replayPendingVirtualHyperTap(releaseEvent: event)
+            return nil
+        }
         return virtualHyperState.handleTriggerMouseUp(button, trigger: configuration.hyperTrigger)
             ? nil
             : Unmanaged.passUnretained(event)
@@ -757,35 +584,46 @@ final class HotkeyCenter {
 
     private func handleVirtualHyperKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
-        let modifiers = matchingModifiers(from: event.flags)
-        let action: HotkeyRegistrationAction?
-        if virtualHyperState.isActive, activeSequenceNode == nil {
-            action = virtualHyperRegistrations[
-                KeyBinding(keyCode: keyCode, modifiers: modifiers, usesHyper: true)
-            ]
-        } else {
-            action = nil
+        if configuration.hyperKeyHoldThresholdMilliseconds > 0 {
+            if virtualHyperState.pendingKeyMatches(keyCode, trigger: configuration.hyperTrigger) {
+                return nil
+            }
+            if virtualHyperState.beginPendingKeyDown(keyCode, trigger: configuration.hyperTrigger) {
+                pendingVirtualHyperDownEvent = event.copy()
+                scheduleVirtualHyperHoldPromotion()
+                return nil
+            }
         }
+        if virtualHyperState.isPending {
+            promotePendingVirtualHyper()
+        }
+        let modifiers = matchingModifiers(from: event.flags)
+        let command = virtualHyperState.isActive
+            ? virtualHyperRegistrations[KeyBinding(keyCode: keyCode, modifiers: modifiers, usesHyper: true)]
+            : nil
         let decision = virtualHyperState.handleKeyDown(
             keyCode: keyCode,
             isAutorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
             trigger: configuration.hyperTrigger,
-            sequenceIsActive: activeSequenceNode != nil,
-            action: action
+            command: command
         )
         switch decision {
         case .passThrough:
             return Unmanaged.passUnretained(event)
         case .suppress:
             return nil
-        case let .dispatch(action):
-            dispatchVirtualHyperActionLater(action)
+        case let .dispatch(command):
+            dispatchCommandLater(command)
             return nil
         }
     }
 
     private func handleVirtualHyperKeyUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
+        if virtualHyperState.pendingKeyMatches(keyCode, trigger: configuration.hyperTrigger) {
+            replayPendingVirtualHyperTap(releaseEvent: event)
+            return nil
+        }
         return virtualHyperState.handleTriggerKeyUp(keyCode, trigger: configuration.hyperTrigger)
             ? nil
             : Unmanaged.passUnretained(event)
@@ -793,19 +631,72 @@ final class HotkeyCenter {
 
     private func handleVirtualHyperFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
+        if configuration.hyperKeyHoldThresholdMilliseconds > 0,
+           configuration.hyperTrigger.keyboardKeyCode == keyCode
+        {
+            let isPressed = Self.flagsChangedTriggerIsPressed(keyCode: keyCode, flags: event.flags)
+            if virtualHyperState.pendingKeyMatches(keyCode, trigger: configuration.hyperTrigger) {
+                if isPressed {
+                    return nil
+                }
+                replayPendingVirtualHyperTap(releaseEvent: event)
+                return nil
+            }
+            if isPressed,
+               virtualHyperState.beginPendingKeyDown(keyCode, trigger: configuration.hyperTrigger)
+            {
+                pendingVirtualHyperDownEvent = event.copy()
+                scheduleVirtualHyperHoldPromotion()
+                return nil
+            }
+        }
+        if virtualHyperState.isPending {
+            promotePendingVirtualHyper()
+        }
         guard virtualHyperState.handleTriggerFlagsChanged(keyCode: keyCode, flags: event.flags, trigger: configuration.hyperTrigger) else {
             return Unmanaged.passUnretained(event)
         }
         return nil
     }
 
-    private func dispatchVirtualHyperActionLater(_ action: HotkeyRegistrationAction) {
-        switch action {
-        case let .command(command):
-            dispatchSequenceCommandLater(command)
-        case let .sequencePrefix(root):
-            activateSequence(root: root, suppressRootKeyUp: false)
+    private func scheduleVirtualHyperHoldPromotion() {
+        virtualHyperHoldWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.promotePendingVirtualHyper()
         }
+        virtualHyperHoldWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(configuration.hyperKeyHoldThresholdMilliseconds), execute: item)
+    }
+
+    private func promotePendingVirtualHyper() {
+        guard virtualHyperState.promotePending() else { return }
+        virtualHyperHoldWorkItem?.cancel()
+        virtualHyperHoldWorkItem = nil
+        pendingVirtualHyperDownEvent = nil
+    }
+
+    private func replayPendingVirtualHyperTap(releaseEvent: CGEvent) {
+        virtualHyperHoldWorkItem?.cancel()
+        virtualHyperHoldWorkItem = nil
+        guard virtualHyperState.cancelPending(),
+              let down = pendingVirtualHyperDownEvent,
+              let up = releaseEvent.copy()
+        else {
+            pendingVirtualHyperDownEvent = nil
+            return
+        }
+        pendingVirtualHyperDownEvent = nil
+        Self.markSyntheticVirtualHyperReplayEvent(down)
+        Self.markSyntheticVirtualHyperReplayEvent(up)
+        down.post(tap: .cgSessionEventTap)
+        up.post(tap: .cgSessionEventTap)
+    }
+
+    private func resetVirtualHyperState() {
+        virtualHyperHoldWorkItem?.cancel()
+        virtualHyperHoldWorkItem = nil
+        pendingVirtualHyperDownEvent = nil
+        virtualHyperState.reset()
     }
 
     private func matchingModifiers(from flags: CGEventFlags) -> UInt32 {
@@ -820,67 +711,54 @@ final class HotkeyCenter {
         if flags.contains(.maskCommand) { modifiers |= UInt32(cmdKey) }
         return modifiers
     }
-}
 
-#if DEBUG
-extension HotkeyCenter {
-    func prepareVirtualHyperForTesting(
-        hyperTrigger: HyperKeyTrigger,
-        registrations: [KeyBinding: HotkeyRegistrationAction],
-        isActive: Bool = false,
-        sequenceIsActive: Bool = false
-    ) {
-        configuration = HotkeyRuntimeConfiguration(
-            bindings: configuration.bindings,
-            hyperTrigger: hyperTrigger,
-            leaderKey: configuration.leaderKey,
-            sequenceTimeoutMilliseconds: configuration.sequenceTimeoutMilliseconds
-        )
-        virtualHyperRegistrations = registrations
-        virtualHyperState.reset()
-        virtualHyperState.isActive = isActive
-        activeSequenceNode = sequenceIsActive ? 0 : nil
+    private nonisolated static func markSyntheticVirtualHyperReplayEvent(_ event: CGEvent) {
+        event.setIntegerValueField(.eventSourceUserData, value: virtualHyperReplayEventUserData)
     }
 
-    func handleVirtualHyperEventForTesting(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        handleVirtualHyperEvent(type: type, event: event)
+    private nonisolated static func isSyntheticVirtualHyperReplayEvent(_ event: CGEvent) -> Bool {
+        event.getIntegerValueField(.eventSourceUserData) == virtualHyperReplayEventUserData
     }
 
-    func drainPendingSequenceCommandsForTesting() {
-        drainPendingSequenceCommands()
+    private nonisolated static func flagsChangedTriggerIsPressed(keyCode: UInt32, flags: CGEventFlags) -> Bool {
+        switch Int(keyCode) {
+        case kVK_Shift, kVK_RightShift:
+            return flags.contains(.maskShift)
+        case kVK_Control, kVK_RightControl:
+            return flags.contains(.maskControl)
+        case kVK_Option, kVK_RightOption:
+            return flags.contains(.maskAlternate)
+        case kVK_Command, kVK_RightCommand:
+            return flags.contains(.maskCommand)
+        case kVK_CapsLock:
+            return flags.contains(.maskAlphaShift)
+        default:
+            return true
+        }
     }
 }
-#endif
 
 extension HotkeyCenter {
-    nonisolated static func sequenceEventAccessGranted() -> Bool {
+    nonisolated static func eventTapAccessGranted() -> Bool {
         CGPreflightListenEventAccess()
     }
 
     @discardableResult
-    nonisolated static func requestSequenceEventAccess() -> Bool {
+    nonisolated static func requestEventTapAccess() -> Bool {
         CGRequestListenEventAccess()
     }
 
     nonisolated static func registrationPlan(
         for bindings: [HotkeyBinding],
-        hyperTrigger: HyperKeyTrigger = .default,
-        leaderKey: KeyBinding = .defaultLeader,
-        sequenceEventAccessGranted: Bool = true
+        hyperTrigger: HyperKeyTrigger = .default
     ) -> HotkeyRegistrationPlan {
         struct DirectCandidate {
             let command: HotkeyCommand
             let binding: KeyBinding
         }
 
-        struct SequenceCandidate {
-            let command: HotkeyCommand
-            let resolved: [KeyBinding]
-        }
-
         var directOwners: [KeyBinding: [HotkeyCommand]] = [:]
         var directCandidates: [DirectCandidate] = []
-        var sequenceCandidates: [SequenceCandidate] = []
         var failures: [HotkeyCommand: HotkeyRegistrationFailureReason] = [:]
 
         func mark(_ command: HotkeyCommand, _ reason: HotkeyRegistrationFailureReason) {
@@ -906,17 +784,6 @@ extension HotkeyCenter {
                 guard !keyBinding.isUnassigned else { continue }
                 directOwners[keyBinding, default: []].append(binding.command)
                 directCandidates.append(DirectCandidate(command: binding.command, binding: keyBinding))
-            case .sequence:
-                guard let resolved = binding.binding.resolvedSequence(leaderKey: leaderKey),
-                      resolved.count >= 2,
-                      let root = resolved.first,
-                      !root.isUnassigned,
-                      !root.isBarePrintableRoot
-                else {
-                    mark(binding.command, .invalidSequenceRoot)
-                    continue
-                }
-                sequenceCandidates.append(SequenceCandidate(command: binding.command, resolved: resolved))
             }
         }
 
@@ -936,58 +803,12 @@ extension HotkeyCenter {
             }
         }
 
-        for lhsIndex in sequenceCandidates.indices {
-            for rhsIndex in sequenceCandidates.indices where rhsIndex > lhsIndex {
-                let lhs = sequenceCandidates[lhsIndex]
-                let rhs = sequenceCandidates[rhsIndex]
-                if lhs.resolved.conflictsElementwise(with: rhs.resolved, hyperTrigger: hyperTrigger) {
-                    mark(lhs.command, .duplicateSequence)
-                    mark(rhs.command, .duplicateSequence)
-                } else if lhs.resolved.isConflictPrefix(of: rhs.resolved, hyperTrigger: hyperTrigger) ||
-                    rhs.resolved.isConflictPrefix(of: lhs.resolved, hyperTrigger: hyperTrigger)
-                {
-                    mark(lhs.command, .prefixAmbiguity)
-                    mark(rhs.command, .prefixAmbiguity)
-                } else if let lhsRoot = lhs.resolved.first,
-                          let rhsRoot = rhs.resolved.first,
-                          lhsRoot != rhsRoot,
-                          lhsRoot.conflicts(with: rhsRoot, hyperTrigger: hyperTrigger)
-                {
-                    mark(lhs.command, .sequenceRootConflict)
-                    mark(rhs.command, .sequenceRootConflict)
-                }
-            }
-        }
-
-        for candidate in sequenceCandidates {
-            if candidate.resolved.dropFirst().contains(where: \.usesHyper) {
-                mark(candidate.command, .unsupportedSequenceHyperStep)
-            }
-            if candidate.resolved.contains(where: usesUnsupportedHyperModifiers) {
-                mark(candidate.command, .unsupportedHyperModifiers)
-            }
-            if candidate.resolved.contains(where: { $0.physicalKeyConflicts(with: hyperTrigger) }) {
-                mark(candidate.command, .hyperLeaderConflict)
-            }
-            guard let root = candidate.resolved.first else { continue }
-            for directCandidate in directCandidates where directCandidate.binding.conflicts(with: root, hyperTrigger: hyperTrigger) {
-                mark(candidate.command, .sequenceRootConflict)
-                mark(directCandidate.command, .sequenceRootConflict)
-            }
-        }
-
         for candidate in directCandidates where candidate.binding.physicalKeyConflicts(with: hyperTrigger) {
-            mark(candidate.command, .hyperLeaderConflict)
+            mark(candidate.command, .hyperTriggerConflict)
         }
 
         for candidate in directCandidates where usesUnsupportedHyperModifiers(candidate.binding) {
             mark(candidate.command, .unsupportedHyperModifiers)
-        }
-
-        if !sequenceEventAccessGranted {
-            for candidate in sequenceCandidates {
-                mark(candidate.command, .inputMonitoringDenied)
-            }
         }
 
         var registrations: [HotkeyPlannedRegistration] = []
@@ -1007,48 +828,10 @@ extension HotkeyCenter {
             }
         }
 
-        var sequenceNodes = [HotkeySequenceNode()]
-        var sequenceCommands: Set<HotkeyCommand> = []
-        var registeredRoots: Set<KeyBinding> = []
-        for candidate in sequenceCandidates where failures[candidate.command] == nil {
-            var nodeIndex = 0
-            for binding in candidate.resolved {
-                if let existing = sequenceNodes[nodeIndex].children[binding] {
-                    nodeIndex = existing
-                } else {
-                    let newIndex = sequenceNodes.count
-                    sequenceNodes.append(HotkeySequenceNode())
-                    sequenceNodes[nodeIndex].children[binding] = newIndex
-                    nodeIndex = newIndex
-                }
-            }
-            sequenceNodes[nodeIndex].command = candidate.command
-            sequenceCommands.insert(candidate.command)
-            if let root = candidate.resolved.first, registeredRoots.insert(root).inserted {
-                let action = HotkeyRegistrationAction.sequencePrefix(root)
-                if root.usesHyper, hyperTrigger.requiresEventTap {
-                    virtualHyperRegistrations.append(HotkeyPlannedRegistration(binding: root, action: action))
-                }
-                let carbonRoot = root.usesHyper && hyperTrigger.requiresEventTap
-                    ? nil
-                    : root.carbonCompatibilityBinding(for: hyperTrigger) ?? (root.usesHyper ? nil : root)
-                if let carbonRoot {
-                    registrations.append(
-                        HotkeyPlannedRegistration(
-                            binding: carbonRoot,
-                            action: action
-                        )
-                    )
-                }
-            }
-        }
-
         return HotkeyRegistrationPlan(
             registrations: registrations,
             virtualHyperRegistrations: virtualHyperRegistrations,
-            failures: failures,
-            sequenceNodes: sequenceNodes,
-            sequenceCommands: sequenceCommands
+            failures: failures
         )
     }
 }
@@ -1057,15 +840,5 @@ private extension KeyBinding {
     func physicalKeyConflicts(with hyperTrigger: HyperKeyTrigger) -> Bool {
         guard !isUnassigned else { return false }
         return hyperTrigger.matchesPhysicalKeyCode(keyCode)
-    }
-}
-
-private extension Array where Element == KeyBinding {
-    func conflictsElementwise(with other: [KeyBinding], hyperTrigger: HyperKeyTrigger) -> Bool {
-        count == other.count && zip(self, other).allSatisfy { $0.conflicts(with: $1, hyperTrigger: hyperTrigger) }
-    }
-
-    func isConflictPrefix(of other: [KeyBinding], hyperTrigger: HyperKeyTrigger) -> Bool {
-        count < other.count && zip(self, other).allSatisfy { $0.conflicts(with: $1, hyperTrigger: hyperTrigger) }
     }
 }

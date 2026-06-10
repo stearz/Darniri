@@ -150,16 +150,8 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var leaderKey = SettingsStore.defaultExport.leaderKey {
+    var hyperKeyHoldThresholdMilliseconds = SettingsStore.defaultExport.hyperKeyHoldThresholdMilliseconds {
         didSet { scheduleSave() }
-    }
-
-    var sequenceTimeoutMilliseconds = SettingsStore.defaultExport.sequenceTimeoutMilliseconds {
-        didSet { scheduleSave() }
-    }
-
-    var effectiveLeaderKey: KeyBinding {
-        leaderKey.isUnassigned ? KeyBinding.defaultLeader : leaderKey
     }
 
     var workspaceBarEnabled = SettingsStore.defaultExport.workspaceBarEnabled {
@@ -529,8 +521,7 @@ final class SettingsStore {
             borderColorAlpha: borderColorAlpha,
             hotkeyBindings: hotkeyBindings,
             hyperTrigger: hyperTrigger,
-            leaderKey: leaderKey,
-            sequenceTimeoutMilliseconds: sequenceTimeoutMilliseconds,
+            hyperKeyHoldThresholdMilliseconds: hyperKeyHoldThresholdMilliseconds,
             workspaceBarEnabled: workspaceBarEnabled,
             workspaceBarShowLabels: workspaceBarShowLabels,
             workspaceBarShowFloatingWindows: workspaceBarShowFloatingWindows,
@@ -631,8 +622,7 @@ final class SettingsStore {
 
         hotkeyBindings = export.hotkeyBindings
         hyperTrigger = export.hyperTrigger
-        leaderKey = export.leaderKey
-        sequenceTimeoutMilliseconds = max(100, export.sequenceTimeoutMilliseconds)
+        hyperKeyHoldThresholdMilliseconds = max(0, min(1500, export.hyperKeyHoldThresholdMilliseconds))
 
         workspaceBarEnabled = export.workspaceBarEnabled
         workspaceBarShowLabels = export.workspaceBarShowLabels
@@ -727,13 +717,11 @@ final class SettingsStore {
     func resetHotkeysToDefaults() {
         hotkeyBindings = HotkeyBindingRegistry.defaults()
         hyperTrigger = SettingsStore.defaultExport.hyperTrigger
-        leaderKey = SettingsStore.defaultExport.leaderKey
-        sequenceTimeoutMilliseconds = SettingsStore.defaultExport.sequenceTimeoutMilliseconds
+        hyperKeyHoldThresholdMilliseconds = SettingsStore.defaultExport.hyperKeyHoldThresholdMilliseconds
     }
 
     func applyCapsLockHyperPreset() {
         hyperTrigger = .key(UInt32(kVK_CapsLock))
-        leaderKey = KeyBinding.defaultLeader
     }
 
     func hotkeyBindings(applyingPreset mappings: [(id: String, trigger: HotkeyTrigger)]) -> [HotkeyBinding] {
@@ -742,7 +730,6 @@ final class SettingsStore {
             for index in proposed.indices where proposed[index].id != mapping.id &&
                 proposed[index].binding.conflicts(
                     with: mapping.trigger,
-                    leaderKey: effectiveLeaderKey,
                     hyperTrigger: hyperTrigger
                 )
             {
@@ -793,26 +780,8 @@ final class SettingsStore {
     func findConflicts(for trigger: HotkeyTrigger, excluding commandId: String) -> [HotkeyBinding] {
         hotkeyBindings.filter { hotkeyBinding in
             hotkeyBinding.id != commandId &&
-                hotkeyBinding.binding.conflicts(with: trigger, leaderKey: effectiveLeaderKey, hyperTrigger: hyperTrigger)
+                hotkeyBinding.binding.conflicts(with: trigger, hyperTrigger: hyperTrigger)
         }
-    }
-
-    func findLeaderRootConflicts(for newLeaderKey: KeyBinding) -> [HotkeyBinding] {
-        let resolvedLeader = newLeaderKey.isUnassigned ? KeyBinding.defaultLeader : newLeaderKey
-        let hasLeaderSequence = hotkeyBindings.contains { binding in
-            guard case let .sequence(steps) = binding.binding else { return false }
-            return steps.first == .leader
-        }
-        guard hasLeaderSequence else { return [] }
-        return hotkeyBindings.filter {
-            $0.binding.chordBinding?.conflicts(with: resolvedLeader, hyperTrigger: hyperTrigger) == true
-        }
-    }
-
-    func leaderKey(_ key: KeyBinding, conflictsWith hyperTrigger: HyperKeyTrigger) -> Bool {
-        let resolvedLeader = key.isUnassigned ? KeyBinding.defaultLeader : key
-        guard !resolvedLeader.isUnassigned else { return false }
-        return hyperTrigger.matchesPhysicalKeyCode(resolvedLeader.keyCode)
     }
 
     func configuredWorkspaceNames() -> [String] {

@@ -29,8 +29,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     struct General: Codable, Equatable {
         var hotkeysEnabled: Bool
         var hyperTrigger: HyperKeyTrigger
-        var leaderKey: KeyBinding
-        var sequenceTimeoutMilliseconds: Int
+        var hyperKeyHoldThresholdMilliseconds: Int
         var defaultLayoutType: String
         var preventSleepEnabled: Bool
         var updateChecksEnabled: Bool
@@ -293,11 +292,10 @@ extension CanonicalTOMLConfig.General {
             default: defaults.hyperTrigger,
             recovering: recovering
         )
-        leaderKey = try container.decode(KeyBinding.self, forKey: .leaderKey, default: defaults.leaderKey, recovering: recovering)
-        sequenceTimeoutMilliseconds = try container.decode(
+        hyperKeyHoldThresholdMilliseconds = try container.decode(
             Int.self,
-            forKey: .sequenceTimeoutMilliseconds,
-            default: defaults.sequenceTimeoutMilliseconds,
+            forKey: .hyperKeyHoldThresholdMilliseconds,
+            default: defaults.hyperKeyHoldThresholdMilliseconds,
             recovering: recovering
         )
         defaultLayoutType = try container.decode(String.self, forKey: .defaultLayoutType, default: defaults.defaultLayoutType, recovering: recovering)
@@ -590,8 +588,7 @@ extension CanonicalTOMLConfig {
         general = General(
             hotkeysEnabled: export.hotkeysEnabled,
             hyperTrigger: export.hyperTrigger,
-            leaderKey: export.leaderKey,
-            sequenceTimeoutMilliseconds: export.sequenceTimeoutMilliseconds,
+            hyperKeyHoldThresholdMilliseconds: export.hyperKeyHoldThresholdMilliseconds,
             defaultLayoutType: export.defaultLayoutType,
             preventSleepEnabled: export.preventSleepEnabled,
             updateChecksEnabled: export.updateChecksEnabled,
@@ -732,8 +729,7 @@ extension CanonicalTOMLConfig {
             borderColorAlpha: borders.color.alpha,
             hotkeyBindings: HotkeyBindingRegistry.migrateLegacyDefaultWorkspaceBindings(hotkeys),
             hyperTrigger: general.hyperTrigger,
-            leaderKey: general.leaderKey,
-            sequenceTimeoutMilliseconds: general.sequenceTimeoutMilliseconds,
+            hyperKeyHoldThresholdMilliseconds: general.hyperKeyHoldThresholdMilliseconds,
             workspaceBarEnabled: workspaceBar.enabled,
             workspaceBarShowLabels: workspaceBar.showLabels,
             workspaceBarShowFloatingWindows: workspaceBar.showFloatingWindows,

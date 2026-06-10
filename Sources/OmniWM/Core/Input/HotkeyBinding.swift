@@ -7,7 +7,6 @@ struct KeyBinding: Equatable, Hashable {
     let usesHyper: Bool
 
     static let unassigned = KeyBinding(keyCode: UInt32.max, modifiers: 0)
-    static let defaultLeader = KeyBinding(keyCode: UInt32(kVK_Space), modifiers: 0, usesHyper: true)
 
     init(keyCode: UInt32, modifiers: UInt32, usesHyper: Bool = false) {
         self.keyCode = keyCode
@@ -42,11 +41,6 @@ struct KeyBinding: Equatable, Hashable {
             other.carbonCompatibilityBinding(for: hyperTrigger) == self
     }
 
-    var isBarePrintableRoot: Bool {
-        guard modifiers == 0, !usesHyper else { return false }
-        return Self.barePrintableRootKeyCodes.contains(keyCode)
-    }
-
     func carbonCompatibilityBinding(for hyperTrigger: HyperKeyTrigger) -> KeyBinding? {
         guard usesHyper, !isUnassigned else { return nil }
         if let modifier = hyperTrigger.carbonCompatibilityModifierMask {
@@ -56,28 +50,6 @@ struct KeyBinding: Equatable, Hashable {
         guard hyperTrigger == .system, modifiers == 0 else { return nil }
         return KeyBinding(keyCode: keyCode, modifiers: KeySymbolMapper.hyperModifiers)
     }
-
-    private static let barePrintableRootKeyCodes: Set<UInt32> = [
-        UInt32(kVK_ANSI_A), UInt32(kVK_ANSI_B), UInt32(kVK_ANSI_C),
-        UInt32(kVK_ANSI_D), UInt32(kVK_ANSI_E), UInt32(kVK_ANSI_F),
-        UInt32(kVK_ANSI_G), UInt32(kVK_ANSI_H), UInt32(kVK_ANSI_I),
-        UInt32(kVK_ANSI_J), UInt32(kVK_ANSI_K), UInt32(kVK_ANSI_L),
-        UInt32(kVK_ANSI_M), UInt32(kVK_ANSI_N), UInt32(kVK_ANSI_O),
-        UInt32(kVK_ANSI_P), UInt32(kVK_ANSI_Q), UInt32(kVK_ANSI_R),
-        UInt32(kVK_ANSI_S), UInt32(kVK_ANSI_T), UInt32(kVK_ANSI_U),
-        UInt32(kVK_ANSI_V), UInt32(kVK_ANSI_W), UInt32(kVK_ANSI_X),
-        UInt32(kVK_ANSI_Y), UInt32(kVK_ANSI_Z),
-        UInt32(kVK_ANSI_0), UInt32(kVK_ANSI_1), UInt32(kVK_ANSI_2),
-        UInt32(kVK_ANSI_3), UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5),
-        UInt32(kVK_ANSI_6), UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8),
-        UInt32(kVK_ANSI_9),
-        UInt32(kVK_ANSI_Equal), UInt32(kVK_ANSI_Minus),
-        UInt32(kVK_ANSI_LeftBracket), UInt32(kVK_ANSI_RightBracket),
-        UInt32(kVK_ANSI_Semicolon), UInt32(kVK_ANSI_Quote),
-        UInt32(kVK_ANSI_Comma), UInt32(kVK_ANSI_Period),
-        UInt32(kVK_ANSI_Slash), UInt32(kVK_ANSI_Backslash),
-        UInt32(kVK_ANSI_Grave), UInt32(kVK_Space)
-    ]
 }
 
 extension KeyBinding: Codable {
@@ -278,50 +250,9 @@ extension HyperKeyTrigger: Codable {
     }
 }
 
-enum HotkeySequenceStep: Equatable, Hashable {
-    case leader
-    case chord(KeyBinding)
-
-    var displayString: String {
-        switch self {
-        case .leader:
-            return "Leader"
-        case let .chord(binding):
-            return binding.displayString
-        }
-    }
-
-    var humanReadableString: String {
-        switch self {
-        case .leader:
-            return "Leader"
-        case let .chord(binding):
-            return binding.humanReadableString
-        }
-    }
-
-    func resolved(leaderKey: KeyBinding) -> KeyBinding? {
-        switch self {
-        case .leader:
-            return leaderKey.isUnassigned ? nil : leaderKey
-        case let .chord(binding):
-            return binding.isUnassigned ? nil : binding
-        }
-    }
-
-    static func fromHumanReadable(_ string: String) -> HotkeySequenceStep? {
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.localizedCaseInsensitiveCompare("Leader") == .orderedSame {
-            return .leader
-        }
-        return KeySymbolMapper.fromHumanReadable(trimmed).map(HotkeySequenceStep.chord)
-    }
-}
-
 enum HotkeyTrigger: Equatable, Hashable {
     case unassigned
     case chord(KeyBinding)
-    case sequence([HotkeySequenceStep])
 
     var isUnassigned: Bool {
         switch self {
@@ -329,8 +260,6 @@ enum HotkeyTrigger: Equatable, Hashable {
             return true
         case let .chord(binding):
             return binding.isUnassigned
-        case let .sequence(steps):
-            return steps.isEmpty
         }
     }
 
@@ -340,8 +269,6 @@ enum HotkeyTrigger: Equatable, Hashable {
             return "Unassigned"
         case let .chord(binding):
             return binding.displayString
-        case let .sequence(steps):
-            return steps.map(\.displayString).joined(separator: ", ")
         }
     }
 
@@ -351,8 +278,6 @@ enum HotkeyTrigger: Equatable, Hashable {
             return "Unassigned"
         case let .chord(binding):
             return binding.humanReadableString
-        case let .sequence(steps):
-            return steps.map(\.humanReadableString).joined(separator: ", ")
         }
     }
 
@@ -361,41 +286,11 @@ enum HotkeyTrigger: Equatable, Hashable {
         return binding
     }
 
-    func resolvedSequence(leaderKey: KeyBinding) -> [KeyBinding]? {
-        switch self {
-        case let .sequence(steps):
-            let resolved = steps.compactMap { $0.resolved(leaderKey: leaderKey) }
-            return resolved.count == steps.count ? resolved : nil
-        case let .chord(binding):
-            return binding.isUnassigned ? nil : [binding]
-        case .unassigned:
-            return nil
-        }
-    }
-
-    func conflicts(with other: HotkeyTrigger, leaderKey: KeyBinding, hyperTrigger: HyperKeyTrigger) -> Bool {
+    func conflicts(with other: HotkeyTrigger, hyperTrigger: HyperKeyTrigger) -> Bool {
         guard !isUnassigned, !other.isUnassigned else { return false }
         switch (self, other) {
         case let (.chord(lhs), .chord(rhs)):
             return lhs.conflicts(with: rhs, hyperTrigger: hyperTrigger)
-        case (.sequence, .sequence):
-            guard let lhs = resolvedSequence(leaderKey: leaderKey),
-                  let rhs = other.resolvedSequence(leaderKey: leaderKey)
-            else { return false }
-            if lhs.conflictMatches(rhs, hyperTrigger: hyperTrigger) ||
-                lhs.isConflictPrefix(of: rhs, hyperTrigger: hyperTrigger) ||
-                rhs.isConflictPrefix(of: lhs, hyperTrigger: hyperTrigger)
-            {
-                return true
-            }
-            guard let lhsRoot = lhs.first, let rhsRoot = rhs.first else { return false }
-            return lhsRoot != rhsRoot && lhsRoot.conflicts(with: rhsRoot, hyperTrigger: hyperTrigger)
-        case let (.chord(binding), .sequence):
-            guard let root = other.resolvedSequence(leaderKey: leaderKey)?.first else { return false }
-            return binding.conflicts(with: root, hyperTrigger: hyperTrigger)
-        case let (.sequence, .chord(binding)):
-            guard let root = resolvedSequence(leaderKey: leaderKey)?.first else { return false }
-            return root.conflicts(with: binding, hyperTrigger: hyperTrigger)
         default:
             return false
         }
@@ -406,15 +301,6 @@ enum HotkeyTrigger: Equatable, Hashable {
         if trimmed == "Unassigned" { return .unassigned }
         if let binding = KeySymbolMapper.fromHumanReadable(trimmed) {
             return binding.isUnassigned ? .unassigned : .chord(binding)
-        }
-        if trimmed.contains(",") {
-            let steps = trimmed
-                .split(separator: ",", omittingEmptySubsequences: false)
-                .map { String($0) }
-                .compactMap(HotkeySequenceStep.fromHumanReadable)
-            let rawStepCount = trimmed.split(separator: ",", omittingEmptySubsequences: false).count
-            guard steps.count == rawStepCount else { return nil }
-            return .sequence(steps)
         }
         return nil
     }
@@ -435,23 +321,12 @@ extension HotkeyTrigger: Codable {
 
     func encode(to encoder: Encoder) throws {
         switch self {
-        case .unassigned,
-             .sequence:
+        case .unassigned:
             var container = encoder.singleValueContainer()
             try container.encode(humanReadableString)
         case let .chord(binding):
             try binding.encode(to: encoder)
         }
-    }
-}
-
-private extension Array where Element == KeyBinding {
-    func conflictMatches(_ other: [KeyBinding], hyperTrigger: HyperKeyTrigger) -> Bool {
-        count == other.count && zip(self, other).allSatisfy { $0.conflicts(with: $1, hyperTrigger: hyperTrigger) }
-    }
-
-    func isConflictPrefix(of other: [KeyBinding], hyperTrigger: HyperKeyTrigger) -> Bool {
-        count < other.count && zip(self, other).allSatisfy { $0.conflicts(with: $1, hyperTrigger: hyperTrigger) }
     }
 }
 
@@ -629,8 +504,6 @@ enum HotkeyBindingRegistry {
             return .unassigned
         case let .chord(binding):
             return binding.isUnassigned ? .unassigned : .chord(binding)
-        case let .sequence(steps):
-            return steps.isEmpty ? .unassigned : .sequence(steps)
         }
     }
 

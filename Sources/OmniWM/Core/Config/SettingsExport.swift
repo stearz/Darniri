@@ -44,8 +44,7 @@ struct SettingsExport: Equatable {
 
     var hotkeyBindings: [HotkeyBinding]
     var hyperTrigger: HyperKeyTrigger
-    var leaderKey: KeyBinding
-    var sequenceTimeoutMilliseconds: Int
+    var hyperKeyHoldThresholdMilliseconds: Int
 
     var workspaceBarEnabled: Bool
     var workspaceBarShowLabels: Bool
@@ -144,8 +143,7 @@ extension SettingsExport {
             borderColorAlpha: 1.0,
             hotkeyBindings: HotkeyBindingRegistry.defaults(),
             hyperTrigger: .default,
-            leaderKey: .defaultLeader,
-            sequenceTimeoutMilliseconds: 800,
+            hyperKeyHoldThresholdMilliseconds: 150,
             workspaceBarEnabled: true,
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,

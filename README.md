@@ -159,7 +159,7 @@ Small demo, not fully showing everything, gif recorded at 30fps due to size, som
 
 ## Known Limitations
 
-- **Gestures/Trackpad** - Magic Mouse and trackpad gestures are untested (no hardware available for testing but haven't heard complaints so it works)
+- **Gestures/Trackpad** - Magic Mouse and trackpad gestures have not been locally validated without matching hardware, but no issues have been reported.
 
 ## Performance & Trust
 
@@ -175,7 +175,7 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 
 - macOS 15+ (Sequoia)
 - Accessibility permissions (prompted on launch)
-- Input Monitoring permission for leader-key, multi-key sequence, or custom Hyper key shortcuts
+- Input Monitoring permission for custom Hyper key shortcuts
 - Displays have separate spaces **OFF**
 
 ## Installation
@@ -194,7 +194,7 @@ brew install omniwm
 3. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 4. Log out of macOS and log back in for that change to take effect unless you had it off already
 5. Launch OmniWM and grant Accessibility permissions when prompted
-6. For leader-key, multi-key sequence, or custom Hyper key shortcuts, grant Input Monitoring from Settings > Hotkeys
+6. For custom Hyper key shortcuts, grant Input Monitoring from Settings > Hotkeys
 
 ## Updates
 
@@ -250,7 +250,7 @@ Use the `Toggle Workspace Layout` shortcut below to switch layouts per workspace
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. Single-key chords, `Hyper` chords, leader-key sequences, and presets are configured there. `Hyper` defaults to Control + Option + Shift + Command, the leader key defaults to `Hyper + Space`, and Caps Lock can be enabled as a power-user Hyper preset. Vim Navigation is opt-in because leader-key sequences need Input Monitoring permission. The tables below list all the default hotkeys:
+All shortcuts are customizable in Settings > Hotkeys. Single-key chords, `Hyper` chords, and presets are configured there. `Hyper` defaults to Control + Option + Shift + Command, and Caps Lock can be enabled as a power-user Hyper preset. The tables below list all the default hotkeys:
 
 Layout legend:
 - `Shared` works in any active layout.
@@ -414,7 +414,7 @@ Hide or reveal status bar icons using a separator item:
 - **Mouse** - `Option + drag` swaps tiled windows; `Option + Shift + drag` inserts windows to a column (Niri)
 - **Mouse Resize** - Hold `Option` and right-drag a tiled window to resize (Niri)
 - **Scroll Gestures (Mouse)** - Hold `Option + Shift + Mouse Scroll Wheel` (default, configurable) and scroll through columns horizontally
-- **Trackpad Gestures** - Use horizontal gestures with 2/3/4 fingers (configurable); direction can be inverted (not tested lacking hardware)
+- **Trackpad Gestures** - Use horizontal gestures with 2/3/4 fingers (configurable); direction can be inverted (local hardware validation is limited)
 
 ## Configuration
 
