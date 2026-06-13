@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build --configuration release --disable-sandbox --product Darniri
+
+      - name: Create tarball
+        run: tar -czf Darniri-arm64.tar.gz -C .build/release Darniri
+
+      - name: Compute SHA256
+        id: sha256
+        run: echo "value=$(shasum -a 256 Darniri-arm64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Darniri-arm64.tar.gz
+          generate_release_notes: true
+
+      - name: Update Homebrew formula
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+          SHA256: ${{ steps.sha256.outputs.value }}
+        run: |
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/stearz/homebrew-tap.git
+          cd homebrew-tap
+
+          cat > Formula/darniri.rb << 'FORMULA'
+          class Darniri < Formula
+            desc "Darwin/macOS implementation of a Niri-style scrolling-column window manager"
+            homepage "https://github.com/stearz/Darniri"
+            license "GPL-2.0-only"
+            version "RELEASE_VERSION"
+
+            url "https://github.com/stearz/Darniri/releases/download/RELEASE_TAG/Darniri-arm64.tar.gz"
+            sha256 "RELEASE_SHA256"
+
+            head "https://github.com/stearz/Darniri.git", branch: "main"
+
+            depends_on macos: :sequoia
+            depends_on xcode: ["16.4", :build] if build.head?
+
+            def install
+              if build.head?
+                system "swift", "build",
+                  "--configuration", "release",
+                  "--disable-sandbox",
+                  "--product", "Darniri"
+                bin.install ".build/release/Darniri"
+              else
+                bin.install "Darniri"
+              end
+            end
+
+            test do
+              assert_path_exists bin/"Darniri"
+            end
+          end
+          FORMULA
+
+          VERSION_NUM="${VERSION#v}"
+          sed -i '' "s|RELEASE_VERSION|${VERSION_NUM}|g" Formula/darniri.rb
+          sed -i '' "s|RELEASE_TAG|${VERSION}|g" Formula/darniri.rb
+          sed -i '' "s|RELEASE_SHA256|${SHA256}|g" Formula/darniri.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/darniri.rb
+          git commit -m "darniri ${VERSION_NUM}"
+          git push
