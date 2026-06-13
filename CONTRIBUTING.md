@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for wanting to help with OmniWM.
+Thanks for wanting to help with Darniri.
 
 Bug fixes, documentation improvements, performance work, focused cleanups, features, and thoughtful ideas are all welcome.
 
@@ -18,19 +18,19 @@ Bug fixes, documentation improvements, performance work, focused cleanups, featu
 - Refactors are fine when they solve a real problem, but they should come with a detailed reason. Explain what is not working well today, why the refactor is needed, and what it improves.
 - Low-level rewrites in **C** or **Zig** are **very welcome** when there is a strong technical reason they fit the problem better, especially for macOS specific or performance sensitive work.
 - Otherwise, please keep contributions in Swift so the codebase stays cohesive.
-- Rust rewrites are not a project direction for OmniWM. For this project on macOS, C or Zig is a better fit when Swift is not the right tool.
+- Rust rewrites are not a project direction for Darniri. For this project on macOS, C or Zig is a better fit when Swift is not the right tool.
 
 ## Before Opening a Pull Request
 
 - For larger changes, open an issue or start a discussion first so we can align on direction.
 - Keep changes focused. Smaller, well-explained pull requests are much easier to review and merge.
-- If your change affects behavior, config, docs, or CLI output, call that out clearly in the pull request description.
+- If your change affects behavior, config, or docs, call that out clearly in the pull request description.
 
 ## Pull Request Expectations
 
 - Explain the problem you are solving and why this approach makes sense.
 - Include verification notes **if possible**. Mention what you ran, checked, or verified.
-- Add screenshots, recordings, or CLI examples when they help explain the change.
+- Add screenshots or recordings when they help explain the change.
 - Update documentation when behavior, workflows, or interfaces change.
 
 ## Basic Workflow
@@ -44,4 +44,4 @@ Bug fixes, documentation improvements, performance work, focused cleanups, featu
 
 If you are unsure about something, open an issue or ask in the pull request. Thoughtful questions are always welcome.
 
-Thanks again for helping improve OmniWM.
+Thanks again for helping improve Darniri.

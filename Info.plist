@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>OmniWM</string>
+	<string>Darniri</string>
 	<key>CFBundleExecutable</key>
-	<string>OmniWM</string>
+	<string>Darniri</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.barut.OmniWM</string>
+	<string>io.github.stearz.darniri</string>
 	<key>CFBundleName</key>
-	<string>OmniWM</string>
+	<string>Darniri</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.4.9.7</string>
+	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>54</string>
 	<key>LSMinimumSystemVersion</key>

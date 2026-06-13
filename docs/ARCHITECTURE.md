@@ -1,10 +1,10 @@
 ---
-title: OmniWM Architecture Guide
+title: Darniri Architecture Guide
 ---
 
-# OmniWM Architecture Guide
+# Darniri Architecture Guide
 
-This document is for contributors who want to understand OmniWM's internals. It is not a user guide (see [Documentation Home](index.md)) or IPC/CLI reference (see [IPC-CLI.md](IPC-CLI.md)). For contribution process, see the [Contribution Guide](CONTRIBUTING.md).
+This document is for contributors who want to understand Darniri's internals. It is not a user guide (see [Documentation Home](index.md)). For contribution process, see the [Contribution Guide](CONTRIBUTING.md).
 
 **Prerequisites**: Familiarity with Swift, macOS development concepts (AppKit, AXUIElement, CGWindowID), and basic tiling window manager concepts.
 
@@ -12,31 +12,45 @@ This document is for contributors who want to understand OmniWM's internals. It 
 
 ## Table of Contents
 
-- [1. Project Structure](#1-project-structure)
-- [2. Startup & Bootstrap](#2-startup--bootstrap)
-- [3. Core Mental Model](#3-core-mental-model)
-  - [3.1 The Event-Driven Pipeline](#31-the-event-driven-pipeline)
-  - [3.2 Window Identity](#32-window-identity)
-  - [3.3 Window Lifecycle](#33-window-lifecycle)
-  - [3.4 The Refresh Pipeline](#34-the-refresh-pipeline)
-  - [3.5 Layout Engines as Pure State Machines](#35-layout-engines-as-pure-state-machines)
-  - [3.6 Thread Safety Model](#36-thread-safety-model)
-- [4. Key Subsystems](#4-key-subsystems)
-  - [4.1 WMController — The Orchestrator](#41-wmcontroller--the-orchestrator)
-  - [4.2 Workspace & Window State](#42-workspace--window-state)
-  - [4.3 Niri Layout Engine (Scrolling Columns)](#43-niri-layout-engine-scrolling-columns)
-  - [4.4 Dwindle Layout Engine (BSP)](#44-dwindle-layout-engine-bsp)
-  - [4.5 Focus Lifecycle](#45-focus-lifecycle)
-  - [4.6 Input Handling](#46-input-handling)
-  - [4.7 Window Rules Engine](#47-window-rules-engine)
-  - [4.8 IPC System](#48-ipc-system)
-  - [4.9 Accessibility Layer](#49-accessibility-layer)
-  - [4.10 Animation System](#410-animation-system)
-  - [4.11 Border System](#411-border-system)
-  - [4.12 Additional Features](#412-additional-features)
-- [5. Data Flow Diagrams](#5-data-flow-diagrams)
-- [6. Common Contribution Patterns](#6-common-contribution-patterns)
-- [7. Glossary](#7-glossary)
+- [Darniri Architecture Guide](#darniri-architecture-guide)
+  - [Table of Contents](#table-of-contents)
+  - [1. Project Structure](#1-project-structure)
+    - [SwiftPM Targets](#swiftpm-targets)
+    - [Source Directory Map](#source-directory-map)
+    - [External Dependencies](#external-dependencies)
+    - [Building \& Running](#building--running)
+  - [2. Startup \& Bootstrap](#2-startup--bootstrap)
+    - [Entry Point](#entry-point)
+    - [Bootstrap Decision Tree](#bootstrap-decision-tree)
+    - [Normal Boot Sequence](#normal-boot-sequence)
+    - [Service Startup](#service-startup)
+  - [3. Core Mental Model](#3-core-mental-model)
+    - [3.1 The Event-Driven Pipeline](#31-the-event-driven-pipeline)
+    - [3.2 Window Identity](#32-window-identity)
+    - [3.3 Window Lifecycle](#33-window-lifecycle)
+    - [3.4 The Refresh Pipeline](#34-the-refresh-pipeline)
+    - [3.5 Layout Engines as Pure State Machines](#35-layout-engines-as-pure-state-machines)
+    - [3.6 Thread Safety Model](#36-thread-safety-model)
+  - [4. Key Subsystems](#4-key-subsystems)
+    - [4.1 WMController — The Orchestrator](#41-wmcontroller--the-orchestrator)
+    - [4.2 Workspace \& Window State](#42-workspace--window-state)
+    - [4.3 Niri Layout Engine (Scrolling Columns)](#43-niri-layout-engine-scrolling-columns)
+    - [4.4 Focus Lifecycle](#44-focus-lifecycle)
+    - [4.5 Input Handling](#45-input-handling)
+    - [4.6 Window Rules Engine](#46-window-rules-engine)
+    - [4.7 Accessibility Layer](#47-accessibility-layer)
+    - [4.8 Animation System](#48-animation-system)
+    - [4.9 Border System](#49-border-system)
+    - [4.10 Additional Features](#410-additional-features)
+  - [5. Data Flow Diagrams](#5-data-flow-diagrams)
+    - [5.1 Hotkey Command Flow](#51-hotkey-command-flow)
+    - [5.2 External Window Event Flow](#52-external-window-event-flow)
+  - [6. Common Contribution Patterns](#6-common-contribution-patterns)
+    - [6.1 Adding a New Hotkey Command](#61-adding-a-new-hotkey-command)
+    - [6.2 Adding a New Setting](#62-adding-a-new-setting)
+    - [6.3 Modifying Layout Behavior](#63-modifying-layout-behavior)
+    - [6.4 Working with Private APIs](#64-working-with-private-apis)
+  - [7. Glossary](#7-glossary)
 
 ---
 
@@ -44,51 +58,44 @@ This document is for contributors who want to understand OmniWM's internals. It 
 
 ### SwiftPM Targets
 
-OmniWM is built with Swift Package Manager (Swift 6.3.2, strict concurrency). There are four targets with a clear dependency graph:
+Darniri is built with Swift Package Manager (Swift 6.3.2, strict concurrency). There are two targets with a clear dependency graph:
 
 ```
-OmniWMIPC          (zero dependencies — shared IPC protocol models)
-    ^         ^
-    |          \
-OmniWMCtl      OmniWM + GhosttyKit   (CLI tool)       (main library)
-                   ^
-                   |
-               OmniWMApp              (@main entry point)
+Darniri             (main library)
+    ^
+    |
+DarniriApp          (@main entry point)
 ```
 
 | Target | Purpose | Dependencies |
 |--------|---------|--------------|
-| `OmniWMIPC` | Shared IPC data models and wire format | None |
-| `OmniWMCtl` | CLI tool (`omniwmctl`) | OmniWMIPC |
-| `OmniWM` | Core window manager library | OmniWMIPC, GhosttyKit, system frameworks |
-| `OmniWMApp` | Executable wrapper with SwiftUI scene | OmniWM |
+| `Darniri` | Core window manager library | TOML, system frameworks |
+| `DarniriApp` | Executable wrapper with SwiftUI scene | Darniri |
 
 ### Source Directory Map
 
 ```
 Sources/
-├── OmniWM/                          Main library (~38K LOC)
-│   ├── App/                         Application bootstrap, delegate, updater,
-│   │                                and owned-window registry (5 files)
+├── Darniri/                          Main library
+│   ├── App/                         Application bootstrap, delegate,
+│   │                                and owned-window registry (3 files)
 │   ├── Core/
 │   │   ├── AppInfoCache.swift       App icon/name cache
 │   │   ├── CommandPaletteMode.swift Command palette mode enum
 │   │   ├── PrivateAPIs.swift        Private API declarations via @_silgen_name
-│   │   ├── Animation/               Spring, cubic & workspace-switch animations (6 files)
+│   │   ├── Animation/               Spring & workspace-switch animations (5 files)
 │   │   ├── Ax/                      Accessibility wrappers, DefaultFloatingApps (10 files)
 │   │   ├── Border/                  Focused window border rendering (3 files)
-│   │   ├── Config/                  Settings store, migrations, export, per-monitor settings (16 files)
-│   │   ├── Controller/              WMController, event handlers, refresh pipeline (17 files)
+│   │   ├── Config/                  Settings store, migrations, export, per-monitor settings (14 files)
+│   │   ├── Controller/              WMController, event handlers, refresh pipeline (16 files)
 │   │   ├── Input/                   Hotkey action catalog, binding persistence,
 │   │   │                            and secure input monitoring (7 files)
 │   │   ├── Layout/
 │   │   │   ├── DNode.swift          Shared types: WindowToken, WindowHandle
 │   │   │   ├── LayoutBoundary.swift Layout snapshots & workspace geometry
 │   │   │   ├── SideHiding.swift     Side-hiding edge types
-│   │   │   ├── Niri/                Scrolling columns layout engine (28 files)
-│   │   │   └── Dwindle/             Binary space partition layout engine (5 files)
+│   │   │   └── Niri/                Scrolling columns layout engine (28 files)
 │   │   ├── LockScreen/              Lock screen detection (1 file)
-│   │   ├── Menu/                    Menu extraction for MenuAnywhere (3 files)
 │   │   ├── Monitor/                 Display detection, OutputId, restore assignments (5 files)
 │   │   ├── Overview/                Bird's-eye workspace overview mode (9 files)
 │   │   ├── Reconcile/               Runtime snapshot/trace, restore planning,
@@ -101,23 +108,21 @@ Sources/
 │   │   │                            and capture eligibility (2 files)
 │   │   └── Workspace/               Workspace model, session state,
 │   │                                and runtime coordination (6 files)
-│   ├── IPC/                         IPC server, connections, routing (9 files)
-│   ├── QuakeTerminal/               Drop-down terminal, Ghostty integration (9 files)
 │   └── UI/                          SwiftUI settings, status bar, workspace bar,
-│                                    command palette, hidden bar, updater popup
-│                                    (34 files)
-├── OmniWMApp/                       2 files: @main entry + settings redirect
-├── OmniWMCtl/                       7 files: CLI parser, IPC client, renderer
-└── OmniWMIPC/                       5 files: models, wire format, socket path
+│                                    command palette, overview (28 files)
+└── DarniriApp/                       2 files: @main entry + settings redirect
 ```
 
 ### External Dependencies
 
-OmniWM has **zero third-party package dependencies**. All functionality is built on:
+Darniri has one third-party package dependency:
+
+- **TOML**: settings file parsing and encoding via `swift-toml`
+
+The window manager functionality is built on:
 
 - **System frameworks**: AppKit, ApplicationServices, Carbon, Metal, MetalKit, QuartzCore
 - **SkyLight**: A private Apple framework for low-latency window server access, linked via `-framework SkyLight` unsafe flag
-- **GhosttyKit**: A local binary xcframework at `Frameworks/GhosttyKit.xcframework` prepared outside git, providing terminal emulation for the Quake Terminal feature
 - **System libraries**: libz, libc++
 
 ### Building & Running
@@ -143,10 +148,10 @@ make check         # Verify formatting, lint, audit, and build
 
 ### Entry Point
 
-The application starts in `Sources/OmniWMApp/OmniWMApp.swift`:
+The application starts in `Sources/DarniriApp/DarniriApp.swift`:
 
 ```
-@main OmniWMApp (SwiftUI App)
+@main DarniriApp (SwiftUI App)
   └─ @NSApplicationDelegateAdaptor → AppDelegate
        └─ applicationDidFinishLaunching()
             └─ bootstrapApplication()
@@ -187,14 +192,9 @@ When the decision is `.boot`, `finishBootstrap()` runs:
 
 1. **SettingsStore** created — loads settings from UserDefaults
 2. **WMController** created — central orchestrator (see [4.1](#41-wmcontroller--the-orchestrator))
-3. **`applyPersistedSettings()`** — creates both layout engines, registers hotkeys, configures borders, workspaces, gaps, etc.
-4. **AppCLIManager** and **UpdateCoordinator** created — CLI exposure workflow plus GitHub release polling and popup coordination
-5. **AppBootstrapState** populated — shares `SettingsStore`, `WMController`, and `UpdateCoordinator` with SwiftUI redirect flows
-6. **StatusBarController** created — menu bar UI, settings entry point, and manual `Check for Updates...` action
-7. **IPCServer** started (if enabled in settings) — Unix domain socket server
-8. **Automatic update checks** started — only after bootstrap succeeds and after the status bar / IPC setup paths have completed
-
-The updater is intentionally bootstrap-gated. Release polling and popup presentation do not run during the settings-reset gate or the Displays Have Separate Spaces gate.
+3. **`applyPersistedSettings()`** — creates the Niri layout engine, registers hotkeys, configures borders, workspaces, gaps, etc.
+4. **AppBootstrapState** populated — shares `SettingsStore` and `WMController` with SwiftUI redirect flows
+5. **StatusBarController** created — menu bar UI and settings entry point
 
 ### Service Startup
 
@@ -217,7 +217,7 @@ The updater is intentionally bootstrap-gated. Release polling and popup presenta
 
 ### 3.1 The Event-Driven Pipeline
 
-OmniWM is fundamentally **reactive**. It responds to two categories of events, processes them through a pipeline, and applies the resulting window frames:
+Darniri is fundamentally **reactive**. It responds to two categories of events, processes them through a pipeline, and applies the resulting window frames:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -228,15 +228,14 @@ OmniWM is fundamentally **reactive**. It responds to two categories of events, p
 │  - Window created        │  - Hotkey pressed                    │
 │  - Window destroyed      │  - Mouse moved/dragged              │
 │  - Frame changed         │  - Scroll wheel (gestures)          │
-│  - Front app changed     │  - IPC command (omniwmctl)          │
+│  - Front app changed     │                                     │
 │  - Title changed         │                                     │
 └──────────┬───────────────┴──────────┬───────────────────────────┘
            │                          │
            v                          v
 ┌──────────────────┐    ┌────────────────────────┐
 │ CGSEventObserver │    │ HotkeyCenter /          │
-│                  │    │ MouseEventHandler /     │
-│                  │    │ IPCCommandRouter        │
+│                  │    │ MouseEventHandler       │
 └────────┬─────────┘    └──────────┬─────────────┘
          │                         │
          v                         v
@@ -257,7 +256,7 @@ OmniWM is fundamentally **reactive**. It responds to two categories of events, p
                      v
          ┌───────────────────────┐
          │ Layout Engine         │
-         │ (Niri or Dwindle)     │
+         │ (Niri)                │
          │                       │
          │ Input: window list,   │
          │   workspace geometry  │
@@ -325,7 +324,7 @@ From creation to destruction, a window passes through these stages:
 5. Focus recovery runs if the destroyed window was focused
 
 **Managed Replacement:**
-Some apps (Ghostty, Safari, browsers) destroy and recreate windows during internal operations. `AXEventHandler` detects these patterns via `ManagedReplacementMetadata` correlation — matching a destroy+create pair within a 150ms grace period to preserve the window's workspace assignment and position.
+Some apps destroy and recreate windows during internal operations. `AXEventHandler` detects these patterns via `ManagedReplacementMetadata` correlation — matching a destroy+create pair within a 150ms grace period to preserve the window's workspace assignment and position.
 
 ### 3.4 The Refresh Pipeline
 
@@ -366,18 +365,18 @@ RefreshReason              → Route              → Scheduling
 
 ### 3.5 Layout Engines as Pure State Machines
 
-Both layout engines follow the same contract:
+The layout engine follows this contract:
 
-1. They own their own **tree data structures** (columns/windows for Niri, BSP nodes for Dwindle)
-2. They receive workspace geometry and gap configuration as input
-3. They produce a `[WindowToken: CGRect]` frame dictionary as output
-4. They **never touch windows directly** — no accessibility calls, no frame writes
+1. It owns its own **tree data structures** (columns/windows for Niri)
+2. It receives workspace geometry and gap configuration as input
+3. It produces a `[WindowToken: CGRect]` frame dictionary as output
+4. It **never touches windows directly** — no accessibility calls, no frame writes
 
-This separation keeps layout logic independent of macOS UI and accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the active engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
+This separation keeps layout logic independent of macOS UI and accessibility infrastructure. The `LayoutRefreshController` feeds workspace snapshots to the engine and collects frame outputs, then `AXManager.applyFramesParallel()` writes the frames to actual windows.
 
 ### 3.6 Thread Safety Model
 
-**`@MainActor` everywhere.** Nearly all code in OmniWM runs on the main thread, including:
+**`@MainActor` everywhere.** Nearly all code in Darniri runs on the main thread, including:
 - All UI code (AppKit, SwiftUI)
 - All accessibility API calls
 - All layout computation
@@ -385,7 +384,6 @@ This separation keeps layout logic independent of macOS UI and accessibility inf
 
 **Exceptions:**
 - **Per-app AX threads**: `AppAXContext` runs a dedicated thread per application for accessibility observer callbacks. These callbacks post back to the main actor.
-- **IPC actors**: `IPCApplicationBridge` and `IPCEventBroker` are Swift actors handling concurrent client connections. They dispatch to `@MainActor` for any window management operations.
 - **Lock-based Sendable types**: `CGSEventObserver` uses `OSAllocatedUnfairLock` for the pending event buffer that bridges between the SkyLight callback thread and the main thread.
 
 ---
@@ -394,7 +392,7 @@ This separation keeps layout logic independent of macOS UI and accessibility inf
 
 ### 4.1 WMController — The Orchestrator
 
-**File:** `Sources/OmniWM/Core/Controller/WMController.swift`
+**File:** `Sources/Darniri/Core/Controller/WMController.swift`
 
 `WMController` is the central object that owns or references every major subsystem. It does NOT contain business logic itself — it delegates to specialized handlers.
 
@@ -411,7 +409,6 @@ This separation keeps layout logic independent of macOS UI and accessibility inf
 | `windowActionHandler` | Window close, fullscreen toggle, float toggle |
 | `serviceLifecycleManager` | App lifecycle, observer setup, permission polling |
 | `borderCoordinator` | Orchestrates border updates after layout/focus changes |
-| `focusNotificationDispatcher` | Publishes focus change events to IPC subscribers |
 
 **Core managers** (owned directly):
 
@@ -425,12 +422,11 @@ This separation keeps layout logic independent of macOS UI and accessibility inf
 | `hotkeys: HotkeyCenter` | Global hotkey registration via Carbon |
 | `borderManager: BorderManager` | Focus border window management |
 | `niriEngine: NiriLayoutEngine?` | Niri layout state (nil if not in use) |
-| `dwindleEngine: DwindleLayoutEngine?` | Dwindle layout state (nil if not in use) |
 | `animationClock: AnimationClock` | Monotonic time source for animations |
 
 ### 4.2 Workspace & Window State
 
-**WorkspaceManager** (`Sources/OmniWM/Core/Workspace/WorkspaceManager.swift`)
+**WorkspaceManager** (`Sources/Darniri/Core/Workspace/WorkspaceManager.swift`)
 
 Owns workspace definitions, the window model, session state, monitor tracking, and the reconcile runtime used for debugging and relaunch restore behavior.
 
@@ -460,9 +456,9 @@ WorkspaceManager
 └── nativeFullscreenRecords                 Fullscreen transition tracking
 ```
 
-Post-`v0.4.5`, `WorkspaceManager` also owns the reconcile runtime. `RuntimeStore` and `ReconcileTraceRecorder` capture normalized window-management events into a replayable snapshot, exposed through `reconcileSnapshotDump()` and `reconcileTraceDump()` for IPC diagnostics. `PersistedWindowRestoreCatalog` stores relaunch restore intent such as workspace target, preferred monitor, and floating geometry so managed floating windows can be restored or rescued across launches.
+`WorkspaceManager` also owns the reconcile runtime. `RuntimeStore` and `ReconcileTraceRecorder` capture normalized window-management events into replayable snapshots for internal diagnostics. `PersistedWindowRestoreCatalog` stores relaunch restore intent such as workspace target, preferred monitor, and floating geometry so managed floating windows can be restored or rescued across launches.
 
-**WindowModel** (`Sources/OmniWM/Core/Workspace/WindowModel.swift`)
+**WindowModel** (`Sources/Darniri/Core/Workspace/WindowModel.swift`)
 
 The single source of truth for all tracked windows. Each `Entry` contains:
 
@@ -484,7 +480,7 @@ Entries are indexed by both `WindowToken` and raw `windowId` for fast lookup fro
 
 ### 4.3 Niri Layout Engine (Scrolling Columns)
 
-**Directory:** `Sources/OmniWM/Core/Layout/Niri/`
+**Directory:** `Sources/Darniri/Core/Layout/Niri/`
 
 Niri arranges windows in vertical columns that scroll horizontally, inspired by the [Niri](https://github.com/YaLTeR/niri) Wayland compositor.
 
@@ -541,51 +537,11 @@ The Niri directory is the largest subsystem. Files are organized by responsibili
 
 **Constraint Solving:** `NiriAxisSolver` (in `NiriConstraintSolver.swift`) distributes available space among windows in a column while respecting per-window min/max size constraints. Windows with `isConstraintFixed` get exact sizes; remaining space is distributed by weight. This runs during every layout calculation and handles edge cases like tabbed columns (all windows share the same height).
 
-### 4.4 Dwindle Layout Engine (BSP)
+### 4.4 Focus Lifecycle
 
-**Directory:** `Sources/OmniWM/Core/Layout/Dwindle/`
+**File:** `Sources/Darniri/Core/Controller/KeyboardFocusLifecycleCoordinator.swift`
 
-Dwindle recursively divides screen space using binary splits, similar to bspwm.
-
-**BSP Tree:**
-
-```
-DwindleNode (split: horizontal, ratio: 0.5)
-├── DwindleNode (leaf: window A)
-└── DwindleNode (split: vertical, ratio: 0.5)
-    ├── DwindleNode (leaf: window B)
-    └── DwindleNode (leaf: window C)
-```
-
-**Key types:**
-
-```swift
-final class DwindleNode {
-    let id: DwindleNodeId          // UUID
-    var kind: DwindleNodeKind
-    var parent: DwindleNode?
-    var children: [DwindleNode]    // 0 (leaf) or 2 (split)
-    // Animation properties for smooth transitions
-}
-
-enum DwindleNodeKind {
-    case split(orientation: DwindleOrientation, ratio: CGFloat)
-    case leaf(handle: WindowToken?, fullscreen: Bool)
-}
-
-enum DwindleOrientation {
-    case horizontal   // Left/right split
-    case vertical     // Top/bottom split
-}
-```
-
-**Smart split** chooses orientation based on the available space dimensions. **Preselection** lets users choose where the next window will be inserted.
-
-### 4.5 Focus Lifecycle
-
-**File:** `Sources/OmniWM/Core/Controller/KeyboardFocusLifecycleCoordinator.swift`
-
-Focus management is complex because OmniWM must coordinate its intent with what macOS actually does. The `FocusBridgeCoordinator` manages this:
+Focus management is complex because Darniri must coordinate its intent with what macOS actually does. The `FocusBridgeCoordinator` manages this:
 
 **The Deferred Focus Pattern:**
 
@@ -612,23 +568,22 @@ Focus management is complex because OmniWM must coordinate its intent with what 
 
 **Focus serialization:** `focusWindow(_:performFocus:onDeferredFocus:)` serializes focus operations. If a focus request arrives while one is in-flight, it queues as `pendingFocusToken` and fires after the current request completes or times out.
 
-### 4.6 Input Handling
+### 4.5 Input Handling
 
-**Hotkeys** (`Sources/OmniWM/Core/Input/`)
+**Hotkeys** (`Sources/Darniri/Core/Input/`)
 
-`ActionCatalog` is the source of truth for the 67 hotkey-triggerable actions. It defines each action's title, category, layout compatibility, search terms, default and alternate bindings, and optional IPC command linkage. `HotkeyBinding` persists a `bindings` array per action, and `HotkeyBindingRegistry` canonicalizes both legacy single-binding payloads and newer multi-binding settings data.
+`ActionCatalog` is the source of truth for hotkey-triggerable actions. It defines each action's title, category, scope, search terms, and default or alternate bindings. `HotkeyBinding` persists a `bindings` array per action, and `HotkeyBindingRegistry` canonicalizes both legacy single-binding payloads and newer multi-binding settings data.
 
-`HotkeyCenter` flattens those action bindings and registers each key+modifiers combination via Carbon's `RegisterEventHotKey` API, so a single action can be triggered by multiple shortcuts. Actions are still tagged with layout compatibility:
+`HotkeyCenter` flattens those action bindings and registers each key+modifiers combination via Carbon's `RegisterEventHotKey` API, so a single action can be triggered by multiple shortcuts. Actions are tagged with command scope:
 
-- `.shared` — works with any layout (focus, move, workspace switch, float, scratchpad, UI toggles)
-- `.niri` — Niri-only (moveColumn, toggleColumnTabbed, focusPrevious, cycleColumnWidth)
-- `.dwindle` — Dwindle-only (moveToRoot, toggleSplit, swapSplit, preselect, resizeInDirection)
+- `.shared` — general commands such as focus, move, workspace switch, float, scratchpad, and UI toggles
+- `.niri` — Niri column commands such as moveColumn, toggleColumnTabbed, focusPrevious, and cycleColumnWidth
 
-**Command routing** (`Sources/OmniWM/Core/Controller/CommandHandler.swift`)
+**Command routing** (`Sources/Darniri/Core/Controller/CommandHandler.swift`)
 
-`CommandHandler.performCommand()` is a switch statement over all 67 `HotkeyCommand` cases, delegating to the appropriate handler. It first checks layout compatibility — a Niri command is ignored when Dwindle is active, and vice versa.
+`CommandHandler.performCommand()` is a switch statement over all `HotkeyCommand` cases, delegating to the appropriate handler.
 
-**Mouse events** (`Sources/OmniWM/Core/Controller/MouseEventHandler.swift`)
+**Mouse events** (`Sources/Darniri/Core/Controller/MouseEventHandler.swift`)
 
 Uses `CGEventTap` for system-wide mouse event interception:
 - **Focus-follows-mouse**: Debounced (100ms) focus change on mouse hover
@@ -636,7 +591,7 @@ Uses `CGEventTap` for system-wide mouse event interception:
 - **Interactive move/resize**: Option+Shift+drag for window repositioning
 - **Event coalescing**: Transient mouse events are batched and drained in coalesced bursts
 
-**SkyLight events** (`Sources/OmniWM/Core/SkyLight/CGSEventObserver.swift`)
+**SkyLight events** (`Sources/Darniri/Core/SkyLight/CGSEventObserver.swift`)
 
 Registers for window server notifications via private APIs:
 
@@ -653,9 +608,9 @@ enum CGSWindowEvent {
 
 Events are buffered in a lock-protected `PendingCGSEventState` and drained on the main run loop via `CFRunLoopPerformBlock`. Frame change events are coalesced by windowId.
 
-### 4.7 Window Rules Engine
+### 4.6 Window Rules Engine
 
-**File:** `Sources/OmniWM/Core/Rules/WindowRuleEngine.swift`
+**File:** `Sources/Darniri/Core/Rules/WindowRuleEngine.swift`
 
 Evaluates windows against rules to produce a `WindowDecision`. Evaluation order (first match wins):
 
@@ -682,46 +637,9 @@ struct WindowRuleFacts {
 }
 ```
 
-### 4.8 IPC System
+### 4.7 Accessibility Layer
 
-For the protocol specification, wire format, and CLI command reference, see [IPC-CLI.md](IPC-CLI.md). This section covers the internal code architecture.
-
-```
-omniwmctl                         OmniWM process
-─────────                         ──────────────
-CLIParser                         IPCServer
-    │                                 │
-CLIRuntime                        acceptConnections() on DispatchQueue
-    │                                 │
-IPCClient ──── Unix Socket ────► IPCConnection (per client)
-  (NDJSON)                            │
-                                 IPCApplicationBridge (actor)
-                                      │ auth check, protocol version
-                                      │
-                              ┌───────┼───────┐
-                              │       │       │
-                     IPCCommand  IPCQuery  IPCRule
-                      Router     Router    Router
-                              │       │       │
-                              └───────┼───────┘
-                                      │  @MainActor
-                                      v
-                                 CommandHandler /
-                                 WorkspaceManager /
-                                 WindowRuleEngine
-```
-
-**Key actors:**
-- `IPCApplicationBridge` — Swift actor that receives deserialized requests, checks authorization, and dispatches to the appropriate router on `@MainActor`
-- `IPCEventBroker` — Swift actor managing event subscriptions. Uses `AsyncStream` with continuations per channel per connection. `IPCEventDemandTracker` tracks whether any client is subscribed to a channel (so events aren't computed when nobody is listening)
-
-**Public surface registry:** `IPCAutomationManifest` is the source of truth for public IPC commands, queries, rule actions, subscriptions, and CLI discoverability metadata (including completion/help surfaces). The routers execute the behavior; the manifest defines what is exposed.
-
-**Security:** The trust boundary is the local macOS user account, not individual client processes. Each request carries a per-session authorization token stored in plaintext at `<socket-path>.secret`; the server also enforces socket permissions `0o600`, creates new socket directories with `0o700`, and verifies peer UID via `getpeereid()`. If `OMNIWM_SOCKET` points into an existing directory, OmniWM reuses that directory as-is instead of re-permissioning it, so custom socket paths should live in a private directory owned by the same user.
-
-### 4.9 Accessibility Layer
-
-**File:** `Sources/OmniWM/Core/Ax/AXManager.swift`
+**File:** `Sources/Darniri/Core/Ax/AXManager.swift`
 
 **Per-app threading model:** `AXManager` maintains an `AppAXContext` per process. Each context runs an AX observer on a dedicated thread to receive accessibility callbacks (focused-window-changed, window-destroyed).
 
@@ -737,9 +655,9 @@ IPCClient ──── Unix Socket ────► IPCConnection (per client)
 
 **Inactive workspace suppression:** Windows on non-visible workspaces are tracked in `inactiveWorkspaceWindowIds`. Frame writes to these windows are skipped, preventing unnecessary AX API calls and visual glitches.
 
-### 4.10 Animation System
+### 4.8 Animation System
 
-**Directory:** `Sources/OmniWM/Core/Animation/`
+**Directory:** `Sources/Darniri/Core/Animation/`
 
 **SpringAnimation** — critically-damped spring physics for smooth, responsive motion:
 
@@ -755,17 +673,15 @@ struct SpringConfig {
 
 Used for: viewport scrolling (Niri), workspace switch transitions, window movement animations.
 
-**CubicAnimation** — cubic easing for Dwindle node transitions (position and size).
-
 **AnimationClock** — monotonic time wrapper around `CACurrentMediaTime()`.
 
 **DisplayLink integration:** `LayoutRefreshController` manages a `CADisplayLink` per display. On each frame tick, it recalculates animated layouts and applies frames, producing 60/120Hz smooth animations.
 
 **Accessibility:** All animation configs support `resolvedForReduceMotion()`, which returns the `reducedMotion` preset when the user has enabled "Reduce Motion" in macOS accessibility settings.
 
-### 4.11 Border System
+### 4.9 Border System
 
-**Files:** `Sources/OmniWM/Core/Border/BorderManager.swift`, `BorderWindow.swift`
+**Files:** `Sources/Darniri/Core/Border/BorderManager.swift`, `BorderWindow.swift`
 
 A lightweight `NSWindow` overlay that draws a rounded rectangle around the focused window:
 
@@ -774,21 +690,17 @@ A lightweight `NSWindow` overlay that draws a rounded rectangle around the focus
 - Deduplication: skips updates if windowId and frame haven't changed (0.5pt tolerance)
 - Configurable: enable/disable, width (points), color (RGBA)
 
-### 4.12 Additional Features
+### 4.10 Additional Features
 
 | Feature | Key Files | Description |
 |---------|-----------|-------------|
 | **Overview** | `Core/Overview/OverviewController.swift` | Bird's-eye view of all workspaces with window thumbnails (ScreenCaptureKit), search, drag-to-reorganize |
-| **Quake Terminal** | `QuakeTerminal/QuakeTerminalController.swift` | Drop-down terminal using GhosttyKit. Supports tabs and split panes. Toggles with hotkey. |
-| **Command Palette** | `UI/CommandPalette/CommandPaletteController.swift` | Fuzzy-search interface for windows, commands, and menu items |
-| **Menu Anywhere** | `UI/MenuAnywhere/MenuAnywhereController.swift` | UI controller that uses the Core menu extraction layer to display any app's menu at cursor position |
+| **Command Palette** | `UI/CommandPalette/CommandPaletteController.swift` | Fuzzy-search interface for windows |
 | **Workspace Bar** | `UI/WorkspaceBar/WorkspaceBarManager.swift` | Visual workspace indicators with window icons per workspace |
-| **Hidden Bar** | `UI/HiddenBar/HiddenBarController.swift` | Collapsible menu bar icon management |
 | **Scratchpad** | `Core/Workspace/WorkspaceManager.swift` | Tracks the transient scratchpad window via `scratchpadToken()`. Show/hide and focus recovery are coordinated by `WMController`. |
-| **Status Bar** | `UI/StatusBar/StatusBarController.swift` | Menu bar icon with settings access, manual update checks, and workspace summary |
-| **Release Updater** | `App/UpdateCoordinator.swift`, `UI/UpdateWindowController.swift` | Polls the latest GitHub release once per day on launch, supports manual checks from Settings and the status bar, and shows a manual-action popup with release notes |
+| **Status Bar** | `UI/StatusBar/StatusBarController.swift` | Menu bar icon with settings access and workspace summary |
 
-OmniWM utility windows such as Settings, App Rules, Sponsors, and the updater popup still register through `OwnedWindowRegistry`, but that type now acts as a facade over `SurfaceCoordinator` and `SurfaceScene`. The shared surface system assigns each owned UI surface a `SurfaceKind` and `SurfacePolicy`, centralizing hit-testing, screen-capture inclusion, and managed-focus-recovery suppression across overview, workspace bar, border, quake, and utility windows.
+Darniri utility windows such as Settings and App Rules register through `OwnedWindowRegistry`, which acts as a facade over `SurfaceCoordinator` and `SurfaceScene`. The shared surface system assigns each owned UI surface a `SurfaceKind` and `SurfacePolicy`, centralizing hit-testing, screen-capture inclusion, and managed-focus-recovery suppression across overview, workspace bar, border, and utility windows.
 
 ---
 
@@ -827,9 +739,6 @@ AXManager.applyFramesParallel(frames)
 BorderCoordinator.updateBorder(for: targetToken)
     │ moves border to newly focused window
     v
-FocusNotificationDispatcher.publish(focusEvent)
-    │ notifies IPC subscribers
-    v
 Done
 ```
 
@@ -867,100 +776,47 @@ Layout calculation → AXManager.applyFramesParallel()
 All windows repositioned to accommodate the new one
 ```
 
-### 5.3 IPC Command Flow
-
-User runs `omniwmctl command focus left`:
-
-```
-CLIParser.parse(["command", "focus", "left"])
-    │ produces IPCRequest { kind: .command, payload: .command(.focus(direction: .left)) }
-    v
-IPCClient connects to Unix socket (~/.../ipc.sock)
-    │ sends NDJSON: {"version":3,"id":"...","kind":"command","authorizationToken":"...","payload":{"name":"focus","arguments":{"direction":"left"}}}\n
-    v
-IPCServer accepts connection → IPCConnection reads line
-    │ deserializes to IPCRequest
-    v
-IPCApplicationBridge.response(request) [actor]
-    │ verifies authorization token
-    │ checks protocol version
-    v
-IPCCommandRouter.handle(.focus(direction: .left)) [@MainActor]
-    │ maps to HotkeyCommand.focus(.left)
-    v
-CommandHandler.performCommand(.focus(.left))
-    │ (same flow as hotkey from here — see 5.1)
-    │ returns ExternalCommandResult
-    v
-IPCResponse { ok: true } → serialized as NDJSON → sent to client
-    v
-CLIRenderer displays result
-```
-
 ---
 
 ## 6. Common Contribution Patterns
 
 ### 6.1 Adding a New Hotkey Command
 
-1. **Add the enum case** in `Sources/OmniWM/Core/Input/HotkeyCommand.swift`:
+1. **Add the enum case** in `Sources/Darniri/Core/Input/HotkeyCommand.swift`:
    ```swift
    case myNewCommand
    ```
-   Set `layoutCompatibility` (`.shared`, `.niri`, or `.dwindle`).
+   Set `layoutCompatibility` (`.shared` or `.niri`).
 
-2. **Handle it** in `Sources/OmniWM/Core/Controller/CommandHandler.swift`:
+2. **Handle it** in `Sources/Darniri/Core/Controller/CommandHandler.swift`:
    ```swift
    case .myNewCommand:
        // implementation or delegation to a handler
    ```
 
-3. **Add the action spec** in `Sources/OmniWM/Core/Input/ActionCatalog.swift` so the command has its title, category, search metadata, and default or alternate bindings. `DefaultHotkeyBindings.swift` is only a thin wrapper over this catalog.
-
-4. **Expose via IPC** in `Sources/OmniWM/IPC/IPCCommandRouter.swift` — add the routing to the new command when it should be scriptable.
-
-5. **Add CLI support** in `Sources/OmniWMCtl/CLIParser.swift` — add the command name.
-
-6. **Update the automation manifest** in `Sources/OmniWMIPC/IPCAutomationManifest.swift` — add the command description.
+3. **Add the action spec** in `Sources/Darniri/Core/Input/ActionCatalog.swift` so the command has its title, category, search metadata, and default or alternate bindings. `DefaultHotkeyBindings.swift` is only a thin wrapper over this catalog.
 
 Actions can carry multiple persisted bindings, so any extra default shortcuts should be modeled in `ActionCatalog` rather than as separate commands.
 
-### 6.2 Adding a New IPC Query
+### 6.2 Adding a New Setting
 
-1. **Define the response model** in `Sources/OmniWMIPC/IPCModels.swift`.
-
-2. **Implement the query** in `Sources/OmniWM/IPC/IPCQueryRouter.swift`:
-   ```swift
-   case "my-query":
-       let result = // gather data from WorkspaceManager, etc.
-       return .success(result)
-   ```
-
-3. **Add CLI rendering** in `Sources/OmniWMCtl/CLIRenderer.swift` — format the response for terminal output.
-
-4. **Add CLI parsing** in `Sources/OmniWMCtl/CLIParser.swift` — add the query name.
-
-5. **Update the manifest** in `Sources/OmniWMIPC/IPCAutomationManifest.swift`.
-
-### 6.3 Adding a New Setting
-
-1. **Add the property** to `Sources/OmniWM/Core/Config/SettingsStore.swift`.
+1. **Add the property** to `Sources/Darniri/Core/Config/SettingsStore.swift`.
 
 2. **Wire the runtime behavior** in `WMController.applyPersistedSettings()` or the relevant handler that consumes the setting.
 
-3. **Add UI** in the appropriate settings tab under `Sources/OmniWM/UI/`.
+3. **Add UI** in the appropriate settings tab under `Sources/Darniri/UI/`.
 
-4. **Update the TOML settings model** in `Sources/OmniWM/Core/Config/SettingsExport.swift`, `Sources/OmniWM/Core/Config/CanonicalTOMLConfig.swift`, and `Sources/OmniWM/Core/Config/SettingsTOMLCodec.swift` for persisted user preferences that belong in editable config. Do not include remote payloads or operational cache state such as updater release notes, release URLs, last-check timestamps, or skipped-release markers.
+4. **Update the TOML settings model** in `Sources/Darniri/Core/Config/SettingsExport.swift`, `Sources/Darniri/Core/Config/CanonicalTOMLConfig.swift`, and `Sources/Darniri/Core/Config/SettingsTOMLCodec.swift` for persisted user preferences that belong in editable config. Do not include remote payloads or operational cache state in user-editable settings.
 
-5. **Check settings-file touchpoints** when the change affects config discoverability or UX. `Sources/OmniWM/UI/SettingsFileWorkflow.swift` is the open/reveal workflow layer, and the `Settings File` section in `Sources/OmniWM/UI/SettingsView.swift` is the main user-facing entry point; most new settings do not need workflow code changes, but contributor-facing config behavior and copy should remain accurate.
+5. **Check settings-file touchpoints** when the change affects config discoverability or UX. `Sources/Darniri/UI/SettingsFileWorkflow.swift` is the open/reveal workflow layer, and the `Settings File` section in `Sources/Darniri/UI/SettingsView.swift` is the main user-facing entry point; most new settings do not need workflow code changes, but contributor-facing config behavior and copy should remain accurate.
 
 6. **Handle schema compatibility** in the TOML codec if needed. `settings.toml` is the only settings source of truth.
 
-7. **Verify persistence** by checking the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/omniwm/settings.toml`.
+7. **Verify persistence** by checking the setting survives store load/save and TOML encode/decode so it cannot silently disappear from `~/.config/darniri/settings.toml`.
 
-### 6.4 Modifying Layout Behavior
+### 6.3 Modifying Layout Behavior
 
-1. **Identify the engine**: Niri code is in `Sources/OmniWM/Core/Layout/Niri/`, Dwindle in `Sources/OmniWM/Core/Layout/Dwindle/`.
+1. **Identify the relevant file**: Niri code is in `Sources/Darniri/Core/Layout/Niri/`.
 
 2. **Find the relevant extension**: Niri splits logic across extensions:
    - `NiriLayoutEngine+Animation.swift` — animation tick and spring updates
@@ -976,12 +832,12 @@ Actions can carry multiple persisted bindings, so any extra default shortcuts sh
 
    Focus navigation lives in `NiriNavigation.swift`. Constraint solving lives in `NiriConstraintSolver.swift`.
 
-### 6.5 Working with Private APIs
+### 6.4 Working with Private APIs
 
-OmniWM uses SkyLight (private macOS framework) for low-latency window operations. The wrapper pattern is:
+Darniri uses SkyLight (private macOS framework) for low-latency window operations. The wrapper pattern is:
 
-1. **Function declarations** use `@_silgen_name` in `Sources/OmniWM/Core/PrivateAPIs.swift`
-2. **Dynamic loading** via `dlopen`/`dlsym` in `Sources/OmniWM/Core/SkyLight/SkyLight.swift` for functions that can't use `@_silgen_name`
+1. **Function declarations** use `@_silgen_name` in `Sources/Darniri/Core/PrivateAPIs.swift`
+2. **Dynamic loading** via `dlopen`/`dlsym` in `Sources/Darniri/Core/SkyLight/SkyLight.swift` for functions that can't use `@_silgen_name`
 3. All private API usage is wrapped in safe Swift functions with fallback behavior
 
 **Risk model:** Private APIs can break across macOS versions. When adding new private API usage, provide a fallback path using public APIs where possible, and verify behavior across macOS versions.
@@ -999,22 +855,18 @@ OmniWM uses SkyLight (private macOS framework) for low-latency window operations
 | `WorkspaceDescriptor` | A workspace definition: `id` (UUID), `name`, optional `assignedMonitorPoint`. |
 | `SessionState` | Ephemeral runtime state in `WorkspaceManager`: focused window, visible workspace per monitor, viewport states. |
 | `NiriRoot` / `NiriContainer` / `NiriWindow` | The three-level Niri layout tree: root → columns → windows. |
-| `DwindleNode` | BSP tree node. Kind is either `.split(orientation, ratio)` or `.leaf(handle, fullscreen)`. |
 | `ViewportState` | Niri's horizontal scroll state: `.static`, `.gesture`, or `.spring`. |
 | `LayoutRefreshController` | Central refresh coordinator. Schedules, debounces, and coalesces layout recalculations. |
 | `RefreshReason` | Why a refresh was requested (e.g., `.axWindowCreated`, `.layoutCommand`). Maps to a refresh route. |
 | `RefreshRoute` | How the refresh executes: `fullRescan`, `relayout`, `immediateRelayout`, `visibilityRefresh`, `windowRemoval`. |
 | `ManagedFocusRequest` | In-flight focus request with status (`.pending`/`.confirmed`) and retry tracking. |
-| `FocusBridgeCoordinator` | Focus state machine coordinating OmniWM's focus intent with macOS confirmation. |
+| `FocusBridgeCoordinator` | Focus state machine coordinating Darniri's focus intent with macOS confirmation. |
 | `CGSEventObserver` | SkyLight event listener for window create/destroy/frame-change/front-app-change. |
-| `HotkeyCommand` | Enum of all 67 commands that can be triggered by hotkeys or IPC. |
-| `IPCApplicationBridge` | Swift actor routing IPC requests to `@MainActor` command/query/rule handlers. |
-| `IPCEventBroker` | Swift actor managing real-time event subscriptions for IPC clients. |
+| `HotkeyCommand` | Enum of all commands that can be triggered by hotkeys. |
 | `ProportionalSize` | `.proportion(CGFloat)` or `.fixed(CGFloat)` — Niri column width specification. |
 | `WeightedSize` | `.auto(weight:)` or `.fixed(CGFloat)` — Niri window height within a column. |
 | `NodeId` | UUID-based identifier for Niri layout tree nodes. |
 | `SpringConfig` | Animation parameters: `response`, `dampingFraction`. Presets: `.snappy`, `.balanced`, `.gentle`. |
 | `WindowDecision` | Result of rule evaluation: `disposition`, `source`, `workspaceName`, `ruleEffects`. |
 | `WindowRuleFacts` | Input for rule evaluation: app name, AX facts (role, subrole, title), size constraints. |
-| `LayoutType` | `.defaultLayout`, `.niri`, or `.dwindle` — per-workspace layout selection. |
 | `Scratchpad` | A special slot for a single transient window that can be toggled in/out of view. |

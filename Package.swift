@@ -1,88 +1,53 @@
 // swift-tools-version: 6.3
-import Foundation
 import PackageDescription
 
-let packageDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
-let ghosttyMacOSLibraryDirectory = "\(packageDirectory)/Frameworks/GhosttyKit.xcframework/macos-arm64_x86_64"
-
 let package = Package(
-    name: "OmniWM",
+    name: "Darniri",
     platforms: [
         .macOS(.v15)
     ],
     products: [
         .executable(
-            name: "OmniWM",
-            targets: ["OmniWMApp"]
-        ),
-        .executable(
-            name: "omniwmctl",
-            targets: ["OmniWMCtl"]
+            name: "Darniri",
+            targets: ["DarniriApp"]
         )
     ],
     dependencies: [
         .package(url: "https://github.com/mattt/swift-toml.git", from: "2.0.0")
     ],
     targets: [
-        .binaryTarget(
-            name: "GhosttyKit",
-            path: "Frameworks/GhosttyKit.xcframework"
-        ),
         .target(
-            name: "OmniWMIPC",
-            path: "Sources/OmniWMIPC",
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
-            ]
-        ),
-        .target(
-            name: "OmniWM",
+            name: "Darniri",
             dependencies: [
-                "GhosttyKit",
-                "OmniWMIPC",
                 .product(name: "TOML", package: "swift-toml")
             ],
-            path: "Sources/OmniWM",
+            path: "Sources/Darniri",
             resources: [
                 .process("Resources")
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6),
-                .interoperabilityMode(.C)
+                .swiftLanguageMode(.v6)
             ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("Carbon"),
-                .linkedFramework("Metal"),
-                .linkedFramework("MetalKit"),
                 .linkedFramework("QuartzCore"),
-                .linkedLibrary("z"),
-                .linkedLibrary("c++"),
-                .unsafeFlags(["-L\(ghosttyMacOSLibraryDirectory)"]),
                 .unsafeFlags(["-F/System/Library/PrivateFrameworks", "-framework", "SkyLight"])
             ]
         ),
         .executableTarget(
-            name: "OmniWMApp",
-            dependencies: ["OmniWM"],
-            path: "Sources/OmniWMApp",
-            swiftSettings: [
-                .swiftLanguageMode(.v6)
-            ]
-        ),
-        .executableTarget(
-            name: "OmniWMCtl",
-            dependencies: ["OmniWMIPC"],
-            path: "Sources/OmniWMCtl",
+            name: "DarniriApp",
+            dependencies: ["Darniri"],
+            path: "Sources/DarniriApp",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
         ),
         .testTarget(
-            name: "OmniWMTests",
-            dependencies: ["OmniWM"],
-            path: "Tests/OmniWMTests",
+            name: "DarniriTests",
+            dependencies: ["Darniri"],
+            path: "Tests/DarniriTests",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
