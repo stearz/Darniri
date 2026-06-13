@@ -2,6 +2,10 @@
 
 Darniri is a Darwin/macOS implementation of a Niri-style scrolling-column window manager. It narrows the project around the Niri workflow on macOS.
 
+Darniri is forked from [OmniWM](https://github.com/barutsrb/omniwm). The repository keeps OmniWM's project history and contributor attribution where applicable, while Darniri has diverged in scope toward Niri-like window management on macOS.
+
+The fork exists to keep Darniri deliberately focused on that narrower scope, without adjacent features such as a CLI, quake terminal, or dwindle layout.
+
 ## Demo Video
 
 TBD
@@ -9,7 +13,7 @@ TBD
 ## Contributors
 
 <p align="center">
-  Thank you to everyone who contributed to the upstream project. Your ideas and code are what Darniri builds upon.
+  Thank you to everyone who contributed to OmniWM and to Darniri. Your ideas and code are what Darniri builds upon.
 </p>
 
 ## Requirements
@@ -23,7 +27,19 @@ TBD
 
 ### Homebrew
 
-TBD
+Darniri does not have a release artifact yet, so the Homebrew tap currently installs from source:
+
+```sh
+brew install stearz/tap/darniri --HEAD
+```
+
+After installing, start Darniri from the terminal:
+
+```sh
+Darniri
+```
+
+This installs the Swift executable. A cask for installing `Darniri.app` will be added once signed release archives are available.
 
 ### GitHub Releases
 
@@ -66,69 +82,69 @@ All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the 
 
 #### Workspace
 
-| Action | Default Shortcut |
-|--------|------------------|
-| Switch to Workspace 1-9 | `Hyper + 1-9` |
-| Move Window to Workspace 1-9 | `Option + Shift + 1-9` |
-| Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab` |
-| Switch to Next Workspace | `Unassigned` |
-| Switch to Previous Workspace (Sequential) | `Unassigned` |
-| Move Window to Workspace Up | `Control + Option + Shift + Up Arrow` |
-| Move Window to Workspace Down | `Control + Option + Shift + Down Arrow` |
-| Move Column to Workspace 1-9 | `Unassigned` |
-| Move Column to Workspace Up | `Control + Option + Shift + Page Up` |
-| Move Column to Workspace Down | `Control + Option + Shift + Page Down` |
+| Action                                        | Default Shortcut                        |
+| --------------------------------------------- | --------------------------------------- |
+| Switch to Workspace 1-9                       | `Hyper + 1-9`                           |
+| Move Window to Workspace 1-9                  | `Option + Shift + 1-9`                  |
+| Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab`                |
+| Switch to Next Workspace                      | `Unassigned`                            |
+| Switch to Previous Workspace (Sequential)     | `Unassigned`                            |
+| Move Window to Workspace Up                   | `Control + Option + Shift + Up Arrow`   |
+| Move Window to Workspace Down                 | `Control + Option + Shift + Down Arrow` |
+| Move Column to Workspace 1-9                  | `Unassigned`                            |
+| Move Column to Workspace Up                   | `Control + Option + Shift + Page Up`    |
+| Move Column to Workspace Down                 | `Control + Option + Shift + Page Down`  |
 
 #### Focus
 
-| Action | Default Shortcut |
-|--------|------------------|
-| Focus Left / Right / Up / Down | `Option + Arrow Keys` |
-| Focus Previous Window | `Option + Tab` |
-| Traverse Backward | `Unassigned` |
-| Traverse Forward | `Unassigned` |
-| Focus First Column | `Option + Home` |
-| Focus Last Column | `Option + End` |
-| Focus Column 1-9 | `Control + Option + 1-9` |
-| Toggle Command Palette | `Control + Option + Space` |
-| Toggle Workspace Bar | `Unassigned` |
-| Toggle Overview | `Option + Shift + O` |
+| Action                         | Default Shortcut           |
+| ------------------------------ | -------------------------- |
+| Focus Left / Right / Up / Down | `Option + Arrow Keys`      |
+| Focus Previous Window          | `Option + Tab`             |
+| Traverse Backward              | `Unassigned`               |
+| Traverse Forward               | `Unassigned`               |
+| Focus First Column             | `Option + Home`            |
+| Focus Last Column              | `Option + End`             |
+| Focus Column 1-9               | `Control + Option + 1-9`   |
+| Toggle Command Palette         | `Control + Option + Space` |
+| Toggle Workspace Bar           | `Unassigned`               |
+| Toggle Overview                | `Option + Shift + O`       |
 
 #### Move Window
 
-| Action | Default Shortcut |
-|--------|------------------|
+| Action                        | Default Shortcut              |
+| ----------------------------- | ----------------------------- |
 | Move Left / Right / Up / Down | `Option + Shift + Arrow Keys` |
 
 #### Monitor
 
-| Action | Default Shortcut |
-|--------|------------------|
-| Focus Next Monitor | `Control + Command + Tab` |
-| Focus Previous Monitor | `Unassigned` |
-| Focus Last Monitor | `` Control + Command + ` `` |
+| Action                 | Default Shortcut            |
+| ---------------------- | --------------------------- |
+| Focus Next Monitor     | `Control + Command + Tab`   |
+| Focus Previous Monitor | `Unassigned`                |
+| Focus Last Monitor     | `` Control + Command + ` `` |
 
 #### Layout
 
-| Action | Default Shortcut |
-|--------|------------------|
-| Toggle Fullscreen | `Option + Return` |
-| Toggle Native Fullscreen | `Unassigned` |
-| Balance Sizes | `Option + Shift + B` |
-| Raise All Floating Windows | `Option + Shift + R` |
-| Toggle Focused Window Floating | `Unassigned` |
-| Assign Focused Window to Scratchpad | `Unassigned` |
-| Toggle Scratchpad Window | `Unassigned` |
+| Action                              | Default Shortcut     |
+| ----------------------------------- | -------------------- |
+| Toggle Fullscreen                   | `Option + Return`    |
+| Toggle Native Fullscreen            | `Unassigned`         |
+| Balance Sizes                       | `Option + Shift + B` |
+| Raise All Floating Windows          | `Option + Shift + R` |
+| Toggle Focused Window Floating      | `Unassigned`         |
+| Assign Focused Window to Scratchpad | `Unassigned`         |
+| Toggle Scratchpad Window            | `Unassigned`         |
 
 #### Column
 
-| Action | Default Shortcut |
-|--------|------------------|
-| Move Column Left / Right | `Control + Option + Shift + Left / Right Arrow` |
-| Toggle Column Tabbed | `Option + T` |
-| Cycle Column Width Forward | `Option + .` |
-| Cycle Column Width Backward | `Option + ,` |
-| Toggle Column Full Width | `Option + Shift + F` |
+| Action                      | Default Shortcut                                |
+| --------------------------- | ----------------------------------------------- |
+| Move Column Left / Right    | `Control + Option + Shift + Left / Right Arrow` |
+| Toggle Column Tabbed        | `Option + T`                                    |
+| Cycle Column Width Forward  | `Option + .`                                    |
+| Cycle Column Width Backward | `Option + ,`                                    |
+| Toggle Column Full Width    | `Option + Shift + F`                            |
 
 `Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` keeps the current in-column reorder behavior.
 
