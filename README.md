@@ -1,175 +1,16 @@
+# Darniri
+
+Darniri is a Darwin/macOS implementation of a Niri-style scrolling-column window manager. It narrows the project around the Niri workflow on macOS.
+
 ## Demo Video
 
-[![Watch the demo](https://img.youtube.com/vi/WcHjGkuD2Fc/maxresdefault.jpg)](https://youtu.be/WcHjGkuD2Fc)
+TBD
 
 ## Contributors
 
 <p align="center">
-  Thank you to everyone who contributed to OmniWM. Your ideas and code made a real difference.
+  Thank you to everyone who contributed to the upstream project. Your ideas and code are what Darniri builds upon.
 </p>
-
-<table align="center">
-  <tr>
-    <td align="center">
-      <a href="https://github.com/adelin-b" title="Adelin Berard">
-        <img src="https://github.com/adelin-b.png?size=96" width="96" alt="Adelin Berard">
-      </a>
-      <br>
-      <a href="https://github.com/adelin-b"><strong>Adelin Berard</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/balazshevesi" title="Balazs Hevesi">
-        <img src="https://github.com/balazshevesi.png?size=96" width="96" alt="Balazs Hevesi">
-      </a>
-      <br>
-      <a href="https://github.com/balazshevesi"><strong>Balazs Hevesi</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/chen259456754" title="chen259456754">
-        <img src="https://github.com/chen259456754.png?size=96" width="96" alt="chen259456754">
-      </a>
-      <br>
-      <a href="https://github.com/chen259456754"><strong>chen259456754</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/janhesters" title="Jan Hesters">
-        <img src="https://github.com/janhesters.png?size=96" width="96" alt="Jan Hesters">
-      </a>
-      <br>
-      <a href="https://github.com/janhesters"><strong>Jan Hesters</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/jcardama" title="Jose Cardama">
-        <img src="https://github.com/jcardama.png?size=96" width="96" alt="Jose Cardama">
-      </a>
-      <br>
-      <a href="https://github.com/jcardama"><strong>Jose Cardama</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/lgerlinski" title="Lukas Gerlinski">
-        <img src="https://github.com/lgerlinski.png?size=96" width="96" alt="Lukas Gerlinski">
-      </a>
-      <br>
-      <a href="https://github.com/lgerlinski"><strong>Lukas Gerlinski</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/zucram" title="Marcus Harlid Davin">
-        <img src="https://github.com/zucram.png?size=96" width="96" alt="Marcus Harlid Davin">
-      </a>
-      <br>
-      <a href="https://github.com/zucram"><strong>Marcus Harlid Davin</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/mkdir700" title="mkdir700">
-        <img src="https://github.com/mkdir700.png?size=96" width="96" alt="mkdir700">
-      </a>
-      <br>
-      <a href="https://github.com/mkdir700"><strong>mkdir700</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/zwo-bot" title="mm">
-        <img src="https://github.com/zwo-bot.png?size=96" width="96" alt="mm">
-      </a>
-      <br>
-      <a href="https://github.com/zwo-bot"><strong>mm</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/siketyan" title="Naoki Ikeguchi">
-        <img src="https://github.com/siketyan.png?size=96" width="96" alt="Naoki Ikeguchi">
-      </a>
-      <br>
-      <a href="https://github.com/siketyan"><strong>Naoki Ikeguchi</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/georgebastille" title="Rich Hanes">
-        <img src="https://github.com/georgebastille.png?size=96" width="96" alt="Rich Hanes">
-      </a>
-      <br>
-      <a href="https://github.com/georgebastille"><strong>Rich Hanes</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/chenhaozhenss" title="Williamufo">
-        <img src="https://github.com/chenhaozhenss.png?size=96" width="96" alt="Williamufo">
-      </a>
-      <br>
-      <a href="https://github.com/chenhaozhenss"><strong>Williamufo</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/Yang-Yiming" title="Yang-Yiming">
-        <img src="https://github.com/Yang-Yiming.png?size=96" width="96" alt="Yang-Yiming">
-      </a>
-      <br>
-      <a href="https://github.com/Yang-Yiming"><strong>Yang-Yiming</strong></a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/zicochaos" title="Zicochaos">
-        <img src="https://github.com/Zicochaos.png?size=96" width="96" alt="Zicochaos">
-      </a>
-      <br>
-      <a href="https://github.com/zicochaos"><strong>Zicochaos</strong></a>
-    </td>
-  </tr>
-</table>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/macOS-15.0%2B-green?logo=apple&logoColor=white" alt="macOS">
-  <img src="https://img.shields.io/badge/Apple%20Silicon-supported-green?logo=apple&logoColor=white" alt="Apple Silicon">
-  <img src="https://img.shields.io/badge/X86/X64-supported-green?logo=intel&logoColor=white" alt="Intel">
-  <img src="https://img.shields.io/badge/Claude%20Code-Assisted-green?logo=claude&logoColor=white" alt="Claude Code">
-</p>
-<p align="center">
-  <a href="https://trendshift.io/repositories/16758" target="_blank"><img src="https://trendshift.io/api/badge/repositories/16758" alt="BarutSRB%2FOmniWM | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/semidemo.gif" alt="OmniWM demo">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/semidemo1.gif" alt="OmniWM demo">
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/demo1.gif" alt="OmniWM demo" width="100%">
-</p>
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/demo2.gif" alt="OmniWM demo" width="100%">
-</p>
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/demo3.gif" alt="OmniWM demo" width="100%">
-</p>
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/demo4.gif" alt="OmniWM demo" width="100%">
-</p>
-<p align="center">
-  <img src="https://raw.githubusercontent.com/BarutSRB/OmniWM/main/assets/demo5.gif" alt="OmniWM demo" width="100%">
-</p>
-
-Small demo, not fully showing everything, gif recorded at 30fps due to size, some stuff is now more refined and better as soem gifs might be outdated, features shown:
-- Real quake/sticky terminal using ghostty's libghostty
-- Best-effort macOS native-tab replacement support
-- IPC/CLI
-- Scrathpad/Sticky windows of any app
-- Niri Overview
-- Unified command palette for windows and app menus
-- App menu anywhere
-- Niri tabs
-- Niri and Dwindle layout
-- Hide/unhide status bar icons (Simialr to Ice Bar)
-- Keep awake (Similar to Caffeine)
-- Interactive workspace/app icon bar
-- A lot more features not show in the video.
-
-## Known Limitations
-
-- **Gestures/Trackpad** - Magic Mouse and trackpad gestures have not been locally validated without matching hardware, but no issues have been reported.
-
-## Performance & Trust
-
-OmniWM is built for high responsiveness and smooth, crisp animations.
-
-- **Private APIs** - OmniWM leverages Apple's private APIs where ever technically possible in order to reduce latency and improve window management responsiveness.
-- **Refresh rate aware animations** - OmniWM targets true display refresh pacing (for example 60/120/144Hz) for animations.
-- **No SIP disable required** - OmniWM does not require System Integrity Protection (SIP) to be disabled and never will.
-- **Always notarized official releases** - Official OmniWM release builds are developer signed and notarized by Apple and will stay that way.
-- **Forever free, no limitations** - OmniWM is and will remain free to use forever, with no subscriptions, feature paywalls, trial limits, or usage caps.
 
 ## Requirements
 
@@ -182,28 +23,16 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 
 ### Homebrew
 
-```bash
-brew tap BarutSRB/tap
-brew install omniwm
-```
+TBD
 
 ### GitHub Releases
 
-1. Download the latest `OmniWM.zip` from [Releases](https://github.com/BarutSRB/OmniWM/releases)
-2. Extract and move `OmniWM.app` to `/Applications`
+1. Download the latest `Darniri.zip` from [Releases](https://github.com/stearz/Darniri/releases)
+2. Extract and move `Darniri.app` to `/Applications`
 3. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 4. Log out of macOS and log back in for that change to take effect unless you had it off already
-5. Launch OmniWM and grant Accessibility permissions when prompted
+5. Launch Darniri and grant Accessibility permissions when prompted
 6. For custom Hyper key shortcuts, grant Input Monitoring from Settings > Hotkeys
-
-## Updates
-
-OmniWM checks for updates by default.
-
-- On launch, OmniWM polls the latest GitHub release at most once per day.
-- Updates stay manual. OmniWM does not auto-download or auto-install a new release.
-- When a newer release is available, OmniWM shows a centered popup with release notes and actions for `Open Release Page`, `Copy brew upgrade omniwm`, `Skip This Version`, and `Not Now`.
-- You can control this from `Settings > General > Updates` or trigger a manual check from the status bar menu with `Check for Updates...`.
 
 ## Documentation
 
@@ -211,176 +40,109 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 
 - [Documentation Home](docs/index.md)
 - [Architecture Guide](docs/ARCHITECTURE.md)
-- [IPC & CLI Reference](docs/IPC-CLI.md)
 - [Contribution Docs](docs/CONTRIBUTING.md)
 - [Canonical Contributing Guide](CONTRIBUTING.md)
 
-## IPC and CLI
-
-OmniWM ships with a bundled CLI, `omniwmctl`, for automation and scripting.
-
-IPC is disabled by default. Enable `Enable IPC` from the menu bar before using the CLI or any automation.
-
-For setup, installation options, commands, queries, rules, subscriptions, and security details, see [docs/IPC-CLI.md](docs/IPC-CLI.md).
-
 ## Quick Start
 
-1. Launch OmniWM from your Applications folder
+1. Launch Darniri from your Applications folder
 2. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 3. Log out of macOS and log back in for that change to take effect unless you had it off already
 4. Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility
 5. Windows will automatically tile in columns
 6. Use the default shortcuts in `Keyboard Shortcuts` to navigate between windows
-7. Click the menu bar icon to access Settings, including `Settings > General > Updates`
-8. Use `Check for Updates...` from the status bar menu whenever you want to run a manual update check
-9. In case you freak out and don't see all your status bar icons, relax, right click on OmniWM's status bar icon and drag the icons to the left of it's "/" by holding CMD + drag as OmniWM hides status bar icons like **Ice Bar**.
+7. Click the menu bar icon to access Settings
 
 
 ## User Guide
 
-### Layout Modes
+### Layout
 
-OmniWM offers two layout engines that you can switch between per workspace:
-
-**Niri (Scrolling Columns)** - Windows arranged in vertical columns that scroll horizontally. Each column can have multiple stacked windows or be "tabbed" (multiple windows, one visible at a time). Best for wide monitors with many windows.
-
-**Hyprland Dwindle (BSP)** - Binary space partition layout that recursively divides screen space. Each new window splits the space in half. Best for traditional tiling with predictable layouts.
-
-Use the `Toggle Workspace Layout` shortcut below to switch layouts per workspace or configure them in GUI settings.
+Darniri uses the Niri scrolling columns layout: windows are arranged in vertical columns that scroll horizontally. Each column can have multiple stacked windows or be "tabbed" (multiple windows, one visible at a time). Best for wide monitors with many windows.
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the `Hyper` modifier are configured there. `Hyper` defaults to Control + Option + Shift + Command, and you can choose another key or mouse button as the OmniWM modifier. The tables below list all the default hotkeys:
-
-Layout legend:
-- `Shared` works in any active layout.
-- `Niri` works only when the active workspace uses the Niri layout.
-- `Dwindle` works only when the active workspace uses the Dwindle layout.
+All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the `Hyper` modifier are configured there. `Hyper` defaults to Control + Option + Shift + Command, and you can choose another key or mouse button as the Darniri modifier. The tables below list all the default hotkeys:
 
 #### Workspace
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Switch to Workspace 1-9 | `Hyper + 1-9` | `Shared` |
-| Move Window to Workspace 1-9 | `Option + Shift + 1-9` | `Shared` |
-| Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab` | `Shared` |
-| Switch to Next Workspace | `Unassigned` | `Shared` |
-| Switch to Previous Workspace (Sequential) | `Unassigned` | `Shared` |
-| Move Window to Workspace Up | `Control + Option + Shift + Up Arrow` | `Shared` |
-| Move Window to Workspace Down | `Control + Option + Shift + Down Arrow` | `Shared` |
-| Move Column to Workspace 1-9 | `Unassigned` | `Niri` |
-| Move Column to Workspace Up | `Control + Option + Shift + Page Up` | `Niri` |
-| Move Column to Workspace Down | `Control + Option + Shift + Page Down` | `Niri` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Switch to Workspace 1-9 | `Hyper + 1-9` |
+| Move Window to Workspace 1-9 | `Option + Shift + 1-9` |
+| Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab` |
+| Switch to Next Workspace | `Unassigned` |
+| Switch to Previous Workspace (Sequential) | `Unassigned` |
+| Move Window to Workspace Up | `Control + Option + Shift + Up Arrow` |
+| Move Window to Workspace Down | `Control + Option + Shift + Down Arrow` |
+| Move Column to Workspace 1-9 | `Unassigned` |
+| Move Column to Workspace Up | `Control + Option + Shift + Page Up` |
+| Move Column to Workspace Down | `Control + Option + Shift + Page Down` |
 
 #### Focus
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Focus Left / Right / Up / Down | `Option + Arrow Keys` | `Shared` |
-| Focus Previous Window | `Option + Tab` | `Niri` |
-| Traverse Backward | `Unassigned` | `Niri` |
-| Traverse Forward | `Unassigned` | `Niri` |
-| Focus First Column | `Option + Home` | `Niri` |
-| Focus Last Column | `Option + End` | `Niri` |
-| Focus Column 1-9 | `Control + Option + 1-9` | `Niri` |
-| Toggle Command Palette | `Control + Option + Space` | `Shared` |
-| Open Menu Anywhere | `Control + Option + M` | `Shared` |
-| Toggle Workspace Bar | `Unassigned` | `Shared` |
-| Toggle Hidden Bar | `Unassigned` | `Shared` |
-| Toggle Quake Terminal | `` Option + ` `` | `Shared` |
-| Toggle Overview | `Option + Shift + O` | `Shared` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Focus Left / Right / Up / Down | `Option + Arrow Keys` |
+| Focus Previous Window | `Option + Tab` |
+| Traverse Backward | `Unassigned` |
+| Traverse Forward | `Unassigned` |
+| Focus First Column | `Option + Home` |
+| Focus Last Column | `Option + End` |
+| Focus Column 1-9 | `Control + Option + 1-9` |
+| Toggle Command Palette | `Control + Option + Space` |
+| Toggle Workspace Bar | `Unassigned` |
+| Toggle Overview | `Option + Shift + O` |
 
 #### Move Window
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Move Left / Right / Up / Down | `Option + Shift + Arrow Keys` | `Shared` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Move Left / Right / Up / Down | `Option + Shift + Arrow Keys` |
 
 #### Monitor
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Focus Next Monitor | `Control + Command + Tab` | `Shared` |
-| Focus Previous Monitor | `Unassigned` | `Shared` |
-| Focus Last Monitor | `` Control + Command + ` `` | `Shared` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Focus Next Monitor | `Control + Command + Tab` |
+| Focus Previous Monitor | `Unassigned` |
+| Focus Last Monitor | `` Control + Command + ` `` |
 
 #### Layout
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Toggle Fullscreen | `Option + Return` | `Shared` |
-| Toggle Native Fullscreen | `Unassigned` | `Shared` |
-| Balance Sizes | `Option + Shift + B` | `Shared` |
-| Move to Root | `Unassigned` | `Dwindle` |
-| Toggle Split | `Unassigned` | `Dwindle` |
-| Swap Split | `Unassigned` | `Dwindle` |
-| Grow Left / Right / Up / Down | `Unassigned` | `Dwindle` |
-| Shrink Left / Right / Up / Down | `Unassigned` | `Dwindle` |
-| Preselect Left / Right / Up / Down | `Unassigned` | `Dwindle` |
-| Clear Preselection | `Unassigned` | `Dwindle` |
-| Raise All Floating Windows | `Option + Shift + R` | `Shared` |
-| Toggle Focused Window Floating | `Unassigned` | `Shared` |
-| Assign Focused Window to Scratchpad | `Unassigned` | `Shared` |
-| Toggle Scratchpad Window | `Unassigned` | `Shared` |
-| Toggle Workspace Layout | `Option + Shift + L` | `Shared` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Toggle Fullscreen | `Option + Return` |
+| Toggle Native Fullscreen | `Unassigned` |
+| Balance Sizes | `Option + Shift + B` |
+| Raise All Floating Windows | `Option + Shift + R` |
+| Toggle Focused Window Floating | `Unassigned` |
+| Assign Focused Window to Scratchpad | `Unassigned` |
+| Toggle Scratchpad Window | `Unassigned` |
 
 #### Column
 
-| Action | Default Shortcut | Layout |
-|--------|------------------|--------|
-| Move Column Left / Right | `Control + Option + Shift + Left / Right Arrow` | `Niri` |
-| Toggle Column Tabbed | `Option + T` | `Niri` |
-| Cycle Column Width Forward | `Option + .` | `Shared` |
-| Cycle Column Width Backward | `Option + ,` | `Shared` |
-| Toggle Column Full Width | `Option + Shift + F` | `Niri` |
+| Action | Default Shortcut |
+|--------|------------------|
+| Move Column Left / Right | `Control + Option + Shift + Left / Right Arrow` |
+| Toggle Column Tabbed | `Option + T` |
+| Cycle Column Width Forward | `Option + .` |
+| Cycle Column Width Backward | `Option + ,` |
+| Toggle Column Full Width | `Option + Shift + F` |
 
-In Niri, `Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` keeps the current in-column reorder behavior.
-
-#### Quake Terminal (Inside Terminal)
-
-| Action | Shortcut |
-|--------|----------|
-| New Tab | `Cmd + T` |
-| Close Tab | `Cmd + W` |
-| Next Tab | `Cmd + Shift + ]` |
-| Previous Tab | `Cmd + Shift + [` |
-| Next Tab (Alt) | `Ctrl + Tab` |
-| Previous Tab (Alt) | `Ctrl + Shift + Tab` |
-| Select Tab 1-9 | `Cmd + 1-9` |
-| Split Pane (Horizontal) | `Cmd + D` |
-| Split Pane (Vertical) | `Cmd + Shift + D` |
-| Close Pane | `Cmd + Shift + W` |
-| Equalize Splits | `Cmd + Shift + =` |
-| Navigate Pane | `Cmd + Option + Arrow Keys` |
+`Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` keeps the current in-column reorder behavior.
 
 ### Features
 
-#### Quake Terminal
-
-A true quake/sticky terminal (powered by Ghostty's libghostty) that slides in from the screen edge and:
-- Toggle it from the global shortcut shown in `Keyboard Shortcuts`
-- Supports multiple tabs and splits within tabs
-- Tab and pane shortcuts are listed in **Quake Terminal (Inside Terminal)**
-- Mouse resize by dragging edges; `Option + drag` to move (remembers size/position per monitor)
-- Configure position (top/bottom/left/right/center), size, and opacity in Settings
-- Auto-hides on focus loss (optional)
-
 #### Command Palette
 
-Quickly search windows or app menus from one shared palette:
+Quickly search windows from one shared palette:
 - Open it from the global shortcut shown in `Keyboard Shortcuts`
-- Use `Cmd + 1` for `Windows` and `Cmd + 2` for `Menu` when menu search is available
-- Type to fuzzy-search by window title, app name, or menu item
-- Menu results always show keyboard shortcuts when available
+- Type to fuzzy-search by window title or app name
 - `Up` / `Down` move the selection
 - `Enter` activates the selected result
 - `Shift + Enter` summons the selected window to the right when available
 - `Escape` dismisses the palette
-
-#### Menu Anywhere
-
-Access any application's menu from your keyboard:
-- Shows the native menu at the cursor from a global shortcut
 
 #### Overview Mode
 
@@ -401,31 +163,24 @@ A visual indicator showing your workspaces:
 - If dedupe option is on click the app icon to get a popup with list of all its windows to jump to
 - Configure position, height, and appearance in Settings
 
-#### Hidden Bar
-
-Hide or reveal status bar icons using a separator item:
-- Right-click the OmniWM menu bar icon to toggle
-- An optional global hotkey is available and starts unassigned
-
 ### Tips
 
 - **Workspaces** - Create named workspaces in Settings to organize by project or context (You can use emojis 🥳)
 - **App Rules** - Exclude problematic apps from tiling or assign them to specific workspaces
-- **Mouse** - `Option + drag` swaps tiled windows; `Option + Shift + drag` inserts windows to a column (Niri)
-- **Mouse Resize** - Hold `Option` and right-drag a tiled window to resize (Niri)
+- **Mouse** - `Option + drag` swaps tiled windows; `Option + Shift + drag` inserts windows to a column
+- **Mouse Resize** - Hold `Option` and right-drag a tiled window to resize
 - **Scroll Gestures (Mouse)** - Hold `Option + Shift + Mouse Scroll Wheel` (default, configurable) and scroll through columns horizontally
 - **Trackpad Gestures** - Use horizontal gestures with 2/3/4 fingers (configurable); direction can be inverted (local hardware validation is limited)
 
 ## Configuration
 
-Access settings by clicking OmniWM's status bar icon and selecting **Settings** or **App Rules**.
+Access settings by clicking Darniri's status bar icon and selecting **Settings** or **App Rules**.
 Mouse and gesture settings are available in Settings.
 
-OmniWM stores its editable config at `${XDG_CONFIG_HOME:-$HOME/.config}/omniwm/settings.toml`; that file is the canonical settings source and is live-reloaded when saved from an editor.
+Darniri stores its editable config at `${XDG_CONFIG_HOME:-$HOME/.config}/darniri/settings.toml`; that file is the canonical settings source and is live-reloaded when saved from an editor.
 
 - **Reveal Settings File** and **Edit Settings File** open the canonical TOML file and recreate it from the running settings if it was deleted.
-- `updateChecksEnabled` is part of the persisted settings model, so it round-trips through `settings.toml`.
-- Clipboard history, last-check timestamps, skipped-release state, hidden bar state, and the persisted window restore catalog live in `${XDG_STATE_HOME:-$HOME/.local/state}/omniwm` and stay out of dotfile-oriented config storage.
+- The persisted window restore catalog lives in `${XDG_STATE_HOME:-$HOME/.local/state}/darniri` and stays out of dotfile-oriented config storage.
 
 ## App Rules
 
@@ -440,23 +195,14 @@ Configure per-application behavior in Settings > App Rules:
 Requirements:
 - SwiftPM with Swift 6.3.2+
 - macOS 15.0+
-- Ghostty's universal `libghostty.a` (build Ghostty and copy it to `Frameworks/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a` so it includes both `arm64` and `x86_64`)
-
-## Support
-
-If you find OmniWM useful, consider supporting development:
-
-- [GitHub Sponsors](https://github.com/sponsors/BarutSRB)
-- [PayPal](https://paypal.me/beacon2024)
 
 ## Contributing
 
-Issues and pull requests are welcome on [GitHub](https://github.com/BarutSRB/OmniWM).
+Issues and pull requests are welcome on [GitHub](https://github.com/stearz/Darniri).
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the actual project guidelines, expectations, and preferred direction.
 
 For deeper technical context, the docs pages that back the documentation site are here:
 
 - [Architecture Guide](docs/ARCHITECTURE.md)
-- [IPC & CLI Reference](docs/IPC-CLI.md)
 - [Contribution Docs](docs/CONTRIBUTING.md)
