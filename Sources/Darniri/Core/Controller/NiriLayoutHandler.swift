@@ -189,13 +189,6 @@ enum NiriWindowMoveResult {
             _ = controller.focusBorderController.refresh(forceOrdering: true)
         }
 
-        if controller.moveMouseToFocusedWindowEnabled,
-           controller.workspaceManager.pendingFocusedToken == nil,
-           let token = controller.workspaceManager.focusedToken,
-           controller.focusBridge.allowsMouseToFocusedWarp(for: token)
-        {
-            controller.moveMouseToWindow(token, preferredFrame: controller.preferredKeyboardFocusFrame(for: token))
-        }
     }
 
     func cancelActiveAnimations(for workspaceId: WorkspaceDescriptor.ID) {

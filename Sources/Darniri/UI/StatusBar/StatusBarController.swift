@@ -7,6 +7,7 @@ final class StatusBarController: NSObject {
     private var statusItem: NSStatusItem?
     private var menuBuilder: StatusBarMenuBuilder?
     private var menu: NSMenu?
+    private let updateChecker = UpdateChecker()
 
     private let settings: SettingsStore
     private let statusItemDefaults: UserDefaults
@@ -50,7 +51,15 @@ final class StatusBarController: NSObject {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         let menuBuilder = StatusBarMenuBuilder(settings: settings, controller: controller)
+        menuBuilder.onRestartRequested = { UpdateChecker.relaunch() }
         self.menuBuilder = menuBuilder
+
+        updateChecker.onUpdateAvailable = { [weak self] in
+            self?.menuBuilder?.isUpdateAvailable = true
+            self?.rebuildMenu()
+        }
+        updateChecker.start()
+
         rebuildMenu()
         refreshWorkspaces()
     }
@@ -113,6 +122,7 @@ final class StatusBarController: NSObject {
     }
 
     func cleanup() {
+        updateChecker.stop()
         if let item = statusItem {
             NSStatusBar.system.removeStatusItem(item)
             statusItem = nil

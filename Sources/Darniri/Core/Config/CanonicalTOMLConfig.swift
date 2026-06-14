@@ -27,13 +27,10 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var hyperTrigger: HyperKeyTrigger
         var hyperKeyHoldThresholdMilliseconds: Int
         var defaultLayoutType: String
-        var preventSleepEnabled: Bool
         var animationsEnabled: Bool
     }
 
     struct Focus: Codable, Equatable {
-        var followsMouse: Bool
-        var moveMouseToFocusedWindow: Bool
         var followsWindowToMonitor: Bool
     }
 
@@ -252,7 +249,6 @@ extension CanonicalTOMLConfig.General {
             recovering: recovering
         )
         defaultLayoutType = try container.decode(String.self, forKey: .defaultLayoutType, default: defaults.defaultLayoutType, recovering: recovering)
-        preventSleepEnabled = try container.decode(Bool.self, forKey: .preventSleepEnabled, default: defaults.preventSleepEnabled, recovering: recovering)
         animationsEnabled = try container.decode(Bool.self, forKey: .animationsEnabled, default: defaults.animationsEnabled, recovering: recovering)
     }
 }
@@ -263,13 +259,6 @@ extension CanonicalTOMLConfig.Focus {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = CanonicalTOMLConfig.recoveryDefaults().focus
 
-        followsMouse = try container.decode(Bool.self, forKey: .followsMouse, default: defaults.followsMouse, recovering: recovering)
-        moveMouseToFocusedWindow = try container.decode(
-            Bool.self,
-            forKey: .moveMouseToFocusedWindow,
-            default: defaults.moveMouseToFocusedWindow,
-            recovering: recovering
-        )
         followsWindowToMonitor = try container.decode(
             Bool.self,
             forKey: .followsWindowToMonitor,
@@ -481,12 +470,9 @@ extension CanonicalTOMLConfig {
             hyperTrigger: export.hyperTrigger,
             hyperKeyHoldThresholdMilliseconds: export.hyperKeyHoldThresholdMilliseconds,
             defaultLayoutType: export.defaultLayoutType,
-            preventSleepEnabled: export.preventSleepEnabled,
             animationsEnabled: export.animationsEnabled
         )
         focus = Focus(
-            followsMouse: export.focusFollowsMouse,
-            moveMouseToFocusedWindow: export.moveMouseToFocusedWindow,
             followsWindowToMonitor: export.focusFollowsWindowToMonitor
         )
         mouseWarp = MouseWarp(
@@ -565,8 +551,6 @@ extension CanonicalTOMLConfig {
     func toSettingsExport() -> SettingsExport {
         return SettingsExport(
             hotkeysEnabled: general.hotkeysEnabled,
-            focusFollowsMouse: focus.followsMouse,
-            moveMouseToFocusedWindow: focus.moveMouseToFocusedWindow,
             focusFollowsWindowToMonitor: focus.followsWindowToMonitor,
             mouseWarpMonitorOrder: mouseWarp.monitorOrder,
             mouseWarpAxis: mouseWarp.axis,
@@ -614,7 +598,6 @@ extension CanonicalTOMLConfig {
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationOverrides,
             monitorNiriSettings: monitorNiriOverrides,
-            preventSleepEnabled: general.preventSleepEnabled,
             scrollGestureEnabled: gestures.scrollEnabled,
             scrollSensitivity: gestures.scrollSensitivity,
             scrollModifierKey: gestures.scrollModifierKey,

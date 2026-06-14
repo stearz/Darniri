@@ -60,9 +60,6 @@ final class WMController {
     private(set) var desiredEnabled: Bool = true
     private(set) var desiredHotkeysEnabled: Bool = true
     private(set) var accessibilityPermissionGranted = AccessibilityPermissionMonitor.shared.isGranted
-    private(set) var focusFollowsMouseEnabled: Bool = false
-    private(set) var moveMouseToFocusedWindowEnabled: Bool = false
-
     let settings: SettingsStore
     let workspaceManager: WorkspaceManager
     private let hotkeys = HotkeyCenter()
@@ -228,11 +225,7 @@ final class WMController {
         setBordersEnabled(settings.bordersEnabled)
         updateBorderConfig(BorderConfig.from(settings: settings))
 
-        setFocusFollowsMouse(settings.focusFollowsMouse)
-        setMoveMouseToFocusedWindow(settings.moveMouseToFocusedWindow)
-
         setWorkspaceBarEnabled(settings.workspaceBarEnabled)
-        setPreventSleepEnabled(settings.preventSleepEnabled)
 
         // External edits to settings.toml otherwise stop here at refreshStatusBar
         // and skip subsystems that read settings only at trigger time. Push the
@@ -339,14 +332,6 @@ final class WMController {
     func cleanupUIOnStop() {
         cancelPendingWorkspaceBarRefresh()
         workspaceBarManager.cleanup()
-    }
-
-    func setPreventSleepEnabled(_ enabled: Bool) {
-        if enabled {
-            SleepPreventionManager.shared.preventSleep()
-        } else {
-            SleepPreventionManager.shared.allowSleep()
-        }
     }
 
     @discardableResult
@@ -525,14 +510,6 @@ final class WMController {
 
         focusWindow(scratchpadToken)
         return .executed
-    }
-
-    func setFocusFollowsMouse(_ enabled: Bool) {
-        focusFollowsMouseEnabled = enabled
-    }
-
-    func setMoveMouseToFocusedWindow(_ enabled: Bool) {
-        moveMouseToFocusedWindowEnabled = enabled
     }
 
     func shouldUseMouseWarp(for monitors: [Monitor]? = nil) -> Bool {
@@ -2448,21 +2425,6 @@ final class WMController {
             )
         }
         focusWindow(nextFocusToken)
-    }
-
-    func moveMouseToWindow(_ handle: WindowHandle, preferredFrame: CGRect? = nil) {
-        moveMouseToWindow(handle.id, preferredFrame: preferredFrame)
-    }
-
-    func moveMouseToWindow(_ token: WindowToken, preferredFrame: CGRect? = nil) {
-        guard let entry = workspaceManager.entry(for: token) else { return }
-        guard let frame = preferredFrame ?? AXWindowService.framePreferFast(entry.axRef) else { return }
-
-        let center = frame.center
-
-        guard NSScreen.screens.contains(where: { $0.frame.contains(center) }) else { return }
-
-        warpMouseCursorPosition(ScreenCoordinateSpace.toWindowServer(point: center))
     }
 
     func runningAppsWithWindows() -> [RunningAppInfo] {

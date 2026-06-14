@@ -1151,7 +1151,6 @@ final class AXEventHandler: CGSEventDelegate {
             controller.focusPolicyEngine.beginLease(
                 owner: .ruleCreatedFloatingWindow,
                 reason: "floating_window_create",
-                suppressesFocusFollowsMouse: true,
                 duration: 0.35
             )
         }
@@ -1474,7 +1473,6 @@ final class AXEventHandler: CGSEventDelegate {
         controller.focusPolicyEngine.beginLease(
             owner: .windowCloseFocusRecovery,
             reason: "window_close_focus_recovery",
-            suppressesFocusFollowsMouse: true,
             duration: Self.windowCloseFocusRecoveryDuration,
             notify: false
         )
@@ -1775,7 +1773,6 @@ final class AXEventHandler: CGSEventDelegate {
             controller.focusPolicyEngine.beginLease(
                 owner: .nativeAppSwitch,
                 reason: source.rawValue,
-                suppressesFocusFollowsMouse: true,
                 duration: 0.4
             )
         }
@@ -2309,13 +2306,11 @@ final class AXEventHandler: CGSEventDelegate {
         }
 
         let target = controller.keyboardFocusTarget(for: entry.token, axRef: entry.axRef)
-        var preferredMouseFrame: CGRect?
         if let engine = controller.niriEngine,
            let node = engine.findNode(for: entry.handle),
            let _ = controller.workspaceManager.monitor(for: wsId)
         {
             let preferredFrame = node.renderedFrame ?? node.frame
-            preferredMouseFrame = preferredFrame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
             let preserveActiveViewport = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
             let preserveReplacementViewport = isProtectedManagedReplacementFocus(
@@ -2372,14 +2367,6 @@ final class AXEventHandler: CGSEventDelegate {
             controller.layoutRefreshController.commitWorkspaceTransition(
                 reason: .appActivationTransition
             )
-        }
-        if shouldConfirmRequest,
-           controller.moveMouseToFocusedWindowEnabled,
-           controller.focusBridge.allowsMouseToFocusedWarp(for: entry.token),
-           controller.workspaceManager.focusedToken == entry.token,
-           !controller.workspaceManager.isNonManagedFocusActive
-        {
-            controller.moveMouseToWindow(entry.token, preferredFrame: preferredMouseFrame)
         }
     }
 

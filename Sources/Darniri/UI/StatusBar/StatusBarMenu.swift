@@ -14,6 +14,8 @@ final class StatusBarMenuBuilder {
     private weak var controller: WMController?
     var settingsFileActionPerformer: (SettingsFileAction, SettingsStore) throws -> SettingsFileStatus
     private var toggleViews: [String: MenuToggleRowView] = [:]
+    var isUpdateAvailable = false
+    var onRestartRequested: (() -> Void)?
 
     init(settings: SettingsStore, controller: WMController) {
         self.settings = settings
@@ -40,6 +42,21 @@ final class StatusBarMenuBuilder {
 
         menu.addItem(createDivider())
 
+        if isUpdateAvailable {
+            let updateRow = MenuActionRowView(
+                icon: "arrow.clockwise.circle.fill",
+                label: "Update available — Restart",
+                isUpdate: true,
+                motionPolicy: motionPolicy
+            ) { [weak self] in
+                self?.onRestartRequested?()
+            }
+            let updateItem = NSMenuItem()
+            updateItem.view = updateRow
+            menu.addItem(updateItem)
+            menu.addItem(createDivider())
+        }
+
         menu.addItem(createSectionLabel("CONTROLS"))
         addControlsSection(to: menu)
 
@@ -56,12 +73,9 @@ final class StatusBarMenuBuilder {
     }
 
     func updateToggles() {
-        toggleViews["focusFollowsMouse"]?.isOn = settings.focusFollowsMouse
         toggleViews["focusFollowsWindowToMonitor"]?.isOn = settings.focusFollowsWindowToMonitor
-        toggleViews["moveMouseToFocusedWindow"]?.isOn = settings.moveMouseToFocusedWindow
         toggleViews["bordersEnabled"]?.isOn = settings.bordersEnabled
         toggleViews["workspaceBarEnabled"]?.isOn = settings.workspaceBarEnabled
-        toggleViews["preventSleepEnabled"]?.isOn = settings.preventSleepEnabled
     }
 
     private func createHeaderView() -> NSView {
@@ -81,20 +95,6 @@ final class StatusBarMenuBuilder {
     }
 
     private func addControlsSection(to menu: NSMenu) {
-        let focusToggle = MenuToggleRowView(
-            icon: "cursorarrow.motionlines",
-            label: "Focus Follows Mouse",
-            isOn: settings.focusFollowsMouse,
-            motionPolicy: motionPolicy
-        ) { [weak self] newValue in
-            self?.settings.focusFollowsMouse = newValue
-            self?.controller?.setFocusFollowsMouse(newValue)
-        }
-        toggleViews["focusFollowsMouse"] = focusToggle
-        let focusItem = NSMenuItem()
-        focusItem.view = focusToggle
-        menu.addItem(focusItem)
-
         let followMoveToggle = MenuToggleRowView(
             icon: "arrow.right.square",
             label: "Follow Window to Workspace",
@@ -107,20 +107,6 @@ final class StatusBarMenuBuilder {
         let followMoveItem = NSMenuItem()
         followMoveItem.view = followMoveToggle
         menu.addItem(followMoveItem)
-
-        let mouseToFocusedToggle = MenuToggleRowView(
-            icon: "arrow.up.left.and.down.right.magnifyingglass",
-            label: "Mouse to Focused",
-            isOn: settings.moveMouseToFocusedWindow,
-            motionPolicy: motionPolicy
-        ) { [weak self] newValue in
-            self?.settings.moveMouseToFocusedWindow = newValue
-            self?.controller?.setMoveMouseToFocusedWindow(newValue)
-        }
-        toggleViews["moveMouseToFocusedWindow"] = mouseToFocusedToggle
-        let mouseItem = NSMenuItem()
-        mouseItem.view = mouseToFocusedToggle
-        menu.addItem(mouseItem)
 
         let bordersToggle = MenuToggleRowView(
             icon: "square.dashed",
@@ -149,20 +135,6 @@ final class StatusBarMenuBuilder {
         let workspaceItem = NSMenuItem()
         workspaceItem.view = workspaceBarToggle
         menu.addItem(workspaceItem)
-
-        let keepAwakeToggle = MenuToggleRowView(
-            icon: "moon.zzz",
-            label: "Keep Awake",
-            isOn: settings.preventSleepEnabled,
-            motionPolicy: motionPolicy
-        ) { [weak self] newValue in
-            self?.settings.preventSleepEnabled = newValue
-            self?.controller?.setPreventSleepEnabled(newValue)
-        }
-        toggleViews["preventSleepEnabled"] = keepAwakeToggle
-        let keepAwakeItem = NSMenuItem()
-        keepAwakeItem.view = keepAwakeToggle
-        menu.addItem(keepAwakeItem)
     }
 
     private func addSettingsSection(to menu: NSMenu) {
@@ -596,6 +568,7 @@ final class MenuToggleRowView: NSView {
 final class MenuActionRowView: NSView {
     private let action: () -> Void
     private let isDestructive: Bool
+    private let isUpdate: Bool
     private let motionPolicy: MotionPolicy
     private var trackingArea: NSTrackingArea?
     private var backgroundLayer: CALayer?
@@ -609,11 +582,13 @@ final class MenuActionRowView: NSView {
         showChevron: Bool = false,
         isExternal: Bool = false,
         isDestructive: Bool = false,
+        isUpdate: Bool = false,
         motionPolicy: MotionPolicy,
         action: @escaping () -> Void
     ) {
         self.action = action
         self.isDestructive = isDestructive
+        self.isUpdate = isUpdate
         self.motionPolicy = motionPolicy
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 28))
         applyCurrentAppAppearance(to: self)
@@ -724,6 +699,8 @@ final class MenuActionRowView: NSView {
         if hovered {
             if isDestructive {
                 background = NSColor.systemRed.withAlphaComponent(0.14).cgColor
+            } else if isUpdate {
+                background = NSColor.systemOrange.withAlphaComponent(0.22).cgColor
             } else {
                 background = NSColor.controlAccentColor.withAlphaComponent(0.32).cgColor
             }
@@ -741,6 +718,9 @@ final class MenuActionRowView: NSView {
         if isDestructive && hovered {
             iconView?.contentTintColor = .systemRed
             labelField?.textColor = .systemRed
+        } else if isUpdate {
+            iconView?.contentTintColor = hovered ? .systemOrange : .systemOrange
+            labelField?.textColor = hovered ? .systemOrange : .systemOrange
         } else {
             iconView?.contentTintColor = hovered ? .white : .secondaryLabelColor
             labelField?.textColor = hovered ? .white : .labelColor

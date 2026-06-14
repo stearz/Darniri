@@ -39,10 +39,6 @@ final class MouseEventHandler {
         var value: CGFloat
     }
 
-    private enum FocusFollowsMouseTarget {
-        case niri(workspaceId: WorkspaceDescriptor.ID, window: NiriWindow)
-    }
-
     struct GestureTouchSample: Equatable, Sendable {
         let phase: NSTouch.Phase
         let normalizedPosition: CGPoint?
@@ -179,8 +175,6 @@ final class MouseEventHandler {
         var isMoving: Bool = false
         var activeInteractionButton: MouseButton?
 
-        var lastFocusFollowsMouseTime: Date = .distantPast
-        let focusFollowsMouseDebounce: TimeInterval = 0.1
         var dragGhostController: DragGhostController?
         var moveIsInsertMode: Bool = false
 
@@ -693,21 +687,8 @@ final class MouseEventHandler {
             return
         }
 
-        if controller.focusFollowsMouseEnabled, shouldHandleFocusFollowsMouse(at: location) {
-            handleFocusFollowsMouse(at: location)
-        }
-
         guard !state.isResizing else { return }
         resetHoveredEdgesIfNeeded()
-    }
-
-    private func shouldHandleFocusFollowsMouse(at location: CGPoint) -> Bool {
-        guard !state.isResizing, !isViewportGestureActive else { return false }
-        guard let controller else { return false }
-        guard let workspaceId = workspaceIdForPointer(at: location) else {
-            return true
-        }
-        return !controller.niriLayoutHandler.hasScrollAnimation(for: workspaceId)
     }
 
     private func handleMouseDownFromTap(
@@ -1026,80 +1007,6 @@ final class MouseEventHandler {
             wsId: context.wsId,
             monitor: context.monitor
         )
-    }
-
-    private func handleFocusFollowsMouse(at location: CGPoint) {
-        guard let controller else { return }
-        guard controller.focusPolicyEngine.evaluate(.focusFollowsMouse).allowsFocusChange else {
-            return
-        }
-        guard !controller.workspaceManager.isNonManagedFocusActive,
-              !controller.workspaceManager.hasPendingNativeFullscreenTransition,
-              !controller.workspaceManager.isAppFullscreenActive
-        else {
-            return
-        }
-
-        let now = Date()
-        guard now.timeIntervalSince(state.lastFocusFollowsMouseTime) >= state.focusFollowsMouseDebounce else {
-            return
-        }
-
-        guard let target = resolveFocusFollowsMouseTarget(at: location) else { return }
-        let token = focusFollowsMouseToken(for: target)
-
-        guard token != controller.workspaceManager.focusedToken else { return }
-
-        state.lastFocusFollowsMouseTime = now
-        activateFocusFollowsMouseTarget(target)
-    }
-
-    private func resolveFocusFollowsMouseTarget(at location: CGPoint) -> FocusFollowsMouseTarget? {
-        guard let controller,
-              let workspaceId = workspaceIdForPointer(at: location),
-              let workspace = controller.workspaceManager.descriptor(for: workspaceId)
-        else {
-            return nil
-        }
-
-        switch controller.settings.layoutType(for: workspace.name) {
-        case .niri,
-             .defaultLayout:
-            guard let engine = controller.niriEngine,
-                  let window = engine.hitTestFocusableWindow(point: location, in: workspaceId)
-            else {
-                return nil
-            }
-            return .niri(workspaceId: workspaceId, window: window)
-        }
-    }
-
-    private func focusFollowsMouseToken(for target: FocusFollowsMouseTarget) -> WindowToken {
-        switch target {
-        case let .niri(_, window):
-            window.token
-        }
-    }
-
-    private func activateFocusFollowsMouseTarget(_ target: FocusFollowsMouseTarget) {
-        guard let controller else { return }
-
-        switch target {
-        case let .niri(workspaceId, window):
-            controller.workspaceManager.withNiriViewportState(for: workspaceId) { vstate in
-                controller.niriLayoutHandler.activateNode(
-                    window,
-                    in: workspaceId,
-                    state: &vstate,
-                    options: .init(
-                        ensureVisible: false,
-                        layoutRefresh: false,
-                        focusOrigin: .pointerHover,
-                        startAnimation: false
-                    )
-                )
-            }
-        }
     }
 
     private func handleGestureEvent(_ snapshot: GestureEventSnapshot) {

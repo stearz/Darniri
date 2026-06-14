@@ -142,7 +142,6 @@ enum EventNormalizer {
         return FocusPolicyLease(
             owner: lease.owner,
             reason: normalizeReason(lease.reason) ?? lease.reason,
-            suppressesFocusFollowsMouse: lease.suppressesFocusFollowsMouse,
             expiresAt: lease.expiresAt
         )
     }

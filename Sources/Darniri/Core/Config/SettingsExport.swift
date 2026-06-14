@@ -11,8 +11,6 @@ struct SettingsColor: Codable, Equatable {
 
 struct SettingsExport: Equatable {
     var hotkeysEnabled: Bool
-    var focusFollowsMouse: Bool
-    var moveMouseToFocusedWindow: Bool
     var focusFollowsWindowToMonitor: Bool
     var mouseWarpMonitorOrder: [String]
     var mouseWarpAxis: String?
@@ -67,7 +65,6 @@ struct SettingsExport: Equatable {
     var monitorOrientationSettings: [MonitorOrientationSettings]
     var monitorNiriSettings: [MonitorNiriSettings]
 
-    var preventSleepEnabled: Bool
     var scrollGestureEnabled: Bool
     var scrollSensitivity: Double
     var scrollModifierKey: String
@@ -90,8 +87,6 @@ extension SettingsExport {
     static func defaults() -> SettingsExport {
         SettingsExport(
             hotkeysEnabled: true,
-            focusFollowsMouse: false,
-            moveMouseToFocusedWindow: false,
             focusFollowsWindowToMonitor: false,
             mouseWarpMonitorOrder: [],
             mouseWarpAxis: MouseWarpAxis.horizontal.rawValue,
@@ -139,7 +134,6 @@ extension SettingsExport {
             appRules: BuiltInSettingsDefaults.appRules,
             monitorOrientationSettings: [],
             monitorNiriSettings: [],
-            preventSleepEnabled: false,
             scrollGestureEnabled: true,
             scrollSensitivity: 5.0,
             scrollModifierKey: ScrollModifierKey.optionShift.rawValue,

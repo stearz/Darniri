@@ -22,9 +22,6 @@ let package = Package(
                 .product(name: "TOML", package: "swift-toml")
             ],
             path: "Sources/Darniri",
-            resources: [
-                .process("Resources")
-            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ],

@@ -25,18 +25,6 @@ extension KeyboardFocusTarget: Equatable {
 
 enum ManagedFocusOrigin: Equatable {
     case keyboardOrProgrammatic
-    case pointerHover
-
-    var allowsMouseToFocusedWarp: Bool {
-        self == .keyboardOrProgrammatic
-    }
-
-    func merged(with origin: ManagedFocusOrigin) -> ManagedFocusOrigin {
-        if self == .keyboardOrProgrammatic || origin == .keyboardOrProgrammatic {
-            return .keyboardOrProgrammatic
-        }
-        return .pointerHover
-    }
 }
 
 struct ManagedFocusRequest: Equatable {
@@ -74,15 +62,10 @@ final class FocusBridgeCoordinator {
         workspaceId: WorkspaceDescriptor.ID,
         origin: ManagedFocusOrigin = .keyboardOrProgrammatic
     ) -> ManagedFocusRequest {
-        if var activeManagedRequest,
+        if let activeManagedRequest,
            activeManagedRequest.token == token,
            activeManagedRequest.workspaceId == workspaceId
         {
-            let mergedOrigin = activeManagedRequest.origin.merged(with: origin)
-            if activeManagedRequest.origin != mergedOrigin {
-                activeManagedRequest.origin = mergedOrigin
-                self.activeManagedRequest = activeManagedRequest
-            }
             return activeManagedRequest
         }
 
@@ -116,16 +99,6 @@ final class FocusBridgeCoordinator {
             return nil
         }
         return activeManagedRequest
-    }
-
-    func allowsMouseToFocusedWarp(for token: WindowToken) -> Bool {
-        if let activeManagedRequest, activeManagedRequest.token == token {
-            return activeManagedRequest.origin.allowsMouseToFocusedWarp
-        }
-        if let lastConfirmedManagedFocus, lastConfirmedManagedFocus.token == token {
-            return lastConfirmedManagedFocus.origin.allowsMouseToFocusedWarp
-        }
-        return true
     }
 
     func recordRetry(
@@ -240,10 +213,7 @@ final class FocusBridgeCoordinator {
         }
 
         if isFocusOperationPending {
-            if var deferredFocus, deferredFocus.token == token {
-                deferredFocus.origin = deferredFocus.origin.merged(with: origin)
-                self.deferredFocus = deferredFocus
-            } else {
+            if deferredFocus?.token != token {
                 deferredFocus = operation
             }
             return

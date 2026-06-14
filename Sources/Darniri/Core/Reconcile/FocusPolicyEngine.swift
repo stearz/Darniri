@@ -10,12 +10,10 @@ enum FocusPolicyLeaseOwner: String, Equatable {
 struct FocusPolicyLease: Equatable {
     let owner: FocusPolicyLeaseOwner
     let reason: String
-    let suppressesFocusFollowsMouse: Bool
     let expiresAt: Date?
 }
 
 enum FocusPolicyRequest: Equatable {
-    case focusFollowsMouse
     case managedAppActivation(source: ActivationEventSource)
 }
 
@@ -56,7 +54,6 @@ final class FocusPolicyEngine {
     func beginLease(
         owner: FocusPolicyLeaseOwner,
         reason: String,
-        suppressesFocusFollowsMouse: Bool = true,
         duration: TimeInterval? = 0.35,
         notify: Bool = true
     ) {
@@ -65,7 +62,6 @@ final class FocusPolicyEngine {
         let lease = FocusPolicyLease(
             owner: owner,
             reason: reason,
-            suppressesFocusFollowsMouse: suppressesFocusFollowsMouse,
             expiresAt: expiresAt
         )
         leasesByOwner[owner] = lease
@@ -82,9 +78,6 @@ final class FocusPolicyEngine {
         pruneExpiredLeasesIfNeeded()
 
         switch request {
-        case .focusFollowsMouse:
-            guard let lease = suppressingFocusFollowsMouseLease() else { return .allow }
-            return .deny(reason: lease.reason)
         case let .managedAppActivation(source):
             if let menuLease = leasesByOwner[.nativeMenu], !source.isAuthoritative {
                 return .deny(reason: menuLease.reason)
@@ -131,12 +124,4 @@ final class FocusPolicyEngine {
         return nil
     }
 
-    private func suppressingFocusFollowsMouseLease() -> FocusPolicyLease? {
-        for owner in Self.effectiveLeasePriority {
-            if let lease = leasesByOwner[owner], lease.suppressesFocusFollowsMouse {
-                return lease
-            }
-        }
-        return nil
-    }
 }

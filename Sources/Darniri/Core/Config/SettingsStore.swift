@@ -18,14 +18,6 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var focusFollowsMouse = SettingsStore.defaultExport.focusFollowsMouse {
-        didSet { scheduleSave() }
-    }
-
-    var moveMouseToFocusedWindow = SettingsStore.defaultExport.moveMouseToFocusedWindow {
-        didSet { scheduleSave() }
-    }
-
     var focusFollowsWindowToMonitor = SettingsStore.defaultExport.focusFollowsWindowToMonitor {
         didSet { scheduleSave() }
     }
@@ -231,10 +223,6 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var preventSleepEnabled = SettingsStore.defaultExport.preventSleepEnabled {
-        didSet { scheduleSave() }
-    }
-
     var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
         didSet { scheduleSave() }
     }
@@ -340,8 +328,6 @@ final class SettingsStore {
     func toExport() -> SettingsExport {
         SettingsExport(
             hotkeysEnabled: hotkeysEnabled,
-            focusFollowsMouse: focusFollowsMouse,
-            moveMouseToFocusedWindow: moveMouseToFocusedWindow,
             focusFollowsWindowToMonitor: focusFollowsWindowToMonitor,
             mouseWarpMonitorOrder: mouseWarpMonitorOrder,
             mouseWarpAxis: mouseWarpAxis.rawValue,
@@ -389,7 +375,6 @@ final class SettingsStore {
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationSettings,
             monitorNiriSettings: monitorNiriSettings,
-            preventSleepEnabled: preventSleepEnabled,
             scrollGestureEnabled: scrollGestureEnabled,
             scrollSensitivity: scrollSensitivity,
             scrollModifierKey: scrollModifierKey.rawValue,
@@ -411,8 +396,6 @@ final class SettingsStore {
         defer { isApplyingExport = false }
 
         hotkeysEnabled = export.hotkeysEnabled
-        focusFollowsMouse = export.focusFollowsMouse
-        moveMouseToFocusedWindow = export.moveMouseToFocusedWindow
         focusFollowsWindowToMonitor = export.focusFollowsWindowToMonitor
         mouseWarpMonitorOrder = export.mouseWarpMonitorOrder
         mouseWarpAxis = MouseWarpAxis(rawValue: export.mouseWarpAxis ?? baseline.mouseWarpAxis ?? "") ?? .horizontal
@@ -474,7 +457,6 @@ final class SettingsStore {
         )
         monitorNiriSettings = SettingsStore.reboundMonitorSettings(export.monitorNiriSettings, monitors: monitors)
 
-        preventSleepEnabled = export.preventSleepEnabled
         scrollGestureEnabled = export.scrollGestureEnabled
         scrollSensitivity = export.scrollSensitivity
         scrollModifierKey = ScrollModifierKey(rawValue: export.scrollModifierKey) ?? .optionShift
