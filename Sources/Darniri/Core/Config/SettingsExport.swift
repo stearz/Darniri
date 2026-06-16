@@ -78,6 +78,10 @@ struct SettingsExport: Equatable {
 
     var appearanceMode: String
 
+    /// The modifier key used for Darniri's focus/move hotkeys (see `NavigationModifier`).
+    /// Stored as raw string so the type stays in the Input module.
+    var navigationModifier: String
+
     var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
 }
 
@@ -98,7 +102,7 @@ extension SettingsExport {
             outerGapBottom: 0,
             niriMaxVisibleColumns: 2,
             niriInfiniteLoop: false,
-            niriCenterFocusedColumn: CenterFocusedColumn.never.rawValue,
+            niriCenterFocusedColumn: CenterFocusedColumn.always.rawValue,
             niriAlwaysCenterSingleColumn: false,
             niriSingleWindowAspectRatio: SingleWindowAspectRatio.none.rawValue,
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
@@ -106,7 +110,7 @@ extension SettingsExport {
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
             defaultLayoutType: LayoutType.niri.rawValue,
             bordersEnabled: true,
-            borderWidth: 5.0,
+            borderWidth: 2.0,
             borderColorRed: 0.084585202284378935,
             borderColorGreen: 1.0,
             borderColorBlue: 0.97930003794467602,
@@ -114,7 +118,7 @@ extension SettingsExport {
             hotkeyBindings: HotkeyBindingRegistry.defaults(),
             hyperTrigger: .default,
             hyperKeyHoldThresholdMilliseconds: 150,
-            workspaceBarEnabled: true,
+            workspaceBarEnabled: false,
             workspaceBarShowLabels: true,
             workspaceBarShowFloatingWindows: false,
             workspaceBarWindowLevel: WorkspaceBarWindowLevel.popup.rawValue,
@@ -145,6 +149,7 @@ extension SettingsExport {
             statusBarUseWorkspaceId: false,
             animationsEnabled: true,
             appearanceMode: AppearanceMode.dark.rawValue,
+            navigationModifier: NavigationModifier.control.rawValue,
             capabilityOverrides: []
         )
     }

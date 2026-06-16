@@ -279,6 +279,12 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var navigationModifier = NavigationModifier(
+        rawValue: SettingsStore.defaultExport.navigationModifier
+    ) ?? .control {
+        didSet { scheduleSave() }
+    }
+
     func loadPersistedWindowRestoreCatalog() -> PersistedWindowRestoreCatalog {
         runtimeState.windowRestoreCatalog ?? .empty
     }
@@ -386,6 +392,7 @@ final class SettingsStore {
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             animationsEnabled: animationsEnabled,
             appearanceMode: appearanceMode.rawValue,
+            navigationModifier: navigationModifier.rawValue,
             capabilityOverrides: []
         )
     }
@@ -469,6 +476,7 @@ final class SettingsStore {
         animationsEnabled = export.animationsEnabled
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
+        navigationModifier = NavigationModifier(rawValue: export.navigationModifier) ?? .control
     }
 
     private func handleExternalReload(_ export: SettingsExport) {

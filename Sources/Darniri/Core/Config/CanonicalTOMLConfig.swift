@@ -28,6 +28,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var hyperKeyHoldThresholdMilliseconds: Int
         var defaultLayoutType: String
         var animationsEnabled: Bool
+        var navigationModifier: String
     }
 
     struct Focus: Codable, Equatable {
@@ -250,6 +251,12 @@ extension CanonicalTOMLConfig.General {
         )
         defaultLayoutType = try container.decode(String.self, forKey: .defaultLayoutType, default: defaults.defaultLayoutType, recovering: recovering)
         animationsEnabled = try container.decode(Bool.self, forKey: .animationsEnabled, default: defaults.animationsEnabled, recovering: recovering)
+        navigationModifier = try container.decode(
+            String.self,
+            forKey: .navigationModifier,
+            default: defaults.navigationModifier,
+            recovering: recovering
+        )
     }
 }
 
@@ -470,7 +477,8 @@ extension CanonicalTOMLConfig {
             hyperTrigger: export.hyperTrigger,
             hyperKeyHoldThresholdMilliseconds: export.hyperKeyHoldThresholdMilliseconds,
             defaultLayoutType: export.defaultLayoutType,
-            animationsEnabled: export.animationsEnabled
+            animationsEnabled: export.animationsEnabled,
+            navigationModifier: export.navigationModifier
         )
         focus = Focus(
             followsWindowToMonitor: export.focusFollowsWindowToMonitor
@@ -608,7 +616,8 @@ extension CanonicalTOMLConfig {
             statusBarShowAppNames: statusBar.showAppNames,
             statusBarUseWorkspaceId: statusBar.useWorkspaceId,
             animationsEnabled: general.animationsEnabled,
-            appearanceMode: appearance.mode
+            appearanceMode: appearance.mode,
+            navigationModifier: general.navigationModifier
         )
     }
 }

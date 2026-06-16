@@ -214,6 +214,15 @@ final class NiriLayoutEngine {
         roots[workspaceId]
     }
 
+    /// Tear down the backing layout tree for a destroyed row. Detaches any node mappings
+    /// for windows still associated with the root (none for empty rows).
+    func discardRoot(for workspaceId: WorkspaceDescriptor.ID) {
+        guard let root = roots.removeValue(forKey: workspaceId) else { return }
+        for window in root.allWindows {
+            tokenToNode.removeValue(forKey: window.token)
+        }
+    }
+
     func columns(in workspaceId: WorkspaceDescriptor.ID) -> [NiriContainer] {
         guard let root = roots[workspaceId] else { return [] }
         return root.columns

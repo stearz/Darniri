@@ -64,6 +64,78 @@ enum ActionCatalog {
         spec(for: id)?.visibility
     }
 
+    // MARK: - Navigation-modifier-aware default bindings
+
+    /// The action IDs whose default bindings change with NavigationModifier.
+    /// Any ID in this set gets its binding replaced by navigationBindings(for:).
+    static let navigationActionIDs: Set<String> = [
+        "focus.left", "focus.right",
+        "focusWindowOrWorkspaceUp", "focusWindowOrWorkspaceDown",
+        "move.left", "move.right",
+        "moveWindowUpOrToWorkspaceUp", "moveWindowDownOrToWorkspaceDown",
+        "moveColumn.left", "moveColumn.right",
+        "moveColumnToWorkspaceUp", "moveColumnToWorkspaceDown"
+    ]
+
+    /// Returns the raw (pre-defaultBinding-transform) KeyBinding for each navigation
+    /// action under the given modifier.  The `.control` bindings are byte-identical to
+    /// what buildSpecs() embeds today.
+    static func navigationRawBindings(for modifier: NavigationModifier) -> [String: KeyBinding] {
+        switch modifier {
+        case .control:
+            return [
+                "focus.left":                      KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey)),
+                "focus.right":                     KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey)),
+                "focusWindowOrWorkspaceUp":         KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey)),
+                "focusWindowOrWorkspaceDown":       KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey)),
+                "move.left":                       KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey | shiftKey)),
+                "move.right":                      KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | shiftKey)),
+                "moveWindowUpOrToWorkspaceUp":      KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey | shiftKey)),
+                "moveWindowDownOrToWorkspaceDown":  KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey | shiftKey)),
+                // Ctrl+Alt+← / → — the defaultBinding() transform strips optionKey and sets usesHyper=true
+                "moveColumn.left":                 KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey | optionKey)),
+                "moveColumn.right":                KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | optionKey)),
+                "moveColumnToWorkspaceUp":          KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey | optionKey)),
+                "moveColumnToWorkspaceDown":        KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey | optionKey))
+            ]
+        case .option:
+            return [
+                "focus.left":                      KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey)),
+                "focus.right":                     KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey)),
+                "focusWindowOrWorkspaceUp":         KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey)),
+                "focusWindowOrWorkspaceDown":       KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey)),
+                "move.left":                       KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey | shiftKey)),
+                "move.right":                      KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | shiftKey)),
+                "moveWindowUpOrToWorkspaceUp":      KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey | shiftKey)),
+                "moveWindowDownOrToWorkspaceDown":  KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey | shiftKey)),
+                // Opt+Ctrl+← / → — also carries optionKey, so defaultBinding() strips it → usesHyper=true
+                "moveColumn.left":                 KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey | controlKey)),
+                "moveColumn.right":                KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | controlKey)),
+                "moveColumnToWorkspaceUp":          KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey | controlKey)),
+                "moveColumnToWorkspaceDown":        KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey | controlKey))
+            ]
+        }
+    }
+
+    /// The full default binding list, with navigation defaults derived from `modifier`.
+    /// When `modifier == .control` the output is byte-identical to `defaultHotkeyBindings()`.
+    static func defaultHotkeyBindings(modifier: NavigationModifier) -> [HotkeyBinding] {
+        guard modifier != .control else {
+            return defaultHotkeyBindings()
+        }
+        let raw = navigationRawBindings(for: modifier)
+        return specs.map { spec in
+            if let rawBinding = raw[spec.id] {
+                return HotkeyBinding(
+                    id: spec.id,
+                    command: spec.command,
+                    binding: defaultBinding(for: rawBinding)
+                )
+            }
+            return HotkeyBinding(id: spec.id, command: spec.command, binding: spec.defaultBinding)
+        }
+    }
+
     static func defaultHotkeyBindings() -> [HotkeyBinding] {
         specs.map { spec in
             HotkeyBinding(
@@ -113,24 +185,10 @@ enum ActionCatalog {
     private static func buildSpecs() -> [ActionSpec] {
         var specs: [ActionSpec] = []
 
-        for (idx, code) in digitCodes.enumerated() {
-            specs.append(
-                action(
-                    id: "switchWorkspace.\(idx)",
-                    command: .switchWorkspace(idx),
-                    category: .workspace,
-                    binding: KeyBinding(keyCode: code, modifiers: 0, usesHyper: true)
-                )
-            )
-            specs.append(
-                action(
-                    id: "moveToWorkspace.\(idx)",
-                    command: .moveToWorkspace(idx),
-                    category: .workspace,
-                    binding: KeyBinding(keyCode: code, modifiers: UInt32(optionKey | shiftKey))
-                )
-            )
-        }
+        // NOTE: switchWorkspace.(idx), moveToWorkspace.(idx), and
+        // moveColumnToWorkspace.(idx) numbered-jump specs have been removed
+        // (Phase 2 / decision #3).  The underlying enum cases are kept for
+        // persisted-keymap compatibility; remove them in Phase 7.
 
         specs.append(
             action(
@@ -157,30 +215,35 @@ enum ActionCatalog {
             )
         ])
 
+        // Focus left/right: Ctrl+←/→
+        // Focus up/down: UNASSIGNED (plain in-column; advanced users may rebind)
+        // Up/down spill variants are bound below in the focusWindowOrWorkspace* section.
         specs.append(contentsOf: [
             action(
                 id: "focus.left",
                 command: .focus(.left),
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(optionKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(controlKey))
             ),
             action(
                 id: "focus.down",
                 command: .focus(.down),
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(optionKey))
+                binding: .unassigned,
+                visibility: .advanced
             ),
             action(
                 id: "focus.up",
                 command: .focus(.up),
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(optionKey))
+                binding: .unassigned,
+                visibility: .advanced
             ),
             action(
                 id: "focus.right",
                 command: .focus(.right),
                 category: .focus,
-                binding: KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey))
             )
         ])
 
@@ -241,15 +304,15 @@ enum ActionCatalog {
                 id: "focusWindowOrWorkspaceDown",
                 command: .focusWindowOrWorkspaceDown,
                 category: .focus,
-                binding: .unassigned,
-                visibility: .advanced
+                // Ctrl+↓: focus window below, spilling to the row below at column bottom
+                binding: KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(controlKey))
             ),
             action(
                 id: "focusWindowOrWorkspaceUp",
                 command: .focusWindowOrWorkspaceUp,
                 category: .focus,
-                binding: .unassigned,
-                visibility: .advanced
+                // Ctrl+↑: focus window above, spilling to the row above at column top
+                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(controlKey))
             )
         ])
 
@@ -271,71 +334,70 @@ enum ActionCatalog {
         ])
 
         specs.append(contentsOf: [
+            // moveWindowToWorkspaceUp/Down: plain "move to adjacent row" without spill.
+            // Left unassigned; the spill variants below (moveWindowUpOrToWorkspaceUp/Down)
+            // are the primary defaults (Ctrl+Shift+↑/↓).
             action(
                 id: "moveWindowToWorkspaceUp",
                 command: .moveWindowToWorkspaceUp,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: .unassigned,
+                visibility: .advanced
             ),
             action(
                 id: "moveWindowToWorkspaceDown",
                 command: .moveWindowToWorkspaceDown,
                 category: .workspace,
-                binding: KeyBinding(
-                    keyCode: UInt32(kVK_DownArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
-                )
+                binding: .unassigned,
+                visibility: .advanced
             ),
+            // moveColumnToWorkspaceUp/Down: move the whole column to the row above/below.
+            // Ctrl+Alt+↑/↓ (does not collide with Ctrl+Shift+↑/↓ or Ctrl+←/→).
             action(
                 id: "moveColumnToWorkspaceUp",
                 command: .moveColumnToWorkspaceUp,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_PageUp), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(controlKey | optionKey))
             ),
             action(
                 id: "moveColumnToWorkspaceDown",
                 command: .moveColumnToWorkspaceDown,
                 category: .workspace,
-                binding: KeyBinding(keyCode: UInt32(kVK_PageDown), modifiers: UInt32(optionKey | controlKey | shiftKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(controlKey | optionKey))
             )
         ])
 
-        for idx in 0 ..< 9 {
-            specs.append(
-                action(
-                    id: "moveColumnToWorkspace.\(idx)",
-                    command: .moveColumnToWorkspace(idx),
-                    category: .workspace,
-                    binding: .unassigned,
-                    visibility: .advanced
-                )
-            )
-        }
+        // NOTE: moveColumnToWorkspace.(idx) numbered-jump specs removed (Phase 2 / decision #3).
 
+        // move.left/right: Ctrl+Shift+←/→
+        // move.up/down: UNASSIGNED (plain in-column; advanced users may rebind)
+        // Up/down spill variants are bound below in the moveWindowUpOrToWorkspace* section.
         specs.append(contentsOf: [
             action(
                 id: "move.left",
                 command: .move(.left),
                 category: .move,
-                binding: KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(optionKey | shiftKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(controlKey | shiftKey))
             ),
             action(
                 id: "move.down",
                 command: .move(.down),
                 category: .move,
-                binding: KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(optionKey | shiftKey))
+                binding: .unassigned,
+                visibility: .advanced
             ),
             action(
                 id: "move.up",
                 command: .move(.up),
                 category: .move,
-                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(optionKey | shiftKey))
+                binding: .unassigned,
+                visibility: .advanced
             ),
             action(
                 id: "move.right",
                 command: .move(.right),
                 category: .move,
-                binding: KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | shiftKey))
+                binding: KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | shiftKey))
             )
         ])
 
@@ -358,15 +420,15 @@ enum ActionCatalog {
                 id: "moveWindowDownOrToWorkspaceDown",
                 command: .moveWindowDownOrToWorkspaceDown,
                 category: .move,
-                binding: .unassigned,
-                visibility: .advanced
+                // Ctrl+Shift+↓: move window down, spilling to the row below at column bottom
+                binding: KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(controlKey | shiftKey))
             ),
             action(
                 id: "moveWindowUpOrToWorkspaceUp",
                 command: .moveWindowUpOrToWorkspaceUp,
                 category: .move,
-                binding: .unassigned,
-                visibility: .advanced
+                // Ctrl+Shift+↑: move window up, spilling to the row above at column top
+                binding: KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(controlKey | shiftKey))
             ),
             action(
                 id: "consumeOrExpelWindowLeft",
@@ -436,18 +498,20 @@ enum ActionCatalog {
                 id: "moveColumn.left",
                 command: .moveColumn(.left),
                 category: .column,
+                // Ctrl+Alt+← (does not collide with Ctrl+Shift+← or Ctrl+←)
                 binding: KeyBinding(
                     keyCode: UInt32(kVK_LeftArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
+                    modifiers: UInt32(controlKey | optionKey)
                 )
             ),
             action(
                 id: "moveColumn.right",
                 command: .moveColumn(.right),
                 category: .column,
+                // Ctrl+Alt+→ (does not collide with Ctrl+Shift+→ or Ctrl+→)
                 binding: KeyBinding(
                     keyCode: UInt32(kVK_RightArrow),
-                    modifiers: UInt32(optionKey | controlKey | shiftKey)
+                    modifiers: UInt32(controlKey | optionKey)
                 )
             ),
             action(

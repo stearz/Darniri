@@ -479,20 +479,8 @@ enum HotkeyBindingRegistry {
     }
 
     private static func isLegacyWorkspaceDefault(id: String, trigger: HotkeyTrigger) -> Bool {
-        guard case let .chord(binding) = trigger else { return false }
-        let digitCodes = [
-            UInt32(kVK_ANSI_1), UInt32(kVK_ANSI_2), UInt32(kVK_ANSI_3),
-            UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5), UInt32(kVK_ANSI_6),
-            UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9)
-        ]
-        for (workspace, keyCode) in digitCodes.enumerated() {
-            if id == "switchWorkspace.\(workspace)" {
-                return binding == KeyBinding(keyCode: keyCode, modifiers: UInt32(optionKey))
-            }
-            if id == "moveToWorkspace.\(workspace)" {
-                return binding == KeyBinding(keyCode: keyCode, modifiers: UInt32(optionKey | shiftKey))
-            }
-        }
+        // switchWorkspace.(n) and moveToWorkspace.(n) numbered-jump specs have been
+        // removed (Phase 2 / decision #3).  No legacy migration is needed; always false.
         return false
     }
 

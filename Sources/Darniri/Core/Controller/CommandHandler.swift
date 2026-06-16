@@ -76,9 +76,11 @@ final class CommandHandler {
         case let .switchWorkspace(index):
             controller.workspaceNavigationHandler.switchWorkspace(index: index)
         case .switchWorkspaceNext:
-            controller.workspaceNavigationHandler.switchWorkspaceRelative(isNext: true)
+            // Dynamic-row model: vertical row switch does NOT wrap (Niri behavior — you
+            // stop at the empty buffer at the top/bottom).
+            controller.workspaceNavigationHandler.switchWorkspaceRelative(isNext: true, wrapAround: false)
         case .switchWorkspacePrevious:
-            controller.workspaceNavigationHandler.switchWorkspaceRelative(isNext: false)
+            controller.workspaceNavigationHandler.switchWorkspaceRelative(isNext: false, wrapAround: false)
         case .focusMonitorPrevious:
             controller.workspaceNavigationHandler.focusMonitorCyclic(previous: true)
         case .focusMonitorNext:

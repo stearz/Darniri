@@ -285,7 +285,7 @@ final class WorkspaceNavigationHandler {
         )
     }
 
-    func switchWorkspaceRelative(isNext: Bool, wrapAround: Bool = true) {
+    func switchWorkspaceRelative(isNext: Bool, wrapAround: Bool = false) {
         guard let controller else { return }
         controller.focusBorderController.hide()
 
@@ -413,26 +413,26 @@ final class WorkspaceNavigationHandler {
         guard let controller else { return nil }
         let wm = controller.workspaceManager
 
-        let existing: WorkspaceDescriptor? = if direction == .down {
-            wm.nextWorkspaceInOrder(on: monitorId, from: workspaceId, wrapAround: false)
-        } else {
-            wm.previousWorkspaceInOrder(on: monitorId, from: workspaceId, wrapAround: false)
+        // Dynamic-row model: the empty-buffer invariant guarantees a row above and below
+        // the content, so the adjacent row normally already exists. Row creation happens
+        // ONLY via `normalizeRowStack`, never here.
+        func adjacent() -> WorkspaceDescriptor? {
+            if direction == .down {
+                return wm.nextWorkspaceInOrder(on: monitorId, from: workspaceId, wrapAround: false)
+            } else {
+                return wm.previousWorkspaceInOrder(on: monitorId, from: workspaceId, wrapAround: false)
+            }
         }
-        if let existing { return existing }
 
-        guard let currentName = wm.descriptor(for: workspaceId)?.name,
-              let currentNumber = Int(currentName)
-        else { return nil }
+        if let resolved = adjacent() {
+            return resolved
+        }
 
-        let candidateNumber = direction == .down ? currentNumber + 1 : currentNumber - 1
-        guard candidateNumber > 0 else { return nil }
-
-        let candidateName = String(candidateNumber)
-        guard wm.workspaceId(named: candidateName) == nil else { return nil }
-
-        guard let targetId = wm.workspaceId(for: candidateName, createIfMissing: false) else { return nil }
-        wm.assignWorkspaceToMonitor(targetId, monitorId: monitorId)
-        return wm.descriptor(for: targetId)
+        // Self-heal: a spill/move can reach this before the global normalization choke
+        // point has run (e.g. focus-spill paths). Run normalization once to mint the
+        // missing buffer, then re-query. Give up only if it is still absent.
+        wm.normalizeRowStack(on: monitorId)
+        return adjacent()
     }
 
     private func transferWindowFromSourceEngine(
@@ -541,11 +541,42 @@ final class WorkspaceNavigationHandler {
         guard transferResult.succeeded else { return }
 
         controller.reassignManagedWindow(token, to: targetWorkspace.id)
-        applySessionPatch(workspaceId: targetWorkspace.id, rememberedFocusToken: token)
 
+        // Niri spill semantics: the focused window moves into the adjacent row AND the
+        // visible/active row follows it, with focus landing on the moved window. Make the
+        // target row visible on the monitor and select the moved window there.
+        controller.isTransferringWindow = true
+        defer { controller.isTransferringWindow = false }
+        _ = controller.workspaceManager.setActiveWorkspace(targetWorkspace.id, on: currentMonitorId)
+
+        var targetState = controller.workspaceManager.niriViewportState(for: targetWorkspace.id)
+        if let engine = controller.niriEngine,
+           let movedNode = engine.findNode(for: token)
+        {
+            targetState.selectedNodeId = movedNode.id
+            if let monitor = controller.workspaceManager.monitor(for: targetWorkspace.id) {
+                let gap = CGFloat(controller.workspaceManager.gaps)
+                let workingFrame = controller.insetWorkingFrame(for: monitor)
+                engine.ensureSelectionVisible(
+                    node: movedNode,
+                    in: targetWorkspace.id,
+                    motion: controller.motionPolicy.snapshot(),
+                    state: &targetState,
+                    workingFrame: workingFrame,
+                    gaps: gap
+                )
+            }
+        }
+        applySessionPatch(
+            workspaceId: targetWorkspace.id,
+            viewportState: targetState,
+            rememberedFocusToken: token
+        )
+
+        // The source row lost its focused window; recover its own selection so returning
+        // to it later restores a sane focus, but do NOT steal focus back from the move.
         let sourceState = controller.workspaceManager.niriViewportState(for: wsId)
         controller.recoverSourceFocusAfterMove(in: wsId, preferredNodeId: sourceState.selectedNodeId)
-        let focusToken = controller.resolveAndSetWorkspaceFocusToken(for: wsId)
 
         controller.layoutRefreshController.commitWorkspaceTransition(
             affectedWorkspaces: affectedWorkspaceIds(
@@ -554,9 +585,7 @@ final class WorkspaceNavigationHandler {
             ),
             reason: .workspaceTransition
         ) { [weak controller] in
-            if let focusToken {
-                controller?.focusWindow(focusToken)
-            }
+            controller?.focusWindow(token)
         }
     }
 
@@ -606,10 +635,37 @@ final class WorkspaceNavigationHandler {
             controller.reassignManagedWindow(window.token, to: targetWorkspace.id)
         }
 
-        applySessionPatch(workspaceId: targetWorkspace.id, rememberedFocusToken: token)
+        // Niri spill semantics: the moved column follows into the adjacent row AND the
+        // visible/active row follows it, with focus landing on the moved column's window
+        // (same as moving a column within a row keeps it focused).
+        controller.isTransferringWindow = true
+        defer { controller.isTransferringWindow = false }
+        _ = controller.workspaceManager.setActiveWorkspace(targetWorkspace.id, on: currentMonitorId)
 
+        var followState = controller.workspaceManager.niriViewportState(for: targetWorkspace.id)
+        if let movedNode = engine.findNode(for: token) {
+            followState.selectedNodeId = movedNode.id
+            if let monitor = controller.workspaceManager.monitor(for: targetWorkspace.id) {
+                let gap = CGFloat(controller.workspaceManager.gaps)
+                let workingFrame = controller.insetWorkingFrame(for: monitor)
+                engine.ensureSelectionVisible(
+                    node: movedNode,
+                    in: targetWorkspace.id,
+                    motion: controller.motionPolicy.snapshot(),
+                    state: &followState,
+                    workingFrame: workingFrame,
+                    gaps: gap
+                )
+            }
+        }
+        applySessionPatch(
+            workspaceId: targetWorkspace.id,
+            viewportState: followState,
+            rememberedFocusToken: token
+        )
+
+        // Recover the source row's own selection without stealing focus back from the move.
         controller.recoverSourceFocusAfterMove(in: wsId, preferredNodeId: result.newFocusNodeId)
-        let focusToken = controller.resolveAndSetWorkspaceFocusToken(for: wsId)
 
         controller.layoutRefreshController.commitWorkspaceTransition(
             affectedWorkspaces: affectedWorkspaceIds(
@@ -618,9 +674,7 @@ final class WorkspaceNavigationHandler {
             ),
             reason: .workspaceTransition
         ) { [weak controller] in
-            if let focusToken {
-                controller?.focusWindow(focusToken)
-            }
+            controller?.focusWindow(token)
         }
     }
 

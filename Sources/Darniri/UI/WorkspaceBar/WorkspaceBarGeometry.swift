@@ -30,14 +30,22 @@ struct WorkspaceBarGeometry: Equatable {
         monitor: Monitor,
         resolved: ResolvedBarSettings
     ) -> CGRect {
-        let width = max(fittingWidth, 300)
+        // Clamp dimensions to valid, positive values.
+        // With dynamic rows the projection can momentarily be empty, which causes
+        // fittingWidth to be 0 or NaN; a zero-height bar is also possible when
+        // `resolved.height` is 0.  An invalid content size would cause AppKit to
+        // throw during the hosting-view constraint pass, so we enforce a minimum.
+        let safeWidth = max(fittingWidth.isFinite ? fittingWidth : 0, 1)
+        let safeHeight = max(barHeight.isFinite ? barHeight : 0, 1)
+
+        let width = max(safeWidth, 300)
         var x = monitor.frame.midX - width / 2
-        var y = effectivePosition == .belowMenuBar ? monitor.visibleFrame.maxY - barHeight : monitor.visibleFrame.maxY
+        var y = effectivePosition == .belowMenuBar ? monitor.visibleFrame.maxY - safeHeight : monitor.visibleFrame.maxY
 
         x += CGFloat(resolved.xOffset)
         y += CGFloat(resolved.yOffset)
 
-        return CGRect(x: x, y: y, width: width, height: barHeight)
+        return CGRect(x: x, y: y, width: width, height: safeHeight)
     }
 
     static func effectivePosition(

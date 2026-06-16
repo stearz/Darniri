@@ -94,6 +94,8 @@ import QuartzCore
     }
 
     weak var controller: WMController?
+    /// Re-entrancy guard for the single dynamic-row normalization choke point.
+    private var isNormalizingRowStacks = false
     static let hiddenWindowEdgeRevealEpsilon: CGFloat = 1.0
     private static let delayedRevealVerificationDelay: Duration = .milliseconds(50)
 
@@ -1774,6 +1776,19 @@ import QuartzCore
     }
 
     private func enqueueRefresh(_ refresh: ScheduledRefresh) {
+        // Single dynamic-row normalization choke point: every content-changing operation
+        // funnels through here (window add/remove/move, column move, row switch, topology
+        // change). Normalization is idempotent, but its per-row `windows(in:)` queries and
+        // cache rebuilds are not free, so it must only run for reasons that can actually
+        // change row CONTENTS — never on pure relayout / visibility / scroll-animation
+        // frames (see `RefreshReason.mayChangeRowContents`). The guard prevents re-entrancy
+        // from the revision bumps it triggers.
+        if refresh.reason.mayChangeRowContents, !isNormalizingRowStacks {
+            isNormalizingRowStacks = true
+            controller?.workspaceManager.normalizeAllRowStacks()
+            isNormalizingRowStacks = false
+        }
+
         if let activeRefresh = layoutState.activeRefresh {
             handleRefresh(refresh, whileActive: activeRefresh)
             return

@@ -93,6 +93,53 @@ enum RefreshReason: String, Sendable {
         }
     }
 
+    /// Whether a refresh with this reason can change a monitor's row CONTENTS (windows
+    /// added/removed/moved between rows, a row switch that changes the visible row, or a
+    /// topology change). Only these reasons need the dynamic-row normalization pass; pure
+    /// relayout / visibility / scroll-animation refreshes leave row membership untouched
+    /// and must NOT re-run the per-row emptiness queries on every frame.
+    ///
+    /// When in doubt this errs toward `true`: correctness of the empty-buffer invariant
+    /// beats sparing a normalization pass.
+    var mayChangeRowContents: Bool {
+        switch self {
+        // Full rescans + window lifecycle: adopt/drop windows, re-evaluate rules that can
+        // move windows between rows, switch the visible row → contents change.
+        case .startup,
+             .appLaunched,
+             .unlock,
+             .activeSpaceChanged,
+             .monitorConfigurationChanged,
+             .appRulesChanged,
+             .workspaceConfigChanged,
+             .appTerminated,
+             .staleFullRescan,
+             .workspaceTransition,
+             .appActivationTransition,
+             .layoutCommand,
+             .windowRuleReevaluation,
+             .axWindowCreated,
+             .axWindowChanged,
+             .windowDestroyed,
+             .overviewMutation:
+            true
+        // Pure relayout: gaps/layout style/monitor settings/layout-type toggle only
+        // re-position windows within their existing rows.
+        case .layoutConfigChanged,
+             .monitorSettingsChanged,
+             .gapsChanged,
+             .workspaceLayoutToggled,
+             // Retry of an already-scheduled relayout — no new content delta.
+             .staleLayoutPlan,
+             // Scroll/drag animation frames — the hot path; membership is unchanged.
+             .interactiveGesture,
+             // Visibility-only: a hidden/unhidden window still belongs to its row.
+             .appHidden,
+             .appUnhidden:
+            false
+        }
+    }
+
     var relayoutSchedulingPolicy: RelayoutSchedulingPolicy {
         switch self {
         case .startup,

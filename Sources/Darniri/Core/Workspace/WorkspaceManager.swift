@@ -12,6 +12,14 @@ struct WorkspaceDescriptor: Identifiable, Hashable {
         self.name = name
         self.assignedMonitorPoint = assignedMonitorPoint
     }
+
+    /// Dynamic-rows constructor: mints a fresh anonymous row with a stable debug label.
+    /// `name` is vestigial under the dynamic-row model — it exists only for logging/debug.
+    init(rowWithId id: ID, assignedMonitorPoint: CGPoint? = nil) {
+        self.id = id
+        name = "row-\(id.uuidString.prefix(8))"
+        self.assignedMonitorPoint = assignedMonitorPoint
+    }
 }
 
 private struct PersistedWindowRestoreCatalogBuildSnapshot: Sendable {
@@ -192,6 +200,16 @@ final class WorkspaceManager {
     private var workspacesById: [WorkspaceDescriptor.ID: WorkspaceDescriptor] = [:]
     private var workspaceIdByName: [String: WorkspaceDescriptor.ID] = [:]
     private var disconnectedVisibleWorkspaceCache: [MonitorRestoreKey: WorkspaceDescriptor.ID] = [:]
+
+    /// Single source of truth for the dynamic per-monitor row stack, ordered top→bottom.
+    /// A "row" is a `WorkspaceDescriptor`; this list defines its monitor membership and
+    /// vertical ordering. Replaces the former name-based / config-derived ordering.
+    private var rowOrderByMonitor: [Monitor.ID: [WorkspaceDescriptor.ID]] = [:]
+    /// Reverse index of `rowOrderByMonitor`, rebuilt lazily.
+    private var _cachedRowMonitorByWorkspace: [WorkspaceDescriptor.ID: Monitor.ID]?
+    /// The engine is needed by `createRow`/`removeRow` to mint/tear down the `NiriRoot`.
+    /// Wired by `WMController` after construction.
+    weak var rowLayoutEngine: NiriLayoutEngine?
 
     private(set) var gaps: Double = 8
     private(set) var outerGaps: LayoutGaps.OuterGaps = .zero
@@ -2201,6 +2219,8 @@ final class WorkspaceManager {
         _cachedVisibleWorkspaceIds = nil
         _cachedVisibleWorkspaceMap = nil
         _cachedMonitorIdByVisibleWorkspace = nil
+        _cachedRowMonitorByWorkspace = nil
+        _cachedSortedWorkspaces = nil
     }
 
     private func sortedMonitors() -> [Monitor] {
@@ -2280,15 +2300,34 @@ final class WorkspaceManager {
             return cached
         }
 
-        let context = monitorResolutionContext()
+        // Dynamic-row model: the per-monitor ordering IS `rowOrderByMonitor`. Filter to
+        // currently-known monitors and existing descriptors so stale entries can't leak.
+        let knownMonitorIds = Set(monitors.map(\.id))
         var workspaceIdsByMonitor: [Monitor.ID: [WorkspaceDescriptor.ID]] = [:]
-        for workspace in sortedWorkspaces() {
-            guard let monitorId = resolvedWorkspaceMonitorId(for: workspace.id, context: context) else { continue }
-            workspaceIdsByMonitor[monitorId, default: []].append(workspace.id)
+        for (monitorId, ids) in rowOrderByMonitor where knownMonitorIds.contains(monitorId) {
+            let present = ids.filter { workspacesById[$0] != nil }
+            if !present.isEmpty {
+                workspaceIdsByMonitor[monitorId] = present
+            }
         }
 
         _cachedWorkspaceIdsByMonitor = workspaceIdsByMonitor
         return workspaceIdsByMonitor
+    }
+
+    /// Reverse lookup: which monitor's row stack contains the given row.
+    private func rowMonitorId(for workspaceId: WorkspaceDescriptor.ID) -> Monitor.ID? {
+        if let cached = _cachedRowMonitorByWorkspace {
+            return cached[workspaceId]
+        }
+        var reverse: [WorkspaceDescriptor.ID: Monitor.ID] = [:]
+        for (monitorId, ids) in rowOrderByMonitor {
+            for id in ids {
+                reverse[id] = monitorId
+            }
+        }
+        _cachedRowMonitorByWorkspace = reverse
+        return reverse[workspaceId]
     }
 
     private func visibleWorkspaceMap() -> [Monitor.ID: WorkspaceDescriptor.ID] {
@@ -2318,7 +2357,7 @@ final class WorkspaceManager {
             return existing
         }
         guard createIfMissing else { return nil }
-        guard configuredWorkspaceNameSet().contains(name) else { return nil }
+        // Dynamic-row model: creation is no longer gated on a configured name set.
         return createWorkspace(named: name)
     }
 
@@ -3477,25 +3516,263 @@ final class WorkspaceManager {
         if let cached = _cachedSortedWorkspaces {
             return cached
         }
-        let sorted = workspacesById.values.sorted { WorkspaceIDPolicy.sortsBefore($0.name, $1.name) }
-        _cachedSortedWorkspaces = sorted
-        return sorted
+        // Dynamic-row model: ordering is derived from `rowOrderByMonitor`, monitor by
+        // monitor (in stable monitor-sort order), top→bottom within each monitor. Any
+        // descriptor not yet placed in a stack is appended deterministically by name so
+        // callers iterating `workspaces` still see every row.
+        var ordered: [WorkspaceDescriptor] = []
+        var seen: Set<WorkspaceDescriptor.ID> = []
+        let monitorOrder = sortedMonitors().map(\.id)
+        let orderedMonitorIds = monitorOrder
+            + rowOrderByMonitor.keys.filter { !monitorOrder.contains($0) }
+                .sorted { $0.displayId < $1.displayId }
+        for monitorId in orderedMonitorIds {
+            for id in rowOrderByMonitor[monitorId] ?? [] {
+                guard let descriptor = workspacesById[id], seen.insert(id).inserted else { continue }
+                ordered.append(descriptor)
+            }
+        }
+        let orphans = workspacesById.values
+            .filter { !seen.contains($0.id) }
+            .sorted { WorkspaceIDPolicy.sortsBefore($0.name, $1.name) }
+        ordered.append(contentsOf: orphans)
+        _cachedSortedWorkspaces = ordered
+        return ordered
     }
 
     private func synchronizeConfiguredWorkspaces() {
-        let configuredNames = configuredWorkspaceNames()
-        let configuredSet = Set(configuredNames)
+        // Dynamic-row model (Phase 1): config no longer drives row lifecycle. Rows are
+        // created/destroyed by `normalizeRowStack`. We still parse `[workspaces]` (removed
+        // in Phase 7), but it must not mint or reap rows here. Instead, ensure every
+        // monitor has at least its empty-buffer rows.
+        normalizeAllRowStacks()
+    }
 
-        for name in configuredNames {
-            _ = workspaceId(for: name, createIfMissing: true)
+    // MARK: - Dynamic row stack (Phase 1)
+
+    /// True when a row holds no windows (tiling or floating). Drives normalization.
+    private func isRowEmpty(_ workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        windows.windows(in: workspaceId).isEmpty
+    }
+
+    /// Mint a fresh anonymous row on `monitorId`, inserting it into `rowOrderByMonitor`
+    /// at `index` (top→bottom). Creates the backing `NiriRoot` and bumps revisions.
+    @discardableResult
+    func createRow(on monitorId: Monitor.ID, at index: Int) -> WorkspaceDescriptor.ID {
+        let id = UUID()
+        let descriptor = WorkspaceDescriptor(
+            rowWithId: id,
+            assignedMonitorPoint: monitor(byId: monitorId)?.workspaceAnchorPoint
+        )
+        workspacesById[id] = descriptor
+        workspaceIdByName[descriptor.name] = id
+
+        var ids = rowOrderByMonitor[monitorId] ?? []
+        let clampedIndex = max(0, min(index, ids.count))
+        ids.insert(id, at: clampedIndex)
+        rowOrderByMonitor[monitorId] = ids
+
+        // Backing layout root (engine creates it lazily otherwise, but do it eagerly so
+        // the row is immediately usable as a move/spill target).
+        _ = rowLayoutEngine?.ensureRoot(for: id)
+
+        invalidateWorkspaceProjectionCaches()
+        bumpRuntimeRevision(for: id, domains: [.workspace, .layout, .focus])
+        return id
+    }
+
+    /// Tear down a row: remove its `NiriRoot`, drop it from `rowOrderByMonitor`, and
+    /// clean every per-workspace cache/session keyed by its id.
+    func removeRow(_ id: WorkspaceDescriptor.ID) {
+        guard workspacesById[id] != nil else { return }
+        rowLayoutEngine?.discardRoot(for: id)
+        for monitorId in rowOrderByMonitor.keys {
+            rowOrderByMonitor[monitorId]?.removeAll { $0 == id }
+        }
+        rowOrderByMonitor = rowOrderByMonitor.filter { !$0.value.isEmpty }
+        windows.removeWorkspaceTokens(id)
+        removeWorkspaces([id])
+    }
+
+    /// Adopt workspaces that already exist (legacy `[[workspaces]]`-loaded, window-adopted,
+    /// or session-visible) but are NOT yet placed in any monitor's `rowOrderByMonitor`, so
+    /// the dynamic row stack stays connected to the workspace the user actually sees.
+    ///
+    /// Without this, bootstrap would mint a brand-new empty row that is disconnected from the
+    /// visible/active workspace, and cross-row spill/switch (which resolve neighbors via
+    /// `rowOrderByMonitor`) silently no-op because the active workspace isn't in the stack.
+    ///
+    /// Idempotent: a workspace already in some stack is skipped, so it never duplicates ids
+    /// and is safe to run repeatedly from the `enqueueRefresh` choke point.
+    private func reconcileExistingWorkspacesIntoRowStacks() {
+        // Ids already owned by some monitor's row stack — never re-home or duplicate these.
+        var placed: Set<WorkspaceDescriptor.ID> = []
+        for ids in rowOrderByMonitor.values {
+            placed.formUnion(ids)
         }
 
-        let toRemove = workspacesById.compactMap { workspaceId, workspace -> WorkspaceDescriptor.ID? in
-            guard !configuredSet.contains(workspace.name) else { return nil }
-            guard windows.windows(in: workspaceId).isEmpty else { return nil }
-            return workspaceId
+        let knownMonitorIds = Set(monitors.map(\.id))
+        guard !knownMonitorIds.isEmpty else { return }
+        let windowWorkspaceIds = windows.workspaceIdsHoldingWindows()
+
+        // Resolve the monitor a disconnected workspace belongs to. `resolvedWorkspaceMonitorId`
+        // derives membership FROM the row stack first, so for an unplaced workspace it falls
+        // through to the session-visible map / configured anchor — exactly the signals we want.
+        func targetMonitor(for workspaceId: WorkspaceDescriptor.ID) -> Monitor.ID? {
+            // 1. The monitor currently showing it as visible/previous (authoritative on launch).
+            for (monitorId, session) in sessionState.monitorSessions where knownMonitorIds.contains(monitorId) {
+                if session.visibleWorkspaceId == workspaceId || session.previousVisibleWorkspaceId == workspaceId {
+                    return monitorId
+                }
+            }
+            // 2. Resolver fallback (configured name → effective monitor / anchor point).
+            if let resolved = resolvedWorkspaceMonitorId(for: workspaceId),
+               knownMonitorIds.contains(resolved)
+            {
+                return resolved
+            }
+            // 3. Window-bearing but otherwise unanchored: default to the main monitor.
+            if windowWorkspaceIds.contains(workspaceId) {
+                return (monitors.first(where: { $0.isMain }) ?? monitors.first)?.id
+            }
+            return nil
         }
-        removeWorkspaces(toRemove)
+
+        // Stable, deterministic adoption order: visible workspaces first (so they anchor the
+        // content row), then window-bearing, then the rest, each tier sorted by name.
+        let unplaced = workspacesById.keys.filter { !placed.contains($0) }
+        let visibleIds = Set(sessionState.monitorSessions.values.compactMap(\.visibleWorkspaceId))
+        let ordered = unplaced.sorted { lhs, rhs in
+            func rank(_ id: WorkspaceDescriptor.ID) -> Int {
+                if visibleIds.contains(id) { return 0 }
+                if windowWorkspaceIds.contains(id) { return 1 }
+                return 2
+            }
+            let lr = rank(lhs), rr = rank(rhs)
+            if lr != rr { return lr < rr }
+            let ln = workspacesById[lhs]?.name ?? ""
+            let rn = workspacesById[rhs]?.name ?? ""
+            return WorkspaceIDPolicy.sortsBefore(ln, rn)
+        }
+
+        var didChange = false
+        for workspaceId in ordered {
+            guard let monitorId = targetMonitor(for: workspaceId) else { continue }
+            var ids = rowOrderByMonitor[monitorId] ?? []
+            guard !ids.contains(workspaceId) else { continue } // idempotency guard
+            ids.append(workspaceId)
+            rowOrderByMonitor[monitorId] = ids
+            _ = rowLayoutEngine?.ensureRoot(for: workspaceId)
+            placed.insert(workspaceId)
+            didChange = true
+        }
+
+        if didChange {
+            invalidateWorkspaceProjectionCaches()
+        }
+    }
+
+    /// Run normalization for every monitor's row stack. Idempotent and cheap: only
+    /// mutates when the empty-buffer invariant is violated.
+    func normalizeAllRowStacks() {
+        // First, adopt any pre-existing (persisted / window-adopted / visible) workspaces into
+        // the row stack so bootstrap doesn't mint a disconnected fresh row beside them.
+        reconcileExistingWorkspacesIntoRowStacks()
+        // Bootstrap: every known monitor that STILL has no row gets one empty buffer row.
+        for monitor in monitors where (rowOrderByMonitor[monitor.id]?.isEmpty ?? true) {
+            createRow(on: monitor.id, at: 0)
+        }
+        // Drop stacks for monitors that no longer exist (windows on them, if any, are
+        // handled by topology migration elsewhere; Phase 1 just avoids leaking order).
+        let knownMonitorIds = Set(monitors.map(\.id))
+        for monitorId in rowOrderByMonitor.keys where !knownMonitorIds.contains(monitorId) {
+            for id in rowOrderByMonitor[monitorId] ?? [] where isRowEmpty(id) {
+                removeRow(id)
+            }
+        }
+        for monitor in monitors {
+            normalizeRowStack(on: monitor.id)
+        }
+    }
+
+    /// Enforce the empty-buffer invariant on a single monitor's row stack:
+    ///   - exactly one empty row at the top and one at the bottom (degenerate: a single
+    ///     empty row when there is no content at all),
+    ///   - interior empty rows removed — EXCEPT the currently-visible row, which is never
+    ///     deleted while the user is standing on it.
+    func normalizeRowStack(on monitorId: Monitor.ID) {
+        guard monitor(byId: monitorId) != nil else { return }
+
+        // Ensure the stack exists (degenerate bootstrap: one empty row).
+        if (rowOrderByMonitor[monitorId]?.isEmpty ?? true) {
+            createRow(on: monitorId, at: 0)
+            return
+        }
+
+        let visibleId = visibleWorkspaceId(on: monitorId)
+
+        func ids() -> [WorkspaceDescriptor.ID] { rowOrderByMonitor[monitorId] ?? [] }
+
+        // 1. Remove interior empty rows (never the visible one).
+        for id in ids() {
+            let stack = ids()
+            guard stack.count > 1 else { break }
+            guard let idx = stack.firstIndex(of: id) else { continue }
+            let isTop = idx == 0
+            let isBottom = idx == stack.count - 1
+            guard !isTop, !isBottom else { continue }
+            guard isRowEmpty(id) else { continue }
+            if id == visibleId { continue } // never pull the floor from under the user
+            removeRow(id)
+        }
+
+        // 2. Collapse runs of empty rows at each edge to exactly one.
+        collapseEdgeEmptyRuns(on: monitorId, visibleId: visibleId)
+
+        // 3. Ensure a single empty buffer at top and bottom.
+        var stack = ids()
+        if let top = stack.first, !isRowEmpty(top) {
+            createRow(on: monitorId, at: 0)
+            stack = ids()
+        }
+        if let bottom = stack.last, !isRowEmpty(bottom) {
+            createRow(on: monitorId, at: stack.count)
+        }
+    }
+
+    /// Collapse a contiguous run of empty rows at the top edge and at the bottom edge
+    /// down to a single empty row each. The visible row is preferred as the survivor so
+    /// the user's position is preserved.
+    private func collapseEdgeEmptyRuns(
+        on monitorId: Monitor.ID,
+        visibleId: WorkspaceDescriptor.ID?
+    ) {
+        func ids() -> [WorkspaceDescriptor.ID] { rowOrderByMonitor[monitorId] ?? [] }
+
+        // Top edge.
+        while true {
+            let stack = ids()
+            guard stack.count > 1 else { break }
+            let first = stack[0]
+            let second = stack[1]
+            guard isRowEmpty(first), isRowEmpty(second) else { break }
+            // Remove whichever is not the visible row (prefer keeping the visible one).
+            let victim = first == visibleId ? second : first
+            removeRow(victim)
+            if victim == visibleId { break } // safety: shouldn't happen, but never loop on visible
+        }
+
+        // Bottom edge.
+        while true {
+            let stack = ids()
+            guard stack.count > 1 else { break }
+            let last = stack[stack.count - 1]
+            let penultimate = stack[stack.count - 2]
+            guard isRowEmpty(last), isRowEmpty(penultimate) else { break }
+            let victim = last == visibleId ? penultimate : last
+            removeRow(victim)
+            if victim == visibleId { break }
+        }
     }
 
     private func removeWorkspaces(_ ids: [WorkspaceDescriptor.ID]) {
@@ -3518,6 +3795,11 @@ final class WorkspaceManager {
 
         _cachedSortedWorkspaces = nil
         workspaceIdByName = workspaceIdByName.filter { !toRemove.contains($0.value) }
+        // Drop dangling restore-key → workspace-id entries for the removed rows so a later
+        // reattach cannot resurrect a freed id.
+        disconnectedVisibleWorkspaceCache = disconnectedVisibleWorkspaceCache.filter {
+            !toRemove.contains($0.value)
+        }
         invalidateWorkspaceProjectionCaches()
 
         for monitorId in sessionState.monitorSessions.keys {
@@ -3809,6 +4091,31 @@ final class WorkspaceManager {
     private func defaultVisibleWorkspaceId(on monitorId: Monitor.ID) -> WorkspaceDescriptor.ID? {
         let assigned = workspaces(on: monitorId)
         guard !assigned.isEmpty else { return nil }
+
+        // Under the dynamic-row model `assigned.first` is the empty top buffer. Landing
+        // the user there hides their windows. Prefer a previously-visible row that is
+        // still present, then the first NON-EMPTY row, and only fall back to the first
+        // row when the entire stack is empty (degenerate monitor).
+        let assignedIds = Set(assigned.map(\.id))
+
+        // 1. A previously-known visible row for this monitor, if it still exists.
+        if let cached = sessionState.monitorSessions[monitorId]?.visibleWorkspaceId,
+           assignedIds.contains(cached)
+        {
+            return cached
+        }
+        if let previous = sessionState.monitorSessions[monitorId]?.previousVisibleWorkspaceId,
+           assignedIds.contains(previous)
+        {
+            return previous
+        }
+
+        // 2. The first non-empty row (skips the empty top buffer).
+        if let firstContent = assigned.first(where: { !isRowEmpty($0.id) }) {
+            return firstContent.id
+        }
+
+        // 3. Degenerate: the whole stack is empty — fall back to the first row.
         return assigned.first?.id
     }
 
@@ -3844,6 +4151,14 @@ final class WorkspaceManager {
         context: MonitorResolutionContext
     ) -> Monitor.ID? {
         guard let workspace = descriptor(for: workspaceId) else { return nil }
+        // Dynamic-row model: monitor membership is authoritative from the row stack.
+        if let monitorId = rowMonitorId(for: workspaceId),
+           context.monitors.contains(where: { $0.id == monitorId })
+        {
+            return monitorId
+        }
+        // Legacy fallback for rows not yet placed in any stack (transient bootstrap, or
+        // legacy named workspaces created via `workspaceId(for:createIfMissing:)`).
         if context.configuredWorkspaceNames.contains(workspace.name) {
             return effectiveMonitor(for: workspaceId, context: context)?.id
         }
@@ -3930,6 +4245,13 @@ final class WorkspaceManager {
         monitorId: Monitor.ID,
         context: MonitorResolutionContext
     ) -> Bool {
+        guard descriptor(for: workspaceId) != nil else { return false }
+        // Dynamic-row model: a row may be shown on the monitor that owns it in the row
+        // stack. (Falls back to the legacy configured/effective-monitor check for rows not
+        // yet placed in any stack, e.g. transient legacy named workspaces.)
+        if let owner = rowMonitorId(for: workspaceId) {
+            return owner == monitorId
+        }
         guard let workspace = descriptor(for: workspaceId) else { return false }
         guard context.configuredWorkspaceNames.contains(workspace.name) else { return false }
         return effectiveMonitor(for: workspaceId, context: context)?.id == monitorId
@@ -4019,7 +4341,8 @@ final class WorkspaceManager {
 
     private func createWorkspace(named name: String) -> WorkspaceDescriptor.ID? {
         guard let rawID = WorkspaceIDPolicy.normalizeRawID(name) else { return nil }
-        guard configuredWorkspaceNameSet().contains(rawID) else { return nil }
+        // Dynamic-row model: no configured-name gate. Legacy named-jump callers (removed in
+        // later phases) still resolve through here; new rows are minted by `createRow`.
         let workspace = WorkspaceDescriptor(name: rawID)
         workspacesById[workspace.id] = workspace
         workspaceIdByName[workspace.name] = workspace.id

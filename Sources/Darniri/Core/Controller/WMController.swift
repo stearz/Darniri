@@ -63,6 +63,7 @@ final class WMController {
     let settings: SettingsStore
     let workspaceManager: WorkspaceManager
     private let hotkeys = HotkeyCenter()
+    let symbolicHotkeyController = SymbolicHotkeyController()
     let secureInputMonitor = SecureInputMonitor()
     let lockScreenObserver = LockScreenObserver()
     var isLockScreenActive: Bool = false {
@@ -190,7 +191,12 @@ final class WMController {
         setAnimationsEnabled(settings.animationsEnabled, persist: false)
         applyCurrentAppearanceMode()
 
-        updateHotkeyBindings(settings.hotkeyBindings)
+        // Apply navigation modifier BEFORE updating bindings so the symbolic
+        // hotkey state is correct when hotkeys are (re)started.
+        symbolicHotkeyController.setModifier(settings.navigationModifier)
+        updateHotkeyBindings(
+            effectiveBindings(for: settings.hotkeyBindings, modifier: settings.navigationModifier)
+        )
         setHotkeysEnabled(settings.hotkeysEnabled)
 
         setGapSize(settings.gapSize)
@@ -286,7 +292,15 @@ final class WMController {
             && hasStartedServices
             && !serviceLifecycleManager.isSecureInputActive
         hotkeysEnabled = shouldEnableHotkeys
-        shouldEnableHotkeys ? hotkeys.start() : hotkeys.stop()
+        if shouldEnableHotkeys {
+            // Disable conflicting macOS symbolic hotkeys BEFORE RegisterEventHotKey
+            // so Ctrl+Arrow combos are not seen as system-reserved.
+            symbolicHotkeyController.activate()
+            hotkeys.start()
+        } else {
+            hotkeys.stop()
+            symbolicHotkeyController.deactivate()
+        }
     }
 
     func setGapSize(_ size: Double) {
@@ -578,6 +592,33 @@ final class WMController {
             hyperKeyHoldThresholdMilliseconds: settings.hyperKeyHoldThresholdMilliseconds,
             force: force
         )
+    }
+
+    /// Replaces the navigation action defaults in `bindings` with the correct defaults
+    /// for `modifier`.  Non-navigation bindings (including any the user has customized for
+    /// navigation actions) are left unchanged.
+    ///
+    /// This ensures that switching NavigationModifier always uses the modifier-appropriate
+    /// defaults for focus/move/column navigation, regardless of what was previously
+    /// persisted for those actions.
+    func effectiveBindings(
+        for bindings: [HotkeyBinding],
+        modifier: NavigationModifier
+    ) -> [HotkeyBinding] {
+        guard modifier != .control else {
+            // .control is the default; buildSpecs() already embeds control bindings.
+            return bindings
+        }
+        let newDefaults = ActionCatalog.defaultHotkeyBindings(modifier: modifier)
+        let newDefaultsByID = Dictionary(uniqueKeysWithValues: newDefaults.map { ($0.id, $0) })
+        return bindings.map { binding in
+            guard ActionCatalog.navigationActionIDs.contains(binding.id),
+                  let newDefault = newDefaultsByID[binding.id]
+            else {
+                return binding
+            }
+            return newDefault
+        }
     }
 
     func updateWorkspaceConfig() {

@@ -58,6 +58,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let controller = AppDelegate.sharedBootstrap?.controller {
             controller.serviceLifecycleManager.stop()
             controller.workspaceManager.flushPersistedWindowRestoreCatalogNow()
+            // Restore macOS symbolic hotkeys (re-enable Spaces/Mission Control shortcuts).
+            controller.symbolicHotkeyController.deactivate()
         }
         AppDelegate.sharedBootstrap?.settings?.flushNow()
         runtimeStateStore?.flushNow()

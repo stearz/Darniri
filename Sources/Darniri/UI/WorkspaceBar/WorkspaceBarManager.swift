@@ -90,7 +90,11 @@ final class WorkspaceBarManager {
     }
 
     var frameApplier: @MainActor @Sendable (WorkspaceBarPanel, NSRect) -> Void = { panel, frame in
-        panel.setFrame(frame, display: true)
+        // Use display: false to avoid triggering a synchronous CA-transaction flush
+        // (and thus a re-entrant window-constraint-update pass) while we may already
+        // be inside a layout or display cycle.  AppKit will redraw the panel on the
+        // next natural runloop iteration.
+        panel.setFrame(frame, display: false)
     }
 
     private var barsByMonitor: [Monitor.ID: MonitorBarInstance] = [:]
@@ -375,8 +379,19 @@ final class WorkspaceBarManager {
 
         guard instance.lastAppliedFrame != frame else { return }
 
-        frameApplier(instance.panel, frame)
+        // Defer the actual setFrame call to a fresh runloop turn so it never runs
+        // while an AppKit constraint/display pass is already in flight on this panel.
+        // This prevents the re-entrant _postWindowNeedsUpdateConstraints exception
+        // that occurred when panel.setFrame(display:true) synchronously triggered a
+        // CA-transaction flush and re-entered the SwiftUI hosting-view constraint update.
         instance.lastAppliedFrame = frame
+        let applier = frameApplier
+        DispatchQueue.main.async { [weak instance] in
+            guard let instance else { return }
+            // Re-check: if a later update already changed the frame, skip stale application.
+            guard instance.lastAppliedFrame == frame else { return }
+            applier(instance.panel, frame)
+        }
     }
 
     private func measuredWidth(

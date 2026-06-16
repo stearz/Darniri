@@ -476,6 +476,16 @@ final class WindowModel {
         return tokens.compactMap { entries[$0] }
     }
 
+    /// Workspace ids that currently hold at least one tracked window. Used by the dynamic
+    /// row-stack reconciliation to catch window-adopted workspaces that predate the row order.
+    func workspaceIdsHoldingWindows() -> Set<WorkspaceDescriptor.ID> {
+        var ids: Set<WorkspaceDescriptor.ID> = []
+        for (workspaceId, tokens) in tokensByWorkspace where tokens.contains(where: { entries[$0] != nil }) {
+            ids.insert(workspaceId)
+        }
+        return ids
+    }
+
     func windows(
         in workspace: WorkspaceDescriptor.ID,
         mode: TrackedWindowMode
@@ -711,6 +721,15 @@ final class WindowModel {
         removeIndexes(for: entry, token: key, windowId: key.windowId)
         entries.removeValue(forKey: key)
         return entry
+    }
+
+    /// Drop every window currently assigned to `workspace`, fully unwinding all indexes.
+    /// Used when a row is destroyed; for empty rows this is a no-op.
+    func removeWorkspaceTokens(_ workspace: WorkspaceDescriptor.ID) {
+        guard let tokens = tokensByWorkspace[workspace] else { return }
+        for token in tokens {
+            removeWindow(key: token)
+        }
     }
 
     func cachedConstraints(for token: WindowToken, maxAge: TimeInterval = 5.0) -> WindowSizeConstraints? {
