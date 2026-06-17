@@ -19,7 +19,9 @@ final class DragGhostWindow: NSPanel {
         isFloatingPanel = true
         isOpaque = false
         backgroundColor = .clear
-        level = .floating
+        // Above the overview overlay (which is `.screenSaver`) so the drag ghost is visible
+        // while dragging inside the overview; also fine for plain window drags outside it.
+        level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
         ignoresMouseEvents = true
         hasShadow = true
         hidesOnDeactivate = false

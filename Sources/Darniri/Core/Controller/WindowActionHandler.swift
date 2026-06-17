@@ -104,6 +104,18 @@ final class WindowActionHandler {
         return true
     }
 
+    /// While the overview is open, route a layout command (focus/move/column) to operate on
+    /// the overview's selected window instead of letting it be ignored. Returns true if handled.
+    /// Needed because these are global Carbon/event-tap hotkeys that never reach the overview's
+    /// own keyDown — they arrive through the normal command dispatch.
+    func handleOverviewLayoutCommand(_ command: HotkeyCommand) -> Bool {
+        guard overviewController.isOpen,
+              OverviewInputHandler.isLayoutRelevantCommand(command)
+        else { return false }
+        overviewController.handleLayoutCommand(command)
+        return true
+    }
+
     func isOverviewOpen() -> Bool {
         overviewController.isOpen
     }

@@ -893,7 +893,30 @@ final class WorkspaceNavigationHandler {
         guard transferResult.succeeded else { return false }
 
         controller.reassignManagedWindow(token, to: targetWsId)
-        applySessionPatch(workspaceId: targetWsId, rememberedFocusToken: token)
+
+        // Center the moved window's column on the target row (same as the keyboard spill):
+        // register the row with its monitor so effectiveSettings(in:) resolves
+        // centerFocusedColumn, resolve the new column width, then center the selection.
+        var targetState = controller.workspaceManager.niriViewportState(for: targetWsId)
+        if let engine = controller.niriEngine,
+           let movedNode = engine.findNode(for: token),
+           let monitor = controller.workspaceManager.monitor(for: targetWsId)
+        {
+            targetState.selectedNodeId = movedNode.id
+            let gap = CGFloat(controller.workspaceManager.gaps)
+            let workingFrame = controller.insetWorkingFrame(for: monitor)
+            engine.moveWorkspace(targetWsId, to: monitor.id, monitor: monitor)
+            engine.resolveColumnWidths(in: targetWsId, workingAreaWidth: workingFrame.width, gaps: gap)
+            engine.ensureSelectionVisible(
+                node: movedNode,
+                in: targetWsId,
+                motion: controller.motionPolicy.snapshot(),
+                state: &targetState,
+                workingFrame: workingFrame,
+                gaps: gap
+            )
+        }
+        applySessionPatch(workspaceId: targetWsId, viewportState: targetState, rememberedFocusToken: token)
 
         if let currentWorkspaceId {
             let sourceState = controller.workspaceManager.niriViewportState(for: currentWorkspaceId)

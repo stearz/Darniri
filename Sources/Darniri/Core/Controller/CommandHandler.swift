@@ -34,6 +34,12 @@ final class CommandHandler {
     func performCommand(_ command: HotkeyCommand) -> ExternalCommandResult {
         guard let controller else { return .notFound }
         guard controller.isEnabled else { return .ignoredDisabled }
+        // When the overview is open, layout commands (focus/move/column) act on the overview's
+        // selected window rather than being ignored. These arrive as global hotkeys, so they
+        // never reach the overview's own keyDown — route them here.
+        if controller.handleOverviewLayoutCommand(command) {
+            return .executed
+        }
         guard !Self.shouldIgnoreCommand(command, isOverviewOpen: controller.isOverviewOpen()) else {
             return .ignoredOverview
         }
@@ -189,6 +195,40 @@ final class CommandHandler {
 
     static func shouldIgnoreCommand(_ command: HotkeyCommand, isOverviewOpen: Bool) -> Bool {
         isOverviewOpen && command != .toggleOverview
+    }
+
+    // MARK: - Overview-accessible internal dispatch helpers
+
+    /// Executes a focus-previous action without the overview-open guard.
+    /// Called by `OverviewController` when dispatching layout commands for the selected thumbnail.
+    func handleFocusPreviousForOverview() {
+        focusPreviousInNiri()
+    }
+
+    /// Executes a focusWindowOrWorkspace action (up or down) without the overview-open guard.
+    func handleFocusWindowOrWorkspaceForOverview(direction: Direction) {
+        focusWindowOrWorkspaceInNiri(direction: direction)
+    }
+
+    /// Executes a combined-navigation (focusWindowTop, focusWindowBottom, etc.) action
+    /// without the overview-open guard.
+    func handleCombinedNavigationForOverview(
+        _ navigationAction: (
+            NiriLayoutEngine,
+            NiriNode,
+            WorkspaceDescriptor.ID,
+            MotionSnapshot,
+            inout ViewportState,
+            CGRect,
+            CGFloat
+        ) -> NiriNode?
+    ) {
+        executeCombinedNavigation(navigationAction)
+    }
+
+    /// Executes a moveColumn action without the overview-open guard.
+    func handleMoveColumnForOverview(direction: Direction) {
+        moveColumnInNiri(direction: direction)
     }
 
     private func layoutHandler<T>(as capability: T.Type) -> T? {

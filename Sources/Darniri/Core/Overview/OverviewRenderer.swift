@@ -22,6 +22,8 @@ enum OverviewRenderer {
         static let workspaceLabelInactive = CGColor(gray: 0.6, alpha: 1.0)
         static let dropTarget = CGColor(red: 0.2, green: 0.8, blue: 1.0, alpha: 1.0)
         static let dropTargetBackground = CGColor(red: 0.1, green: 0.6, blue: 1.0, alpha: 0.2)
+        static let placeholderFill = CGColor(red: 0.1, green: 0.5, blue: 0.9, alpha: 0.15)
+        static let placeholderBorder = CGColor(red: 0.2, green: 0.7, blue: 1.0, alpha: 0.85)
         static let columnBackground = CGColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
         static let columnBorder = CGColor(red: 0.25, green: 0.25, blue: 0.3, alpha: 1.0)
         static let columnDivider = CGColor(red: 0.2, green: 0.2, blue: 0.25, alpha: 0.8)
@@ -46,6 +48,8 @@ enum OverviewRenderer {
         static let dropLineWidth: CGFloat = 4
         static let columnCornerRadius: CGFloat = 10
         static let dividerHeight: CGFloat = 2
+        static let placeholderCornerRadius: CGFloat = 8
+        static let placeholderBorderWidth: CGFloat = 2
     }
 
     static func render(
@@ -54,7 +58,8 @@ enum OverviewRenderer {
         thumbnails: [Int: CGImage],
         searchQuery: String,
         progress: Double,
-        bounds: CGRect
+        bounds: CGRect,
+        draggedHandle: WindowHandle? = nil
     ) {
         let alpha = CGFloat(progress)
 
@@ -73,22 +78,31 @@ enum OverviewRenderer {
         for section in layout.workspaceSections {
             renderWorkspaceLabel(context: context, section: section, alpha: alpha)
 
-            if let columns = layout.niriColumnsByWorkspace[section.workspaceId] {
-                renderNiriColumns(
-                    context: context,
-                    columns: columns,
-                    layout: layout,
-                    alpha: alpha
-                )
-            }
+            if section.isEmptyRow {
+                renderEmptyRowBand(context: context, section: section, alpha: alpha)
+            } else {
+                if let columns = layout.niriColumnsByWorkspace[section.workspaceId] {
+                    renderNiriColumns(
+                        context: context,
+                        columns: columns,
+                        layout: layout,
+                        alpha: alpha
+                    )
+                }
 
-            for window in section.windows {
-                renderWindow(
-                    context: context,
-                    window: window,
-                    thumbnail: thumbnails[window.windowId],
-                    progress: progress
-                )
+                for window in section.windows {
+                    // A. Skip the lifted (dragged) window's thumbnail so it reads as
+                    //    "picked up". The layout slot stays in place but is invisible.
+                    if let draggedHandle, window.handle == draggedHandle {
+                        continue
+                    }
+                    renderWindow(
+                        context: context,
+                        window: window,
+                        thumbnail: thumbnails[window.windowId],
+                        progress: progress
+                    )
+                }
             }
         }
 
@@ -154,6 +168,41 @@ enum OverviewRenderer {
         }
     }
 
+    // MARK: - Empty row band
+
+    /// Renders the placeholder band for an empty (buffer) row — a faint dashed rectangle
+    /// that acts as a visible drop target in the overview.
+    private static func renderEmptyRowBand(
+        context: CGContext,
+        section: OverviewWorkspaceSection,
+        alpha: CGFloat
+    ) {
+        let frame = section.gridFrame
+        guard frame.width > 0, frame.height > 0 else { return }
+
+        // Faint fill
+        context.setFillColor(
+            CGColor(red: 0.15, green: 0.15, blue: 0.2, alpha: alpha * 0.25)
+        )
+        let path = CGPath(
+            roundedRect: frame,
+            cornerWidth: 8,
+            cornerHeight: 8,
+            transform: nil
+        )
+        context.addPath(path)
+        context.fillPath()
+
+        // Dashed border
+        context.saveGState()
+        context.addPath(path)
+        context.setStrokeColor(CGColor(red: 0.35, green: 0.35, blue: 0.45, alpha: alpha * 0.7))
+        context.setLineWidth(1.5)
+        context.setLineDash(phase: 0, lengths: [6, 4])
+        context.strokePath()
+        context.restoreGState()
+    }
+
     private static func renderDragTarget(
         context: CGContext,
         layout: OverviewLayout,
@@ -163,36 +212,123 @@ enum OverviewRenderer {
         switch dragTarget {
         case let .niriWindowInsert(_, targetHandle, position):
             guard let window = layout.window(for: targetHandle) else { return }
+            // B. Placeholder: a window-sized translucent dashed rounded rect placed
+            //    to the left (.after in screen coords = above in overview Y) or right
+            //    (.before = below in overview Y) of the target window, offset by half
+            //    the window width.
             let frame = window.overviewFrame
-            let y = position == .before ? frame.maxY - Metrics.dropLineHeight : frame.minY
-            let lineFrame = CGRect(
-                x: frame.minX,
-                y: y,
-                width: frame.width,
-                height: Metrics.dropLineHeight
+            let placeholderWidth = frame.width
+            let placeholderHeight = frame.height
+            // In the overview grid layout, windows are arranged left→right. .before means
+            // "insert visually before (left)" and .after means "insert visually after (right)".
+            // The renderer draws a side-by-side placeholder beside the target window.
+            let placeholderX: CGFloat
+            switch position {
+            case .before:
+                // Placeholder to the left of the target.
+                placeholderX = frame.minX - placeholderWidth - 8
+            case .after, .swap:
+                // Placeholder to the right of the target.
+                placeholderX = frame.maxX + 8
+            }
+            let placeholderFrame = CGRect(
+                x: placeholderX,
+                y: frame.minY,
+                width: placeholderWidth,
+                height: placeholderHeight
             )
-            context.setFillColor(Colors.dropTarget.copy(alpha: alpha)!)
-            context.fill(lineFrame)
+            renderPlaceholder(context: context, frame: placeholderFrame, alpha: alpha)
 
         case let .niriColumnInsert(workspaceId, insertIndex):
-            guard let zones = layout.niriColumnDropZonesByWorkspace[workspaceId] else { return }
-            guard let zone = zones.first(where: { $0.insertIndex == insertIndex }) else { return }
-            let x = zone.frame.midX - Metrics.dropLineWidth / 2
-            let lineFrame = CGRect(
-                x: x,
-                y: zone.frame.minY,
-                width: Metrics.dropLineWidth,
-                height: zone.frame.height
+            // B. Placeholder: a column-width translucent dashed rect placed in the gap.
+            guard let columns = layout.niriColumnsByWorkspace[workspaceId],
+                  !columns.isEmpty
+            else { return }
+
+            // Infer a representative column width from the existing columns.
+            let avgColumnWidth = columns.reduce(CGFloat(0)) { $0 + $1.frame.width } / CGFloat(columns.count)
+            let gridMinY = columns.map(\.frame.minY).min() ?? 0
+            let gridMaxY = columns.map(\.frame.maxY).max() ?? 0
+            let gridHeight = max(gridMaxY - gridMinY, 40)
+
+            // Find the X position for this insert index.
+            let sortedColumns = columns.sorted { $0.columnIndex < $1.columnIndex }
+            let placeholderX: CGFloat
+            if insertIndex == 0 {
+                let firstX = sortedColumns.first?.frame.minX ?? 0
+                placeholderX = firstX - avgColumnWidth - 8
+            } else if let leftCol = sortedColumns.first(where: { $0.columnIndex == insertIndex - 1 }) {
+                placeholderX = leftCol.frame.maxX + 8
+            } else if let rightCol = sortedColumns.first(where: { $0.columnIndex == insertIndex }) {
+                placeholderX = rightCol.frame.minX - avgColumnWidth - 8
+            } else {
+                let lastX = sortedColumns.last?.frame.maxX ?? 0
+                placeholderX = lastX + 8
+            }
+
+            let placeholderFrame = CGRect(
+                x: placeholderX,
+                y: gridMinY,
+                width: avgColumnWidth,
+                height: gridHeight
             )
-            context.setFillColor(Colors.dropTarget.copy(alpha: alpha)!)
-            context.fill(lineFrame)
+            renderPlaceholder(context: context, frame: placeholderFrame, alpha: alpha)
 
         case let .workspaceMove(workspaceId):
-            guard let section = layout.workspaceSections.first(where: { $0.workspaceId == workspaceId }) else { return }
-            context.setStrokeColor(Colors.dropTarget.copy(alpha: alpha)!)
-            context.setLineWidth(Metrics.dropOutlineWidth)
-            context.stroke(section.sectionFrame)
+            guard let section = layout.workspaceSections.first(where: { $0.workspaceId == workspaceId })
+            else { return }
+
+            if section.isEmptyRow {
+                // B. For an empty-row drop target, render a window-sized placeholder
+                //    centered in the grid band.
+                let band = section.gridFrame
+                let phWidth = min(band.width * 0.4, 300)
+                let phHeight = band.height * 0.8
+                let placeholderFrame = CGRect(
+                    x: band.midX - phWidth / 2,
+                    y: band.midY - phHeight / 2,
+                    width: phWidth,
+                    height: phHeight
+                )
+                renderPlaceholder(context: context, frame: placeholderFrame, alpha: alpha)
+            } else {
+                // Generic section highlight (outline of the whole section).
+                context.setStrokeColor(Colors.dropTarget.copy(alpha: alpha)!)
+                context.setLineWidth(Metrics.dropOutlineWidth)
+                context.stroke(section.sectionFrame)
+            }
         }
+    }
+
+    /// B. Renders a "drop placeholder": a translucent filled rounded rect with a
+    ///    dashed accent border — reads as a concrete window-shaped insertion slot.
+    private static func renderPlaceholder(
+        context: CGContext,
+        frame: CGRect,
+        alpha: CGFloat
+    ) {
+        guard frame.width > 0, frame.height > 0 else { return }
+
+        let path = CGPath(
+            roundedRect: frame,
+            cornerWidth: Metrics.placeholderCornerRadius,
+            cornerHeight: Metrics.placeholderCornerRadius,
+            transform: nil
+        )
+
+        // Translucent fill.
+        context.addPath(path)
+        context.setFillColor(Colors.placeholderFill.copy(alpha: alpha)!)
+        context.fillPath()
+
+        // Dashed border.
+        context.saveGState()
+        context.addPath(path)
+        context.setStrokeColor(Colors.placeholderBorder.copy(alpha: alpha)!)
+        context.setLineWidth(Metrics.placeholderBorderWidth)
+        context.setLineDash(phase: 0, lengths: [8, 5])
+        context.strokePath()
+        context.restoreGState()
     }
 
     private static func renderWorkspaceLabel(

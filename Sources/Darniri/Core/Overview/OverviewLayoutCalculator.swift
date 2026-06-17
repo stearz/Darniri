@@ -54,6 +54,9 @@ struct OverviewLayoutCalculator {
         let columnDropZones: [OverviewColumnDropZone]
     }
 
+    /// Minimum height for an empty-row drop-target band (scaled).
+    private static let emptyRowBandHeight: CGFloat = 40
+
     static func clampedScale(_ scale: CGFloat) -> CGFloat {
         max(0.5, min(1.5, scale))
     }
@@ -114,8 +117,26 @@ struct OverviewLayoutCalculator {
         var niriColumnDropZonesByWorkspace: [WorkspaceDescriptor.ID: [OverviewColumnDropZone]] = [:]
         var currentY = context.initialContentY
 
-        for workspace in workspaces {
-            guard let workspaceWindows = windowsByWorkspace[workspace.id], !workspaceWindows.isEmpty else {
+        // Buffer-cap (Risk #5): render at most one empty-buffer band at each end of the
+        // workspace list, preventing a long run of empties from inflating the overview.
+        // The dynamic-row model guarantees at most one buffer each end via normalization,
+        // but we guard here defensively: track whether we've already placed an empty band
+        // while iterating from the top, and skip any subsequent leading/trailing empties.
+        let cappedWorkspaces = capEmptyBufferBands(workspaces, windowsByWorkspace: windowsByWorkspace)
+
+        for workspace in cappedWorkspaces {
+            let workspaceWindows = windowsByWorkspace[workspace.id] ?? []
+            let isEmpty = workspaceWindows.isEmpty
+
+            if isEmpty {
+                // Empty buffer row: render as a labeled drop-target band with no windows.
+                if let section = buildEmptyRowSection(
+                    workspace: workspace,
+                    currentY: &currentY,
+                    context: context
+                ) {
+                    sections.append(section)
+                }
                 continue
             }
 
@@ -516,18 +537,32 @@ struct OverviewLayoutCalculator {
     ) -> [OverviewColumnDropZone] {
         guard !columns.isEmpty else { return [] }
 
-        let edgeZoneWidth = max(12 * context.metricsScale, min(30 * context.metricsScale, context.scaledWindowSpacing))
+        // The inter-column gap zones (between adjacent columns) remain narrow and precise.
+        let gapZoneWidth = max(12 * context.metricsScale, min(30 * context.metricsScale, context.scaledWindowSpacing))
+
+        // The leading/trailing edge zones are widened to cover the full empty space between
+        // the grid border and the section edge so the user can aim anywhere in the row
+        // (especially useful when there is only one column with lots of surrounding space).
+        //
+        // sectionMinX / sectionMaxX are estimated from the screen frame that the context
+        // carries. We use half the available empty space on each side so both zones
+        // tile the row without overlap.
+        let sectionMinX = context.screenFrame.minX
+        let sectionMaxX = context.screenFrame.maxX
+
         var zones: [OverviewColumnDropZone] = []
         zones.reserveCapacity(columns.count + 1)
 
+        // Leading zone: from the section's left edge up to the leftmost column's left edge.
+        let leadingWidth = max(gapZoneWidth, gridFrame.minX - sectionMinX)
         zones.append(
             OverviewColumnDropZone(
                 workspaceId: workspaceId,
                 insertIndex: 0,
                 frame: CGRect(
-                    x: gridFrame.minX - edgeZoneWidth,
+                    x: sectionMinX,
                     y: gridFrame.minY,
-                    width: edgeZoneWidth,
+                    width: leadingWidth,
                     height: gridFrame.height
                 )
             )
@@ -544,7 +579,7 @@ struct OverviewLayoutCalculator {
                         frame: CGRect(
                             x: left,
                             y: gridFrame.minY,
-                            width: max(0, right - left),
+                            width: max(gapZoneWidth, right - left),
                             height: gridFrame.height
                         )
                     )
@@ -552,6 +587,8 @@ struct OverviewLayoutCalculator {
             }
         }
 
+        // Trailing zone: from the rightmost column's right edge to the section's right edge.
+        let trailingWidth = max(gapZoneWidth, sectionMaxX - gridFrame.maxX)
         zones.append(
             OverviewColumnDropZone(
                 workspaceId: workspaceId,
@@ -559,7 +596,7 @@ struct OverviewLayoutCalculator {
                 frame: CGRect(
                     x: gridFrame.maxX,
                     y: gridFrame.minY,
-                    width: edgeZoneWidth,
+                    width: trailingWidth,
                     height: gridFrame.height
                 )
             )
@@ -627,6 +664,97 @@ struct OverviewLayoutCalculator {
         let contentTop = context.searchBarFrame.minY - context.contentTopPadding
         let contentBottom = currentY + context.scaledWorkspaceSectionPadding - context.contentBottomPadding
         return contentTop - contentBottom
+    }
+
+    // MARK: - Buffer-cap helpers (Risk #5)
+
+    /// Returns the workspace list with buffer-cap applied: at most one empty workspace is
+    /// allowed at the leading edge (index 0) and at most one at the trailing edge (last
+    /// index). Interior empties are passed through because the model's `normalizeRowStack`
+    /// already removes them; this is a display-level safety net only.
+    static func capEmptyBufferBands(
+        _ workspaces: [OverviewWorkspaceLayoutItem],
+        windowsByWorkspace: [WorkspaceDescriptor.ID: [(WindowHandle, OverviewWindowLayoutData)]]
+    ) -> [OverviewWorkspaceLayoutItem] {
+        guard !workspaces.isEmpty else { return workspaces }
+
+        func isEmpty(_ ws: OverviewWorkspaceLayoutItem) -> Bool {
+            (windowsByWorkspace[ws.id] ?? []).isEmpty
+        }
+
+        var result = workspaces
+
+        // Collapse any run of leading empties to at most one.
+        var leadingEmpties = 0
+        for ws in result {
+            guard isEmpty(ws) else { break }
+            leadingEmpties += 1
+        }
+        if leadingEmpties > 1 {
+            result.removeFirst(leadingEmpties - 1)
+        }
+
+        // Collapse any run of trailing empties to at most one.
+        var trailingEmpties = 0
+        for ws in result.reversed() {
+            guard isEmpty(ws) else { break }
+            trailingEmpties += 1
+        }
+        if trailingEmpties > 1 {
+            result.removeLast(trailingEmpties - 1)
+        }
+
+        return result
+    }
+
+    // MARK: - Empty row band
+
+    /// Renders a lightweight, labeled drop-target band for a workspace that has no windows.
+    private static func buildEmptyRowSection(
+        workspace: OverviewWorkspaceLayoutItem,
+        currentY: inout CGFloat,
+        context: BuildContext
+    ) -> OverviewWorkspaceSection? {
+        let bandHeight = emptyRowBandHeight * context.metricsScale
+        currentY -= context.scaledWorkspaceLabelHeight
+
+        let labelFrame = CGRect(
+            x: context.screenFrame.minX + context.scaledWindowPadding,
+            y: currentY,
+            width: context.availableWidth,
+            height: context.scaledWorkspaceLabelHeight
+        )
+
+        currentY -= context.scaledWorkspaceSectionPadding
+
+        let gridFrame = CGRect(
+            x: context.screenFrame.minX + context.scaledWindowPadding,
+            y: currentY - bandHeight,
+            width: context.availableWidth,
+            height: bandHeight
+        )
+
+        let sectionBottom = gridFrame.minY
+        let sectionFrame = CGRect(
+            x: context.screenFrame.minX,
+            y: sectionBottom,
+            width: context.screenFrame.width,
+            height: currentY + context.scaledWorkspaceLabelHeight - sectionBottom
+        )
+
+        currentY = sectionBottom - context.scaledWorkspaceSectionPadding
+
+        var section = OverviewWorkspaceSection(
+            workspaceId: workspace.id,
+            name: workspace.name,
+            windows: [],
+            sectionFrame: sectionFrame,
+            labelFrame: labelFrame,
+            gridFrame: gridFrame,
+            isActive: workspace.isActive
+        )
+        section.isEmptyRow = true
+        return section
     }
 
     static func updateSearchFilter(layout: inout OverviewLayout, searchQuery: String) {

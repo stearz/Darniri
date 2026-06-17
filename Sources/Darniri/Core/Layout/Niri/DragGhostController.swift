@@ -8,18 +8,33 @@ final class DragGhostController {
     private var isActive: Bool = false
     private var swapTargetOverlay: SwapTargetOverlay?
 
-    func beginDrag(windowId: Int, originalFrame: CGRect, cursorLocation: CGPoint) {
+    func beginDrag(
+        windowId: Int,
+        originalFrame: CGRect,
+        cursorLocation: CGPoint,
+        initialThumbnail: CGImage? = nil
+    ) {
         isActive = true
 
+        let scaledSize = CGSize(
+            width: originalFrame.width * 0.5,
+            height: originalFrame.height * 0.5
+        )
+
+        // Show the ghost IMMEDIATELY from an already-captured thumbnail (e.g. the overview's
+        // cached snapshot) so the window follows the cursor with no async delay.
+        if let initialThumbnail {
+            if ghostWindow == nil {
+                ghostWindow = DragGhostWindow()
+            }
+            ghostWindow?.setImage(initialThumbnail, size: scaledSize)
+            ghostWindow?.showAt(cursorLocation: cursorLocation)
+        }
+
+        // Refine asynchronously with a fresh capture (higher fidelity / when no initial image).
         captureTask?.cancel()
         captureTask = Task { [weak self] in
             guard let self else { return }
-
-            let scaledSize = CGSize(
-                width: originalFrame.width * 0.5,
-                height: originalFrame.height * 0.5
-            )
-
             if let thumbnail = await captureWindowThumbnail(windowId: windowId, targetSize: scaledSize) {
                 guard isActive, !Task.isCancelled else { return }
 

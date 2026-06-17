@@ -10,6 +10,7 @@ final class OverviewInputHandler {
         case navigate(Direction)
         case deleteBackward
         case appendToSearch(String)
+        case layoutCommand(HotkeyCommand)
         case consume
     }
 
@@ -42,11 +43,16 @@ final class OverviewInputHandler {
         guard let controller else { return false }
         guard controller.state.isOpen else { return false }
 
+        let bindings = controller.effectiveLayoutBindings()
+        let hyperTrigger = controller.effectiveHyperTrigger()
+
         let result = Self.keyHandlingResult(
             keyCode: event.keyCode,
             modifierFlags: event.modifierFlags,
             charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            layoutBindings: bindings,
+            hyperTrigger: hyperTrigger
         )
         guard result.shouldConsume else { return false }
 
@@ -70,17 +76,23 @@ final class OverviewInputHandler {
         case let .appendToSearch(text):
             searchQuery += text
             controller.updateSearchQuery(searchQuery)
+        case let .layoutCommand(command):
+            controller.handleLayoutCommand(command)
         case .consume:
             break
         }
         return true
     }
 
+    // MARK: - Key handling result (pure, testable)
+
     static func keyHandlingResult(
         keyCode: UInt16,
         modifierFlags: NSEvent.ModifierFlags,
         charactersIgnoringModifiers: String?,
-        searchQuery _: String
+        searchQuery _: String,
+        layoutBindings: [HotkeyBinding] = [],
+        hyperTrigger: HyperKeyTrigger = .default
     ) -> KeyHandlingResult {
         let relevantModifiers = modifierFlags.intersection([.shift, .command, .control, .option])
 
@@ -121,7 +133,112 @@ final class OverviewInputHandler {
             }
         }
 
+        // Try to resolve this modified key event as a layout command via the live keymap.
+        if let command = resolveLayoutCommand(
+            keyCode: UInt32(keyCode),
+            modifierFlags: modifierFlags,
+            bindings: layoutBindings,
+            hyperTrigger: hyperTrigger
+        ) {
+            return .init(action: .layoutCommand(command), shouldConsume: true)
+        }
+
         return .init(action: .consume, shouldConsume: true)
+    }
+
+    // MARK: - Live keymap resolution
+
+    /// Resolves a raw key event (keyCode + NSEvent modifier flags) against the live
+    /// hotkey bindings, returning the first matching `HotkeyCommand`.
+    ///
+    /// Hyper handling: when the hyperTrigger is a keyboard key (e.g. `.key(kVK_Option)`),
+    /// the event tap suppresses the trigger key and sets `isActive`. NSEvent.modifierFlags
+    /// therefore does NOT contain the trigger modifier when a hyper binding fires through
+    /// the tap. However, in the overview the hot-key tap is still running — hyper events
+    /// arrive via `HotkeyCenter.onCommand`, not as NSEvents. So when we see Option held in
+    /// a raw NSEvent inside the overview, we treat it as a potential hyper trigger and try
+    /// matching both as a regular (non-hyper) binding AND as a hyper binding (stripping the
+    /// trigger modifier from the carbon modifiers and setting usesHyper=true).
+    static func resolveLayoutCommand(
+        keyCode: UInt32,
+        modifierFlags: NSEvent.ModifierFlags,
+        bindings: [HotkeyBinding],
+        hyperTrigger: HyperKeyTrigger
+    ) -> HotkeyCommand? {
+        let carbonMods = carbonModifiers(from: modifierFlags)
+
+        // Build the two candidates: a plain binding and (if applicable) a hyper binding.
+        let plainCandidate = KeyBinding(keyCode: keyCode, modifiers: carbonMods, usesHyper: false)
+
+        // For a key-based hyper trigger (e.g. Option), if the trigger modifier is present
+        // in the raw event modifiers, also try matching as a hyper binding by stripping the
+        // trigger modifier and setting usesHyper=true.
+        let hyperCandidate: KeyBinding? = {
+            let triggerMask = hyperTrigger.modifierMaskToExclude
+            guard triggerMask != 0,
+                  carbonMods & triggerMask != 0
+            else { return nil }
+            return KeyBinding(
+                keyCode: keyCode,
+                modifiers: carbonMods & ~triggerMask,
+                usesHyper: true
+            )
+        }()
+
+        // Only consider layout-relevant commands (focus, move, workspace navigation).
+        for binding in bindings {
+            guard let chordBinding = binding.binding.chordBinding,
+                  !chordBinding.isUnassigned
+            else { continue }
+            guard isLayoutRelevantCommand(binding.command) else { continue }
+
+            if chordBinding == plainCandidate { return binding.command }
+            if let hyper = hyperCandidate, chordBinding == hyper { return binding.command }
+        }
+        return nil
+    }
+
+    /// Returns true for the commands that make sense to execute in the overview.
+    /// Omits commands that manipulate real-window geometry (resize, fullscreen) or open
+    /// other UI surfaces (command palette, scratchpad, overview itself).
+    static func isLayoutRelevantCommand(_ command: HotkeyCommand) -> Bool {
+        switch command {
+        case .focus,
+             .focusWindowOrWorkspaceUp,
+             .focusWindowOrWorkspaceDown,
+             .focusWindowDownOrTop, .focusWindowUpOrBottom,
+             .focusWindowTop, .focusWindowBottom,
+             .focusDownOrLeft, .focusUpOrRight,
+             .focusPrevious,
+             .focusColumnFirst, .focusColumnLast,
+             .move,
+             .moveWindowDown, .moveWindowUp,
+             .moveWindowDownOrToWorkspaceDown,
+             .moveWindowUpOrToWorkspaceUp,
+             .moveColumn,
+             .moveColumnToWorkspaceUp,
+             .moveColumnToWorkspaceDown,
+             .moveWindowToWorkspaceUp,
+             .moveWindowToWorkspaceDown,
+             .switchWorkspaceNext,
+             .switchWorkspacePrevious:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Carbon modifier conversion
+
+    /// Converts NSEvent.ModifierFlags to Carbon modifier mask (same mapping used by
+    /// HotkeyCenter.carbonModifiers(from:) for CGEventFlags, adapted for NSEvent).
+    static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
+        var mods: UInt32 = 0
+        if flags.contains(.control) { mods |= UInt32(controlKey) }
+        if flags.contains(.option) { mods |= UInt32(optionKey) }
+        if flags.contains(.shift) { mods |= UInt32(shiftKey) }
+        if flags.contains(.command) { mods |= UInt32(cmdKey) }
+        return mods
     }
 
     func handleMouseMoved(at point: CGPoint, in layout: inout OverviewLayout) {

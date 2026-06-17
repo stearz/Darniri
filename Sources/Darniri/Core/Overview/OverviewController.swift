@@ -722,6 +722,10 @@ final class OverviewController {
         dragGhostController?.endDrag()
         dragGhostController = nil
         dragSession = nil
+        // A. Clear lifted handle state.
+        for monitorId in layoutsByMonitor.keys {
+            mutateLayout(for: monitorId) { layout in layout.draggedHandle = nil }
+        }
         closeWindows()
     }
 
@@ -878,6 +882,14 @@ final class OverviewController {
         }
     }
 
+    private func setDraggedHandle(_ handle: WindowHandle?) {
+        for monitorId in layoutsByMonitor.keys {
+            mutateLayout(for: monitorId) { layout in
+                layout.draggedHandle = handle
+            }
+        }
+    }
+
     private func viewportFrame(for monitorId: Monitor.ID) -> CGRect {
         guard let wmController,
               let monitor = wmController.workspaceManager.monitor(byId: monitorId)
@@ -905,6 +917,226 @@ final class OverviewController {
             cleanup()
         }
     }
+
+    // MARK: - Live keymap access
+
+    /// Returns the effective hotkey bindings from the WM controller, filtered to
+    /// layout-relevant commands.  The input handler uses these to resolve raw key events
+    /// into commands while the overview is open.
+    func effectiveLayoutBindings() -> [HotkeyBinding] {
+        guard let wmController else { return [] }
+        let all = wmController.effectiveBindings(
+            for: wmController.settings.hotkeyBindings,
+            modifier: wmController.settings.navigationModifier
+        )
+        return all.filter { OverviewInputHandler.isLayoutRelevantCommand($0.command) }
+    }
+
+    /// Returns the active hyper trigger from settings so the input handler can
+    /// correctly resolve hyper-style bindings (e.g. Ctrl+Alt+← for moveColumn).
+    func effectiveHyperTrigger() -> HyperKeyTrigger {
+        wmController?.settings.hyperTrigger ?? .default
+    }
+
+    // MARK: - Layout command dispatch
+
+    /// Executes a layout command (focus, move, workspace navigation) in the context of
+    /// the currently selected overview thumbnail.
+    ///
+    /// Strategy:
+    ///  1. Temporarily retarget the WM model: set the focused token + active workspace to
+    ///     the overview's selected window, so command handlers operate on that window.
+    ///  2. Dispatch directly to `niriLayoutHandler` / `workspaceNavigationHandler`,
+    ///     bypassing `CommandHandler.performCommand` (which guards against overview-open).
+    ///  3. Capture the new focused token so the selection can follow the command.
+    ///  4. Restore the original active-workspace context so no workspace transition
+    ///     animation fires while the overview is still open (visual settling deferred to
+    ///     close, consistent with the drag-drop path).
+    ///  5. Rebuild the overview layout and advance the selection.
+    func handleLayoutCommand(_ command: HotkeyCommand) {
+        guard let wmController else { return }
+        guard let selectedHandle = selectedWindowHandle else { return }
+        guard let selectedEntry = wmController.workspaceManager.entry(for: selectedHandle) else { return }
+
+        let wm = wmController.workspaceManager
+
+        // ── 1. Snapshot current WM focus / active-workspace state ────────────────────
+        let originalFocusedToken = wm.focusedToken
+        let originalInteractionMonitorId = wm.interactionMonitorId
+
+        var originalActiveWorkspaces: [Monitor.ID: WorkspaceDescriptor.ID] = [:]
+        for monitor in wm.monitors {
+            if let ws = wm.activeWorkspace(on: monitor.id) {
+                originalActiveWorkspaces[monitor.id] = ws.id
+            }
+        }
+
+        // ── 2. Retarget: direct WM context at the overview's selected window ──────────
+        let selectedToken = selectedHandle.id
+        let selectedWorkspaceId = selectedEntry.workspaceId
+
+        if let monitorId = wm.monitorId(for: selectedWorkspaceId) {
+            _ = wm.setInteractionMonitor(monitorId, preservePrevious: false)
+            _ = wm.setActiveWorkspace(selectedWorkspaceId, on: monitorId)
+        }
+
+        _ = wm.commitWorkspaceSelection(
+            nodeId: wmController.niriEngine?.findNode(for: selectedToken)?.id,
+            focusedToken: selectedToken,
+            in: selectedWorkspaceId
+        )
+
+        // ── 3. Dispatch the command directly, bypassing the overview-open guard ───────
+        dispatchLayoutCommandDirectly(command, wmController: wmController)
+
+        // ── 4. Capture new focused token before restoring state ──────────────────────
+        let newFocusedToken = wm.focusedToken ?? selectedToken
+
+        // ── 5. Restore original WM context ───────────────────────────────────────────
+        // Model mutations (node moves, workspace assignments) are kept — they're cheap and
+        // needed for the overview to render the updated layout. Only the session state
+        // (active workspace, interaction monitor, focused token) is restored so that no
+        // workspace transition animation fires while the overview is still open.
+        if let originalInteractionMonitorId {
+            _ = wm.setInteractionMonitor(originalInteractionMonitorId, preservePrevious: false)
+        }
+        for (monitorId, workspaceId) in originalActiveWorkspaces {
+            _ = wm.setActiveWorkspace(workspaceId, on: monitorId)
+        }
+        if let originalFocusedToken,
+           let originalEntry = wm.entry(for: originalFocusedToken)
+        {
+            _ = wm.commitWorkspaceSelection(
+                nodeId: wmController.niriEngine?.findNode(for: originalFocusedToken)?.id,
+                focusedToken: originalFocusedToken,
+                in: originalEntry.workspaceId
+            )
+        }
+
+        // ── 6. Rebuild overview and advance selection ────────────────────────────────
+        buildOverviewState()
+
+        // Move the selection to follow the window that received the command's effect.
+        if let newEntry = wm.entry(for: newFocusedToken),
+           overviewSnapshot.windows[newEntry.handle] != nil
+        {
+            setSelectedWindowHandle(newEntry.handle)
+        }
+
+        // Request a real-window layout refresh so positions settle (deferred to the next
+        // display cycle, not blocking the overview UI thread).
+        wmController.layoutRefreshController.requestImmediateRelayout(reason: .overviewMutation)
+
+        updateWindowDisplays()
+    }
+
+    // MARK: - Direct command dispatch (bypasses overview-open guard)
+
+    /// Routes the command to the appropriate sub-handler without going through
+    /// `CommandHandler.performCommand`, which gates on `isOverviewOpen()`.
+    ///
+    /// Only layout-relevant commands (as filtered by `OverviewInputHandler.isLayoutRelevantCommand`)
+    /// reach this path, so we only need to handle that subset.
+    private func dispatchLayoutCommandDirectly(_ command: HotkeyCommand, wmController: WMController) {
+        switch command {
+        case let .focus(direction):
+            wmController.niriLayoutHandler.focusNeighbor(direction: direction)
+
+        case .focusPrevious:
+            wmController.commandHandler.handleFocusPreviousForOverview()
+
+        case .focusWindowOrWorkspaceUp:
+            wmController.commandHandler.handleFocusWindowOrWorkspaceForOverview(direction: .up)
+
+        case .focusWindowOrWorkspaceDown:
+            wmController.commandHandler.handleFocusWindowOrWorkspaceForOverview(direction: .down)
+
+        case .focusWindowDownOrTop:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusWindowDownOrTop(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusWindowUpOrBottom:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusWindowUpOrBottom(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusWindowTop:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusWindowTop(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusWindowBottom:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusWindowBottom(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusDownOrLeft:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusDownOrLeft(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusUpOrRight:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusUpOrRight(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusColumnFirst:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusColumnFirst(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case .focusColumnLast:
+            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                engine.focusColumnLast(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
+            }
+
+        case let .move(direction):
+            wmController.niriLayoutHandler.moveWindow(direction: direction)
+
+        case .moveWindowDown:
+            wmController.niriLayoutHandler.moveWindow(direction: .down)
+
+        case .moveWindowUp:
+            wmController.niriLayoutHandler.moveWindow(direction: .up)
+
+        case .moveWindowDownOrToWorkspaceDown:
+            wmController.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .down)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case .moveWindowUpOrToWorkspaceUp:
+            wmController.niriLayoutHandler.moveWindowOrToAdjacentWorkspace(direction: .up)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case let .moveColumn(direction):
+            wmController.commandHandler.handleMoveColumnForOverview(direction: direction)
+
+        case .moveColumnToWorkspaceUp:
+            wmController.workspaceNavigationHandler.moveColumnToAdjacentWorkspace(direction: .up)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case .moveColumnToWorkspaceDown:
+            wmController.workspaceNavigationHandler.moveColumnToAdjacentWorkspace(direction: .down)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case .moveWindowToWorkspaceUp:
+            wmController.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: .up)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case .moveWindowToWorkspaceDown:
+            wmController.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: .down)
+            wmController.workspaceManager.normalizeAllRowStacks()
+
+        case .switchWorkspaceNext:
+            wmController.workspaceNavigationHandler.switchWorkspaceRelative(isNext: true, wrapAround: false)
+
+        case .switchWorkspacePrevious:
+            wmController.workspaceNavigationHandler.switchWorkspaceRelative(isNext: false, wrapAround: false)
+
+        default:
+            break
+        }
+    }
 }
 
 private extension OverviewController {
@@ -929,6 +1161,9 @@ private extension OverviewController {
             startPoint: startPoint
         )
 
+        // A. Mark the dragged handle so the renderer can hide ("lift") its thumbnail.
+        setDraggedHandle(handle)
+
         if let frame = AXWindowService.framePreferFast(entry.axRef) {
             if dragGhostController == nil {
                 dragGhostController = DragGhostController()
@@ -936,9 +1171,12 @@ private extension OverviewController {
             dragGhostController?.beginDrag(
                 windowId: entry.windowId,
                 originalFrame: frame,
-                cursorLocation: globalPoint(from: startPoint, on: monitorId)
+                cursorLocation: globalPoint(from: startPoint, on: monitorId),
+                initialThumbnail: thumbnailCache[entry.windowId]
             )
         }
+
+        updateWindowDisplays()
     }
 
     func updateDrag(on monitorId: Monitor.ID, at point: CGPoint) {
@@ -961,6 +1199,8 @@ private extension OverviewController {
 
         let target = layoutsByMonitor[monitorId]?.dragTarget
         clearDragTargets()
+        // A. Clear the lifted handle before rebuilding the layout.
+        setDraggedHandle(nil)
         dragGhostController?.endDrag()
         dragSession = nil
 
@@ -980,6 +1220,8 @@ private extension OverviewController {
 
     func cancelDrag() {
         clearDragTargets()
+        // A. Clear the lifted handle on cancel too.
+        setDraggedHandle(nil)
         dragGhostController?.endDrag()
         dragSession = nil
         updateWindowDisplays()
@@ -1000,6 +1242,13 @@ private extension OverviewController {
                 handle: session.handle,
                 toWorkspaceId: targetWsId
             )
+            // The target workspace may have been an empty buffer row; dropping a window
+            // into it makes it non-empty, so normalization must mint a fresh buffer.
+            // `normalizeAllRowStacks` also runs later via the `overviewMutation` layout
+            // refresh, but calling it here ensures `buildOverviewState()` (called right
+            // after `performDragAction`) sees a fully-normalized row stack in the
+            // overview redraw that happens while the overview is still open.
+            wmController.workspaceManager.normalizeAllRowStacks()
 
         case let .niriWindowInsert(targetWsId, targetHandle, position):
             guard isNiriLayout(workspaceId: targetWsId) else { return }
@@ -1017,6 +1266,8 @@ private extension OverviewController {
                 in: targetWsId
             )
             wmController.layoutRefreshController.startScrollAnimation(for: targetWsId)
+            // Normalization after a cross-row insert: the source row may now be empty.
+            wmController.workspaceManager.normalizeAllRowStacks()
 
         case let .niriColumnInsert(targetWsId, insertIndex):
             guard isNiriLayout(workspaceId: targetWsId) else { return }
@@ -1032,6 +1283,8 @@ private extension OverviewController {
                 in: targetWsId
             )
             wmController.layoutRefreshController.startScrollAnimation(for: targetWsId)
+            // Normalization after a cross-row insert: the source row may now be empty.
+            wmController.workspaceManager.normalizeAllRowStacks()
         }
 
         wmController.layoutRefreshController.requestImmediateRelayout(reason: .overviewMutation)

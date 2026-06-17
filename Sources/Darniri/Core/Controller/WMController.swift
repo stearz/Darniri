@@ -2350,6 +2350,11 @@ final class WMController {
         windowActionHandler.isOverviewOpen()
     }
 
+    /// Route a layout command to the open overview's selected window. Returns true if handled.
+    func handleOverviewLayoutCommand(_ command: HotkeyCommand) -> Bool {
+        windowActionHandler.handleOverviewLayoutCommand(command)
+    }
+
     @discardableResult
     func resolveAndSetWorkspaceFocusToken(for workspaceId: WorkspaceDescriptor.ID) -> WindowToken? {
         workspaceManager.resolveAndSetWorkspaceFocusToken(

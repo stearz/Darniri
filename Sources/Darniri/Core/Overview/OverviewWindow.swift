@@ -201,13 +201,13 @@ final class OverviewView: NSView {
         }
 
         if let window = layout.windowAt(point: point) {
-            if event.modifierFlags.contains(.option) {
-                dragCandidateHandle = window.handle
-                dragStartPoint = point
-                isDragging = false
-            } else {
-                onWindowSelected?(window.handle)
-            }
+            // Arm a potential drag on press without activating yet. If the pointer never
+            // crosses `dragThreshold` before release, `mouseUp` treats it as a plain click
+            // (select/activate); if it crosses, `mouseDragged` starts a drag. Click-to-select
+            // vs click-and-hold-to-drag, left mouse button.
+            dragCandidateHandle = window.handle
+            dragStartPoint = point
+            isDragging = false
             return
         }
 
@@ -318,7 +318,8 @@ final class OverviewView: NSView {
             thumbnails: thumbnails,
             searchQuery: searchQuery,
             progress: progress,
-            bounds: bounds
+            bounds: bounds,
+            draggedHandle: layout.draggedHandle
         )
     }
 }

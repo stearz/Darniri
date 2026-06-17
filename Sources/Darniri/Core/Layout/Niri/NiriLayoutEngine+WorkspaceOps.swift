@@ -29,6 +29,13 @@ extension NiriLayoutEngine {
 
         let fallbackSelection = fallbackSelectionOnRemoval(removing: window.id, in: sourceWorkspaceId)
 
+        // Preserve the moved window's column size on the new row instead of resetting it to
+        // the default column width. Captured before detach; the source column object persists.
+        let inheritedWidth = sourceColumn.width
+        let inheritedPresetWidthIdx = sourceColumn.presetWidthIdx
+        let inheritedIsFullWidth = sourceColumn.isFullWidth
+        let inheritedSavedWidth = sourceColumn.savedWidth
+
         window.detach()
 
         let targetColumn: NiriContainer
@@ -41,6 +48,11 @@ extension NiriLayoutEngine {
             targetRoot.appendChild(newColumn)
             targetColumn = newColumn
         }
+        // Override the freshly-reset size with the source column's (keeps width on move).
+        targetColumn.width = inheritedWidth
+        targetColumn.presetWidthIdx = inheritedPresetWidthIdx
+        targetColumn.isFullWidth = inheritedIsFullWidth
+        targetColumn.savedWidth = inheritedSavedWidth
         targetColumn.appendChild(window)
 
         cleanupEmptyColumn(sourceColumn, in: sourceWorkspaceId, state: &sourceState)
