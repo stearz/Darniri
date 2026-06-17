@@ -557,6 +557,24 @@ final class WorkspaceNavigationHandler {
             if let monitor = controller.workspaceManager.monitor(for: targetWorkspace.id) {
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
+                // Ensure the engine knows which monitor owns the target workspace so that
+                // effectiveSettings(in:) returns the per-monitor settings (e.g.
+                // centerFocusedColumn=always) rather than falling back to the global default.
+                // New buffer rows created by normalizeRowStack are not yet associated with a
+                // monitor inside the engine — this call registers them so that
+                // ensureSelectionVisible uses the correct centering mode.
+                engine.moveWorkspace(targetWorkspace.id, to: monitor.id, monitor: monitor)
+                // Resolve column widths BEFORE calling ensureSelectionVisible so that
+                // centering (centerFocusedColumn=always) uses the real column width
+                // rather than the zero placeholder set by initializeNewColumnWidth.
+                // Without this, the spring offset is computed from cachedWidth=0, which
+                // produces the wrong target; the relayout then skips re-centering because
+                // the spring is already animating (isGestureOrAnimation=true guard).
+                engine.resolveColumnWidths(
+                    in: targetWorkspace.id,
+                    workingAreaWidth: workingFrame.width,
+                    gaps: gap
+                )
                 engine.ensureSelectionVisible(
                     node: movedNode,
                     in: targetWorkspace.id,
@@ -648,6 +666,18 @@ final class WorkspaceNavigationHandler {
             if let monitor = controller.workspaceManager.monitor(for: targetWorkspace.id) {
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
+                // Ensure the engine knows which monitor owns the target workspace so that
+                // effectiveSettings(in:) returns the per-monitor settings.
+                engine.moveWorkspace(targetWorkspace.id, to: monitor.id, monitor: monitor)
+                // Resolve column widths BEFORE calling ensureSelectionVisible so that
+                // centering uses the real column width rather than the zero placeholder.
+                // The moved column retains its prior cachedWidth so this is a no-op for
+                // moveColumn (width > 0), but future calls remain safe if width was reset.
+                engine.resolveColumnWidths(
+                    in: targetWorkspace.id,
+                    workingAreaWidth: workingFrame.width,
+                    gaps: gap
+                )
                 engine.ensureSelectionVisible(
                     node: movedNode,
                     in: targetWorkspace.id,
@@ -789,6 +819,14 @@ final class WorkspaceNavigationHandler {
                 targetState.selectedNodeId = movedNode.id
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
+                // Ensure the engine knows which monitor owns the target workspace so that
+                // effectiveSettings(in:) returns the per-monitor settings.
+                engine.moveWorkspace(target.id, to: monitor.id, monitor: monitor)
+                engine.resolveColumnWidths(
+                    in: target.id,
+                    workingAreaWidth: workingFrame.width,
+                    gaps: gap
+                )
                 engine.ensureSelectionVisible(
                     node: movedNode,
                     in: target.id,
@@ -909,6 +947,14 @@ final class WorkspaceNavigationHandler {
 
                 let gap = CGFloat(controller.workspaceManager.gaps)
                 let workingFrame = controller.insetWorkingFrame(for: monitor)
+                // Ensure the engine knows which monitor owns the target workspace so that
+                // effectiveSettings(in:) returns the per-monitor settings.
+                engine.moveWorkspace(targetWsId, to: monitor.id, monitor: monitor)
+                engine.resolveColumnWidths(
+                    in: targetWsId,
+                    workingAreaWidth: workingFrame.width,
+                    gaps: gap
+                )
                 engine.ensureSelectionVisible(
                     node: movedNode,
                     in: targetWsId,

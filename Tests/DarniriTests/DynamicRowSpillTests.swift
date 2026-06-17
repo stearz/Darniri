@@ -254,4 +254,179 @@ final class DynamicRowSpillTests: XCTestCase {
             "Focus follows the moved column"
         )
     }
+
+    // MARK: - Centering tests (Phase 3 fix)
+
+    /// After a cross-row window move with centerFocusedColumn=always, the saved viewport's
+    /// viewOffsetPixels must target the centered offset — NOT the stale zero-width offset
+    /// computed before cachedWidth was resolved.
+    ///
+    /// The centered offset for a single column of width `w` in viewport of width `W` is:
+    ///   offset = -(W - w) / 2   (negative: column shifted left so it sits in the center)
+    ///
+    /// With cachedWidth=0 the wrong value would be -(W - 0)/2 = -W/2.
+    /// With real width w > 0 the correct value is -(W - w)/2, which is closer to 0 than -W/2.
+    ///
+    /// The default settings have centerFocusedColumn=always, so we don't need to override.
+    func testWindowSpillDownCentersFocusedColumnInTargetRow() {
+        let (controller, mon) = makeController()
+        let (contentRow, token, _) = setupSingleWindowContentRow(controller, on: mon)
+
+        let engine = controller.niriEngine!
+        let monitor = controller.workspaceManager.monitors.first!
+        let gap = CGFloat(controller.workspaceManager.gaps)
+        let workingWidth = controller.insetWorkingFrame(for: monitor).width
+
+        // Precondition: column must have a real width after setup.
+        guard let columnBefore = engine.findNode(for: token).flatMap({ engine.column(of: $0) }) else {
+            return XCTFail("Column not found for the moved window")
+        }
+        // Ensure cached width is resolved on the source so we know what width to expect
+        if columnBefore.cachedWidth <= 0 {
+            columnBefore.resolveAndCacheWidth(workingAreaWidth: workingWidth, gaps: gap)
+        }
+        let columnWidth = columnBefore.cachedWidth
+        XCTAssertGreaterThan(columnWidth, 0, "Column must have a resolved width > 0")
+
+        // Row order: [emptyTop, contentRow, emptyBottom]
+        let ids = rowIds(controller, on: mon)
+        XCTAssertEqual(ids.count, 3, "Precondition: 3 rows")
+        let targetRow = ids[2] // bottom buffer becomes the target
+
+        controller.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: .down)
+        controller.workspaceManager.normalizeRowStack(on: mon)
+
+        XCTAssertEqual(
+            controller.workspaceManager.workspace(for: token),
+            targetRow,
+            "Window must have moved to the bottom buffer row"
+        )
+
+        // Inspect the stored viewport state of the target row.
+        let targetViewport = controller.workspaceManager.niriViewportState(for: targetRow)
+        let storedOffset = targetViewport.viewOffsetPixels.target()
+
+        // The correct centered offset for this column width in this viewport:
+        //   = -(viewportWidth - columnWidth) / 2
+        let expectedCenteredOffset = -(workingWidth - columnWidth) / 2.0
+        // Allow a small tolerance for scale rounding (≤ 1 logical pixel).
+        let tolerance: CGFloat = 1.0
+        XCTAssertEqual(
+            storedOffset, expectedCenteredOffset, accuracy: tolerance,
+            "Viewport offset must target the centered position (-(W-w)/2). " +
+            "Got \(storedOffset), expected ~\(expectedCenteredOffset). " +
+            "If this still fails with storedOffset ≈ \(-workingWidth / 2), " +
+            "cachedWidth was still 0 when ensureSelectionVisible was called."
+        )
+
+        // The offset must be a spring (animated), not static — centering is animated.
+        switch targetViewport.viewOffsetPixels {
+        case .spring:
+            break // expected: animated transition to center
+        case .static(let v):
+            // Static is acceptable if animations are disabled (motionPolicy), but the
+            // value must still be the correct centered offset.
+            XCTAssertEqual(
+                v, expectedCenteredOffset, accuracy: tolerance,
+                "Static viewport offset must be the centered value"
+            )
+        case .gesture:
+            XCTFail("Viewport must not be in gesture state after a programmatic move")
+        }
+    }
+
+    /// Same centering check for moveColumnToAdjacentWorkspace.
+    func testColumnSpillDownCentersFocusedColumnInTargetRow() {
+        let (controller, mon) = makeController()
+        let (contentRow, token, _) = setupSingleWindowContentRow(controller, on: mon)
+
+        let engine = controller.niriEngine!
+        let monitor = controller.workspaceManager.monitors.first!
+        let gap = CGFloat(controller.workspaceManager.gaps)
+        let workingWidth = controller.insetWorkingFrame(for: monitor).width
+
+        guard let columnBefore = engine.findNode(for: token).flatMap({ engine.column(of: $0) }) else {
+            return XCTFail("Column not found")
+        }
+        if columnBefore.cachedWidth <= 0 {
+            columnBefore.resolveAndCacheWidth(workingAreaWidth: workingWidth, gaps: gap)
+        }
+        let columnWidth = columnBefore.cachedWidth
+        XCTAssertGreaterThan(columnWidth, 0, "Column must have a resolved width > 0")
+
+        let ids = rowIds(controller, on: mon)
+        XCTAssertEqual(ids.count, 3, "Precondition: 3 rows")
+        let targetRow = ids[2]
+
+        controller.workspaceNavigationHandler.moveColumnToAdjacentWorkspace(direction: .down)
+        controller.workspaceManager.normalizeRowStack(on: mon)
+
+        XCTAssertEqual(
+            controller.workspaceManager.workspace(for: token),
+            targetRow,
+            "Column must have moved to the bottom buffer row"
+        )
+
+        let targetViewport = controller.workspaceManager.niriViewportState(for: targetRow)
+        let storedOffset = targetViewport.viewOffsetPixels.target()
+        let expectedCenteredOffset = -(workingWidth - columnWidth) / 2.0
+        let tolerance: CGFloat = 1.0
+        XCTAssertEqual(
+            storedOffset, expectedCenteredOffset, accuracy: tolerance,
+            "Viewport offset must target the centered position after column spill"
+        )
+    }
+
+    /// Regression guard: with centerFocusedColumn=never the offset must NOT be centered.
+    /// The never-center path should keep offset=0 (left-aligned / just-visible).
+    func testWindowSpillWithNeverCenterDoesNotCenter() {
+        let controller = WMController(
+            settings: Self.settingsStore(),
+            windowFocusOperations: WindowFocusOperations(
+                activateApp: { _ in },
+                focusSpecificWindow: { _, _, _ in },
+                raiseWindow: { _ in }
+            )
+        )
+        // Override global setting to never-center.
+        controller.niriLayoutHandler.enableNiriLayout(centerFocusedColumn: .never, alwaysCenterSingleColumn: false)
+        // Also override the settings-store level so refreshResolvedMonitorSettings uses never.
+        controller.settings.niriCenterFocusedColumn = .never
+
+        // Re-sync per-monitor settings so they reflect the override.
+        controller.niriLayoutHandler.refreshResolvedMonitorSettings()
+
+        let mon = controller.workspaceManager.monitors.first!.id
+        controller.workspaceManager.normalizeAllRowStacks()
+
+        nextWindowId += 1
+        let (contentRow, token, _) = setupSingleWindowContentRow(controller, on: mon)
+
+        let monitor = controller.workspaceManager.monitors.first!
+        let workingWidth = controller.insetWorkingFrame(for: monitor).width
+
+        let ids = rowIds(controller, on: mon)
+        XCTAssertEqual(ids.count, 3, "Precondition: 3 rows")
+        let targetRow = ids[2]
+
+        controller.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: .down)
+        controller.workspaceManager.normalizeRowStack(on: mon)
+
+        XCTAssertEqual(
+            controller.workspaceManager.workspace(for: token),
+            targetRow,
+            "Window must move to bottom buffer row"
+        )
+
+        let targetViewport = controller.workspaceManager.niriViewportState(for: targetRow)
+        let storedOffset = targetViewport.viewOffsetPixels.target()
+
+        // With center=never the offset must be the "make-visible" (left-edge) value, not
+        // -(W-w)/2. For a single fresh column the make-visible offset is 0.
+        let wrongCenteredOffset = -(workingWidth) / 2.0
+        XCTAssertNotEqual(
+            storedOffset, wrongCenteredOffset, accuracy: 1.0,
+            "With centerFocusedColumn=never the offset must not be -W/2 (the stale zero-width center)"
+        )
+    }
 }

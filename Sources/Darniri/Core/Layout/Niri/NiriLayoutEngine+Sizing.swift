@@ -7,6 +7,20 @@ extension NiriLayoutEngine {
         case window(CGFloat)
     }
 
+    /// Ensure every column in `workspaceId` has a computed `cachedWidth` so that
+    /// `ensureSelectionVisible` / centering calculations are accurate even before
+    /// the first relayout pass runs (e.g. immediately after a cross-row window move).
+    /// Mirrors the `resolveColumnWidthsIfNeeded` private helper in `NiriLayoutHandler`.
+    func resolveColumnWidths(
+        in workspaceId: WorkspaceDescriptor.ID,
+        workingAreaWidth: CGFloat,
+        gaps: CGFloat
+    ) {
+        for column in columns(in: workspaceId) where column.cachedWidth <= 0 {
+            column.resolveAndCacheWidth(workingAreaWidth: workingAreaWidth, gaps: gaps)
+        }
+    }
+
     private func cachedWidthForResizeStart(
         _ column: NiriContainer,
         in workspaceId: WorkspaceDescriptor.ID,
