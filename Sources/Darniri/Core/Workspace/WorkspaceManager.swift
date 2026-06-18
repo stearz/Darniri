@@ -200,6 +200,13 @@ final class WorkspaceManager {
     private var workspacesById: [WorkspaceDescriptor.ID: WorkspaceDescriptor] = [:]
     private var workspaceIdByName: [String: WorkspaceDescriptor.ID] = [:]
     private var disconnectedVisibleWorkspaceCache: [MonitorRestoreKey: WorkspaceDescriptor.ID] = [:]
+    /// Phase 6: when a monitor detaches, ALL of its content rows (top→bottom, only those
+    /// that still hold windows) are remembered here keyed by the detached monitor's
+    /// `MonitorRestoreKey`, so a later reattach (resolved via `OutputId`) can move the same
+    /// rows back to a fresh stack on the reappearing monitor in the original order. This
+    /// generalizes `disconnectedVisibleWorkspaceCache` (which remembers only the single
+    /// visible row) to the full per-monitor row stack.
+    private var disconnectedRowsCache: [MonitorRestoreKey: [WorkspaceDescriptor.ID]] = [:]
 
     /// Single source of truth for the dynamic per-monitor row stack, ordered top→bottom.
     /// A "row" is a `WorkspaceDescriptor`; this list defines its monitor membership and
@@ -620,6 +627,17 @@ final class WorkspaceManager {
 
     private func applyTopologyTransition(_ transition: TopologyTransitionPlan) {
         replaceMonitorsForTopologyTransition(with: transition.newMonitors)
+
+        // Phase 6: migrate the FULL row stack of any detached monitor onto a surviving
+        // monitor, and restore remembered rows for any reappearing monitor. This must run
+        // after `monitors` is updated (so surviving/reappearing monitors resolve) but
+        // before visible-assignment restore (so the rows the assignments reference exist on
+        // a live monitor). No-op when the monitor set is unchanged (single-monitor churn).
+        migrateRowStacksForTopologyChange(
+            previousMonitors: transition.previousMonitors,
+            newMonitors: transition.newMonitors
+        )
+
         let context = monitorResolutionContext()
 
         for monitor in context.sortedMonitors {
@@ -654,6 +672,254 @@ final class WorkspaceManager {
             currentMonitorIds.contains($0.key) && expectedVisibleMonitorIds.contains($0.key)
         }
         invalidateWorkspaceProjectionCaches()
+    }
+
+    // MARK: - Phase 6: full row-stack migration on monitor detach/reattach
+
+    /// Generalize the detach/reattach migration from the single visible row to the FULL
+    /// per-monitor row stack.
+    ///
+    /// Detach: every previous monitor absent from `newMonitors` has ALL of its content rows
+    /// (top→bottom, only those that still hold windows) remembered keyed by its
+    /// `MonitorRestoreKey`, then appended to a surviving monitor's stack just above its
+    /// bottom buffer, so no window is ever lost. Empty buffer rows of the detached monitor
+    /// are dropped — normalization re-mints buffers.
+    ///
+    /// Reattach: every new monitor absent from `previousMonitors` is resolved against the
+    /// remembered keys via `OutputId` (displayId, then unique name). Any remembered rows
+    /// that still exist are moved out of wherever they now live (the donor) and into a fresh
+    /// stack on the reappearing monitor, in the remembered order. Since-closed rows are
+    /// skipped gracefully.
+    ///
+    /// Both donor and reappearing/surviving stacks are normalized so the empty-buffer
+    /// invariant holds afterwards. Inert when the monitor set is unchanged.
+    private func migrateRowStacksForTopologyChange(
+        previousMonitors: [Monitor],
+        newMonitors: [Monitor]
+    ) {
+        let resolvedNewMonitors = newMonitors.isEmpty ? monitors : newMonitors
+        let previousIds = Set(previousMonitors.map(\.id))
+        let newIds = Set(resolvedNewMonitors.map(\.id))
+
+        let detachedMonitors = previousMonitors.filter { !newIds.contains($0.id) }
+        let reappearingMonitors = resolvedNewMonitors.filter { !previousIds.contains($0.id) }
+
+        // Reattach first: pull remembered rows back onto reappearing monitors before any
+        // surviving-monitor migration runs, so a row that was migrated to a survivor on a
+        // previous detach returns home rather than being re-appended somewhere else.
+        for monitor in Monitor.sortedByPosition(reappearingMonitors) {
+            restoreRememberedRows(onto: monitor, liveMonitors: resolvedNewMonitors)
+        }
+
+        // Detach: drain each vanished monitor's stack onto a survivor, remembering content.
+        for monitor in detachedMonitors {
+            migrateDetachedMonitorRows(monitor, survivingMonitors: resolvedNewMonitors)
+        }
+
+        // Also sweep any rows still stranded under a now-dead monitor id (e.g. left over
+        // from an earlier path that did not migrate them). Belt-and-suspenders so the
+        // post-change invariant "no rows under non-existent monitor ids" always holds.
+        migrateStrandedRows(knownMonitorIds: newIds.isEmpty ? Set(monitors.map(\.id)) : newIds,
+                            survivingMonitors: resolvedNewMonitors)
+
+        invalidateWorkspaceProjectionCaches()
+    }
+
+    /// Drain all of `monitor`'s remaining rows onto a surviving monitor, remembering its
+    /// content rows by `MonitorRestoreKey` for a future reattach.
+    private func migrateDetachedMonitorRows(_ monitor: Monitor, survivingMonitors: [Monitor]) {
+        let rows = rowOrderByMonitor[monitor.id] ?? []
+        guard !rows.isEmpty else {
+            rowOrderByMonitor[monitor.id] = nil
+            return
+        }
+
+        // Remember only content rows (those with windows), preserving order, so reattach
+        // restores exactly what the user had — empty buffers are re-minted by normalization.
+        let contentRows = rows.filter { descriptor(for: $0) != nil && !isRowEmpty($0) }
+
+        guard let survivor = migrationSurvivor(excluding: monitor.id, from: survivingMonitors) else {
+            // No survivor (degenerate: everything vanished). Leave the rows in place — DO NOT
+            // remember, tear down, or nil the stack, or content rows (with windows) would be
+            // orphaned under a dead monitor id. The fallback monitor path / normalization will
+            // adopt them on a later pass once a real survivor exists.
+            return
+        }
+
+        // BLOCKER fix: a row belongs to exactly ONE remembered home — its ORIGINAL one. When a
+        // donor that already carries another (still-detached) monitor's remembered rows is now
+        // itself detached, those borrowed rows must stay remembered under their ORIGINAL key,
+        // not be re-homed here (which would let this monitor steal them on reattach, and would
+        // leave them double-remembered). Only rows not already remembered anywhere become this
+        // monitor's remembered content; rows already remembered elsewhere keep their home.
+        let alreadyRemembered = Set(disconnectedRowsCache.values.flatMap { $0 })
+        let ownContentRows = contentRows.filter { !alreadyRemembered.contains($0) }
+        if !ownContentRows.isEmpty {
+            disconnectedRowsCache[MonitorRestoreKey(monitor: monitor)] = ownContentRows
+        }
+
+        appendRows(contentRows, onto: survivor.id)
+
+        // Drop the detached monitor's stack entirely (its empty buffers are gone; content
+        // moved and is now safely homed on the survivor). Tear down any leftover empty rows
+        // so no descriptor leaks.
+        for id in rows where !contentRows.contains(id) {
+            if descriptor(for: id) != nil { removeRow(id) }
+        }
+        rowOrderByMonitor[monitor.id] = nil
+
+        normalizeRowStack(on: survivor.id)
+    }
+
+    /// Remove `rowIds` from every `disconnectedRowsCache` value, dropping any key whose row
+    /// list becomes empty. Keeps a row remembered under at most one monitor home.
+    private func purgeRowsFromDisconnectedCache(_ rowIds: [WorkspaceDescriptor.ID]) {
+        guard !rowIds.isEmpty else { return }
+        let toPurge = Set(rowIds)
+        disconnectedRowsCache = disconnectedRowsCache.compactMapValues { rows in
+            let filtered = rows.filter { !toPurge.contains($0) }
+            return filtered.isEmpty ? nil : filtered
+        }
+    }
+
+    /// Move remembered rows for `monitor` (resolved via `OutputId`) back onto a fresh stack
+    /// on it, in remembered order, normalizing both the reappearing monitor and any donors.
+    ///
+    /// `liveMonitors` is the full set of monitors after this transition; it is used to make
+    /// the name-fallback match unambiguous across BOTH the remembered keys and the live
+    /// monitors (a single-element resolve would always pass the "name unique" guard and could
+    /// steal the wrong identical display's rows).
+    private func restoreRememberedRows(onto reappearing: Monitor, liveMonitors: [Monitor]) {
+        guard let key = matchedRestoreKey(for: reappearing, liveMonitors: liveMonitors),
+              let remembered = disconnectedRowsCache[key]
+        else {
+            // No remembered rows for this monitor (e.g. ambiguous name match refused). Still
+            // give it a normalized stack so the empty-buffer invariant holds on a fresh arrival.
+            normalizeRowStack(on: reappearing.id)
+            return
+        }
+        disconnectedRowsCache[key] = nil
+
+        var donors: Set<Monitor.ID> = []
+        var restoredIds: [WorkspaceDescriptor.ID] = []
+        // Compute donors directly from `rowOrderByMonitor` (no reverse-cache reads inside the
+        // loop) and invalidate the projection caches once after the whole move.
+        for rowId in remembered {
+            // Skip rows whose windows were all closed since detach (graceful).
+            guard descriptor(for: rowId) != nil else { continue }
+            for (monitorId, ids) in rowOrderByMonitor where ids.contains(rowId) {
+                donors.insert(monitorId)
+                rowOrderByMonitor[monitorId]?.removeAll { $0 == rowId }
+            }
+            // Insert just above the reappearing monitor's bottom buffer (append-style;
+            // normalization re-wraps with empty buffers).
+            var ids = rowOrderByMonitor[reappearing.id] ?? []
+            ids.append(rowId)
+            rowOrderByMonitor[reappearing.id] = ids
+            _ = rowLayoutEngine?.ensureRoot(for: rowId)
+            restoredIds.append(rowId)
+        }
+
+        // BLOCKER fix: prune the restored ids from every remaining cache entry (dropping
+        // now-empty keys), so a row that was somehow remembered under another key can't be
+        // restored a second time onto a different monitor.
+        purgeRowsFromDisconnectedCache(restoredIds)
+
+        rowOrderByMonitor = rowOrderByMonitor.filter { !$0.value.isEmpty }
+        invalidateWorkspaceProjectionCaches()
+
+        normalizeRowStack(on: reappearing.id)
+        for donor in donors where donor != reappearing.id {
+            if monitor(byId: donor) != nil {
+                normalizeRowStack(on: donor)
+            }
+        }
+    }
+
+    /// Resolve which remembered `MonitorRestoreKey` belongs to `reappearing`.
+    ///
+    /// 1. Exact `displayId` match wins (a row remembered for this exact display).
+    /// 2. Otherwise fall back to name — but only when the name is unambiguous across BOTH
+    ///    sides: exactly one remembered key has that name AND exactly one live monitor has
+    ///    that name. This prevents two identical displays (same `name`, different `displayId`)
+    ///    from stealing each other's remembered rows, and prevents the synthetic fallback
+    ///    monitor from spuriously claiming rows by name.
+    private func matchedRestoreKey(
+        for reappearing: Monitor,
+        liveMonitors: [Monitor]
+    ) -> MonitorRestoreKey? {
+        // 1. Exact displayId.
+        if let exact = disconnectedRowsCache.keys.first(where: { $0.displayId == reappearing.displayId }) {
+            return exact
+        }
+
+        // 2. Unambiguous name fallback.
+        func nameMatches(_ name: String) -> Bool {
+            name.caseInsensitiveCompare(reappearing.name) == .orderedSame
+        }
+        let keysWithName = disconnectedRowsCache.keys.filter { nameMatches($0.name) }
+        guard keysWithName.count == 1 else { return nil }
+        let liveWithName = liveMonitors.filter { nameMatches($0.name) }
+        guard liveWithName.count == 1, liveWithName[0].id == reappearing.id else { return nil }
+        return keysWithName[0]
+    }
+
+    /// Migrate any rows stranded under monitor ids that no longer exist onto a survivor.
+    private func migrateStrandedRows(knownMonitorIds: Set<Monitor.ID>, survivingMonitors: [Monitor]) {
+        let strandedMonitorIds = rowOrderByMonitor.keys.filter { !knownMonitorIds.contains($0) }
+        guard !strandedMonitorIds.isEmpty else { return }
+        for strandedId in strandedMonitorIds {
+            let rows = rowOrderByMonitor[strandedId] ?? []
+            let contentRows = rows.filter { descriptor(for: $0) != nil && !isRowEmpty($0) }
+
+            let survivor = migrationSurvivor(excluding: strandedId, from: survivingMonitors)
+
+            // MAJOR fix: if there are content rows (with windows) but no live survivor to take
+            // them, leave the WHOLE stack intact — do not tear down or nil it, or those windows
+            // would be orphaned under a dead monitor id. A later pass (once a survivor exists)
+            // reclaims them.
+            if !contentRows.isEmpty, survivor == nil { continue }
+
+            if let survivor, !contentRows.isEmpty {
+                appendRows(contentRows, onto: survivor.id)
+                normalizeRowStack(on: survivor.id)
+            }
+
+            // Content (if any) is now safely homed on a survivor (or there was none). Empty
+            // buffer rows may be reaped, and the dead monitor's stack dropped.
+            for id in rows where !contentRows.contains(id) {
+                if descriptor(for: id) != nil { removeRow(id) }
+            }
+            rowOrderByMonitor[strandedId] = nil
+        }
+    }
+
+    /// Append `rows` (in order) just above the survivor monitor's bottom buffer, moving
+    /// them out of any current owner. Idempotent per id (never duplicates).
+    private func appendRows(_ rows: [WorkspaceDescriptor.ID], onto survivorId: Monitor.ID) {
+        for rowId in rows {
+            guard descriptor(for: rowId) != nil else { continue }
+            // Detach from any current owner first.
+            for monitorId in rowOrderByMonitor.keys {
+                rowOrderByMonitor[monitorId]?.removeAll { $0 == rowId }
+            }
+            var ids = rowOrderByMonitor[survivorId] ?? []
+            ids.append(rowId)
+            rowOrderByMonitor[survivorId] = ids
+            _ = rowLayoutEngine?.ensureRoot(for: rowId)
+        }
+        rowOrderByMonitor = rowOrderByMonitor.filter { !$0.value.isEmpty }
+        invalidateWorkspaceProjectionCaches()
+    }
+
+    /// Pick a deterministic surviving monitor to receive migrated rows (prefer the main
+    /// monitor, else the first by position) excluding `excludedId`.
+    private func migrationSurvivor(excluding excludedId: Monitor.ID, from monitors: [Monitor]) -> Monitor? {
+        let candidates = monitors.filter { $0.id != excludedId }
+        if let main = candidates.first(where: { $0.isMain }) {
+            return main
+        }
+        return Monitor.sortedByPosition(candidates).first
     }
 
     private func refreshWindowMonitorReferencesForAllEntries() {
@@ -3694,14 +3960,13 @@ final class WorkspaceManager {
         for monitor in monitors where (rowOrderByMonitor[monitor.id]?.isEmpty ?? true) {
             createRow(on: monitor.id, at: 0)
         }
-        // Drop stacks for monitors that no longer exist (windows on them, if any, are
-        // handled by topology migration elsewhere; Phase 1 just avoids leaking order).
+        // Drop stacks for monitors that no longer exist. Phase 6: empty orphaned rows are
+        // torn down, but NON-EMPTY orphaned rows (windows still in them) are migrated onto
+        // a surviving monitor so no window is stranded under a dead monitor id. (The primary
+        // topology path migrates eagerly; this is the safety net for any rows that slipped
+        // through, e.g. rows created directly without going through the topology flow.)
         let knownMonitorIds = Set(monitors.map(\.id))
-        for monitorId in rowOrderByMonitor.keys where !knownMonitorIds.contains(monitorId) {
-            for id in rowOrderByMonitor[monitorId] ?? [] where isRowEmpty(id) {
-                removeRow(id)
-            }
-        }
+        migrateStrandedRows(knownMonitorIds: knownMonitorIds, survivingMonitors: monitors)
         for monitor in monitors {
             normalizeRowStack(on: monitor.id)
         }
@@ -3811,6 +4076,12 @@ final class WorkspaceManager {
         // reattach cannot resurrect a freed id.
         disconnectedVisibleWorkspaceCache = disconnectedVisibleWorkspaceCache.filter {
             !toRemove.contains($0.value)
+        }
+        // Phase 6: same hygiene for the full-stack reattach cache — drop removed ids, and
+        // drop any key whose row list becomes empty so a reattach can't resurrect freed ids.
+        disconnectedRowsCache = disconnectedRowsCache.compactMapValues { rows in
+            let filtered = rows.filter { !toRemove.contains($0) }
+            return filtered.isEmpty ? nil : filtered
         }
         invalidateWorkspaceProjectionCaches()
 
