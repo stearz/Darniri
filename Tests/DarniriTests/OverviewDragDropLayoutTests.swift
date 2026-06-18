@@ -2,7 +2,7 @@ import AppKit
 @testable import Darniri
 import XCTest
 
-/// Unit coverage for Phase 4: Overview drag-and-drop.
+/// Unit coverage for Overview drag-and-drop.
 ///
 /// Tests the pure layout / hit-testing logic that does NOT need a live GUI:
 /// - `OverviewLayoutCalculator.capEmptyBufferBands` (buffer-cap, Risk #5)

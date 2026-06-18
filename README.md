@@ -20,7 +20,8 @@ TBD
 
 - macOS 15+ (Sequoia)
 - Accessibility permissions (prompted on launch)
-- Input Monitoring permission for custom Hyper key shortcuts
+- Screen Recording permission for overview window thumbnails and drag ghost
+- Input Monitoring permission for Hyper-key (Ctrl+Alt) column-to-row bindings
 - Displays have separate spaces **OFF**
 
 ## Installation
@@ -48,7 +49,8 @@ This installs the Swift executable. A cask for installing `Darniri.app` will be 
 3. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 4. Log out of macOS and log back in for that change to take effect unless you had it off already
 5. Launch Darniri and grant Accessibility permissions when prompted
-6. For custom Hyper key shortcuts, grant Input Monitoring from Settings > Hotkeys
+6. Grant Screen Recording from System Settings > Privacy & Security > Screen Recording (required for overview thumbnails and the window drag ghost)
+7. For Ctrl+Alt column-to-row bindings, grant Input Monitoring from Settings > Hotkeys
 
 ## Documentation
 
@@ -65,9 +67,10 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 2. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 3. Log out of macOS and log back in for that change to take effect unless you had it off already
 4. Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility
-5. Windows will automatically tile in columns
-6. Use the default shortcuts in `Keyboard Shortcuts` to navigate between windows
-7. Click the menu bar icon to access Settings
+5. Grant Screen Recording in System Settings > Privacy & Security > Screen Recording (for overview thumbnails and drag ghost)
+6. Windows will automatically tile in columns; rows are created dynamically as windows are added
+7. Use `Ctrl+←/→` to focus columns and `Ctrl+↑/↓` to focus windows within a column (spilling to the row above/below at the edges)
+8. Click the menu bar icon to access Settings
 
 
 ## User Guide
@@ -76,36 +79,42 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 
 Darniri uses the Niri scrolling columns layout: windows are arranged in vertical columns that scroll horizontally. Each column can have multiple stacked windows or be "tabbed" (multiple windows, one visible at a time). Best for wide monitors with many windows.
 
+#### Dynamic Row Stack
+
+Windows are organized into a vertical stack of rows per monitor. Each row is an independent scrolling column layout. Rows replace the old named-workspace model:
+
+- There is always an empty buffer row above and below the content rows, so focus and spill never wrap around.
+- Rows are created automatically as windows are moved in, and removed when they become empty (except for the buffers).
+- Each row independently remembers its column widths and horizontal scroll position.
+- The active row is shown by the vertical Row Indicator Bar (see below).
+
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the `Hyper` modifier are configured there. `Hyper` defaults to Control + Option + Shift + Command, and you can choose another key or mouse button as the Darniri modifier. The tables below list all the default hotkeys:
+All shortcuts are customizable in Settings > Hotkeys. The default navigation modifier is **Control** (^). Darniri automatically disables the conflicting macOS Mission Control / Spaces symbolic hotkeys (Ctrl+Arrows) while it runs, then restores them when it quits. You can switch to **Option** (⌥) as the modifier in Settings if you prefer, which requires no system hotkey management.
 
-#### Workspace
+For the Ctrl+Alt column-to-row bindings, Option (⌥) acts as the Hyper trigger key. Input Monitoring permission is required for those bindings to fire.
 
-| Action                                        | Default Shortcut                        |
-| --------------------------------------------- | --------------------------------------- |
-| Switch to Workspace 1-9                       | `Hyper + 1-9`                           |
-| Move Window to Workspace 1-9                  | `Option + Shift + 1-9`                  |
-| Switch to Previous Workspace (Back and Forth) | `Control + Option + Tab`                |
-| Switch to Next Workspace                      | `Unassigned`                            |
-| Switch to Previous Workspace (Sequential)     | `Unassigned`                            |
-| Move Window to Workspace Up                   | `Control + Option + Shift + Up Arrow`   |
-| Move Window to Workspace Down                 | `Control + Option + Shift + Down Arrow` |
-| Move Column to Workspace 1-9                  | `Unassigned`                            |
-| Move Column to Workspace Up                   | `Control + Option + Shift + Page Up`    |
-| Move Column to Workspace Down                 | `Control + Option + Shift + Page Down`  |
+The tables below list all the default hotkeys:
+
+#### Row Navigation
+
+| Action                                              | Default Shortcut       |
+| --------------------------------------------------- | ---------------------- |
+| Focus left / right column                           | `Ctrl + ← / →`         |
+| Focus window up/down in column, spill to row above/below at edge | `Ctrl + ↑ / ↓` |
+| Move window up/down in column, spill to row above/below at edge  | `Ctrl + Shift + ↑ / ↓` |
+| Move column to row above / below                    | `Ctrl + Alt + ↑ / ↓`   |
+| Switch to row (workspace) back and forth            | `Ctrl + Option + Tab`  |
 
 #### Focus
 
 | Action                         | Default Shortcut           |
 | ------------------------------ | -------------------------- |
-| Focus Left / Right / Up / Down | `Option + Arrow Keys`      |
+| Focus Left / Right             | `Ctrl + ← / →`             |
+| Focus Up / Down (in-column spill) | `Ctrl + ↑ / ↓`          |
 | Focus Previous Window          | `Option + Tab`             |
-| Traverse Backward              | `Unassigned`               |
-| Traverse Forward               | `Unassigned`               |
 | Focus First Column             | `Option + Home`            |
 | Focus Last Column              | `Option + End`             |
-| Focus Column 1-9               | `Control + Option + 1-9`   |
 | Toggle Command Palette         | `Control + Option + Space` |
 | Toggle Workspace Bar           | `Unassigned`               |
 | Toggle Overview                | `Option + Shift + O`       |
@@ -114,7 +123,8 @@ All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the 
 
 | Action                        | Default Shortcut              |
 | ----------------------------- | ----------------------------- |
-| Move Left / Right / Up / Down | `Option + Shift + Arrow Keys` |
+| Move Left / Right             | `Ctrl + Shift + ← / →`        |
+| Move Up / Down (in-column, spill at edge) | `Ctrl + Shift + ↑ / ↓` |
 
 #### Monitor
 
@@ -138,17 +148,30 @@ All shortcuts are customizable in Settings > Hotkeys. Single-key chords and the 
 
 #### Column
 
-| Action                      | Default Shortcut                                |
-| --------------------------- | ----------------------------------------------- |
-| Move Column Left / Right    | `Control + Option + Shift + Left / Right Arrow` |
-| Toggle Column Tabbed        | `Option + T`                                    |
-| Cycle Column Width Forward  | `Option + .`                                    |
-| Cycle Column Width Backward | `Option + ,`                                    |
-| Toggle Column Full Width    | `Option + Shift + F`                            |
+| Action                      | Default Shortcut                   |
+| --------------------------- | ---------------------------------- |
+| Move Column Left / Right    | `Ctrl + Alt + ← / →`               |
+| Move Column to Row Above    | `Ctrl + Alt + ↑`                   |
+| Move Column to Row Below    | `Ctrl + Alt + ↓`                   |
+| Toggle Column Tabbed        | `Option + T`                       |
+| Cycle Column Width Forward  | `Option + .`                       |
+| Cycle Column Width Backward | `Option + ,`                       |
+| Toggle Column Full Width    | `Option + Shift + F`               |
 
-`Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` keeps the current in-column reorder behavior.
+`Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` reorders windows within the current column.
 
 ### Features
+
+#### Dynamic Row Indicator Bar
+
+A vertical indicator bar shows the row stack for the current monitor:
+
+- Rows are listed vertically (top to bottom).
+- The active row is highlighted.
+- Each row displays app icons for the windows it contains.
+- Empty buffer rows are shown faintly.
+- Toggle the bar from the menu bar icon or with the `Toggle Workspace Bar` hotkey.
+- Configure position, height, and appearance in Settings.
 
 #### Command Palette
 
@@ -162,26 +185,20 @@ Quickly search windows from one shared palette:
 
 #### Overview Mode
 
-See all windows at once with thumbnails:
+See all windows at once with thumbnails (requires Screen Recording permission):
 - Open it from the global shortcut shown in `Keyboard Shortcuts`
+- All rows are shown, including empty buffer rows as drop targets
+- **Drag a window** (left button) to move it to another row, column gap, or empty row
 - Click a window to focus it
 - Type to filter/search windows; `Backspace` deletes search text
-- Alt + Shift + Mouse Scroll to zoom in/out
 - `Arrow Keys` navigate the selection; `Tab` / `Shift + Tab` move horizontally
 - `Enter` activates the selected window
 - `Escape` clears the search first, then dismisses the overview when the search is empty
 
-#### Workspace Bar
-
-A visual indicator showing your workspaces:
-- Displays open apps per workspace
-- Click to switch workspaces or jump to that app
-- If dedupe option is on click the app icon to get a popup with list of all its windows to jump to
-- Configure position, height, and appearance in Settings
-
 ### Tips
 
-- **Workspaces** - Create named workspaces in Settings to organize by project or context (You can use emojis 🥳)
+- **Rows** - Windows are organized automatically into rows. Move windows between rows with `Ctrl+Shift+↑/↓` (window) or `Ctrl+Alt+↑/↓` (whole column). There are no named workspaces to configure.
+- **System Hotkey Conflicts** - When using the default Control modifier, Darniri automatically disables the macOS Mission Control / Spaces shortcuts for Ctrl+Arrows. They are restored when Darniri quits.
 - **App Rules** - Exclude problematic apps from tiling or assign them to specific workspaces
 - **Mouse** - `Option + drag` swaps tiled windows; `Option + Shift + drag` inserts windows to a column
 - **Mouse Resize** - Hold `Option` and right-drag a tiled window to resize
@@ -211,6 +228,12 @@ Configure per-application behavior in Settings > App Rules:
 Requirements:
 - SwiftPM with Swift 6.3.2+
 - macOS 15.0+
+
+To run locally without signing:
+
+```sh
+./Scripts/run-local.sh
+```
 
 ## Contributing
 

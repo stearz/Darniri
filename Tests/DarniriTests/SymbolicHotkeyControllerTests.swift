@@ -64,7 +64,7 @@ final class SymbolicHotkeyControllerTests: XCTestCase {
     }
 
     func testRestoreDoesNotUseSnapshotAllIDsAlwaysEnabled() {
-        // Phase 0 finding: CGSIsSymbolicHotKeyEnabled is unreliable.
+        // CGSIsSymbolicHotKeyEnabled is unreliable.
         // Restore must always re-enable (not restore to a captured snapshot).
         let fake = FakeSymbolicHotkeyController()
         let controller = SymbolicHotkeyController(modifier: .control, impl: fake)

@@ -2,7 +2,7 @@ import ApplicationServices
 @testable import Darniri
 import XCTest
 
-/// Phase 6 coverage: multi-monitor detach/reattach migrates the FULL per-monitor row
+/// Coverage: multi-monitor detach/reattach migrates the FULL per-monitor row
 /// stack (not just the visible row), never losing windows, and restores remembered rows
 /// to a reappearing monitor via `OutputId`. Single-monitor topology churn stays inert.
 @MainActor

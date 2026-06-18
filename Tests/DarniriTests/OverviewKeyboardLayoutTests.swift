@@ -3,7 +3,7 @@ import Carbon
 @testable import Darniri
 import XCTest
 
-/// Unit tests for Phase 5: overview keyboard layout-command dispatch.
+/// Unit tests for overview keyboard layout-command dispatch.
 ///
 /// Tests the pure/testable pieces that don't require a live GUI:
 /// - Keymap resolution: NSEvent (keyCode + modifier flags) → HotkeyCommand
@@ -285,89 +285,74 @@ final class OverviewKeyboardLayoutTests: XCTestCase {
 
     // MARK: - keyHandlingResult integration
 
-    /// Plain arrow keys without modifiers should still produce .navigate, not .layoutCommand.
+    /// Plain arrow keys without modifiers should produce .navigate, not .consume.
     func testKeyHandlingResult_plainLeftArrow_producesNavigateLeft() {
-        let bindings = defaultLayoutBindings()
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_LeftArrow),
             modifierFlags: [],
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: bindings,
-            hyperTrigger: .default
+            searchQuery: ""
         )
         XCTAssertEqual(result.action, .navigate(.left))
         XCTAssertTrue(result.shouldConsume)
     }
 
-    /// Ctrl+← should produce .layoutCommand(.focus(.left)), not plain navigation.
-    func testKeyHandlingResult_ctrlLeft_producesLayoutCommandFocusLeft() {
-        let bindings = defaultLayoutBindings()
+    /// Ctrl+← should produce .consume — layout commands arrive via the Carbon hotkey path
+    /// (CommandHandler.performCommand → WMController.handleOverviewLayoutCommand), never
+    /// through this NSEvent local monitor path.
+    func testKeyHandlingResult_ctrlLeft_producesConsume() {
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_LeftArrow),
             modifierFlags: .control,
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: bindings,
-            hyperTrigger: .default
+            searchQuery: ""
         )
-        XCTAssertEqual(result.action, .layoutCommand(.focus(.left)))
+        XCTAssertEqual(result.action, .consume)
         XCTAssertTrue(result.shouldConsume)
     }
 
-    /// Ctrl+Shift+↑ should produce .layoutCommand(.moveWindowUpOrToWorkspaceUp).
-    func testKeyHandlingResult_ctrlShiftUp_producesMoveWindowUpOrToWorkspaceUp() {
-        let bindings = defaultLayoutBindings()
+    /// Ctrl+Shift+↑ should produce .consume for the same reason.
+    func testKeyHandlingResult_ctrlShiftUp_producesConsume() {
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_UpArrow),
             modifierFlags: [.control, .shift],
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: bindings,
-            hyperTrigger: .default
+            searchQuery: ""
         )
-        XCTAssertEqual(result.action, .layoutCommand(.moveWindowUpOrToWorkspaceUp))
+        XCTAssertEqual(result.action, .consume)
         XCTAssertTrue(result.shouldConsume)
     }
 
-    /// Ctrl+Alt+← with Option hyper should produce .layoutCommand(.moveColumn(.left)).
-    func testKeyHandlingResult_ctrlOptionLeft_producesMoveColumnLeft() {
-        let bindings = defaultLayoutBindings()
+    /// Ctrl+Alt+← should produce .consume for the same reason.
+    func testKeyHandlingResult_ctrlOptionLeft_producesConsume() {
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_LeftArrow),
             modifierFlags: [.control, .option],
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: bindings,
-            hyperTrigger: .key(UInt32(kVK_Option))
+            searchQuery: ""
         )
-        XCTAssertEqual(result.action, .layoutCommand(.moveColumn(.left)))
+        XCTAssertEqual(result.action, .consume)
         XCTAssertTrue(result.shouldConsume)
     }
 
-    /// Escape should still produce .clearSearchOrDismiss even with bindings present.
+    /// Escape should produce .clearSearchOrDismiss.
     func testKeyHandlingResult_escape_producesClearSearchOrDismiss() {
-        let bindings = defaultLayoutBindings()
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_Escape),
             modifierFlags: [],
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: bindings,
-            hyperTrigger: .default
+            searchQuery: ""
         )
         XCTAssertEqual(result.action, .clearSearchOrDismiss)
     }
 
-    /// With empty bindings list, a modified key event produces .consume (not a layout command).
-    func testKeyHandlingResult_noBindings_ctrlLeft_producesConsume() {
+    /// A modified key event that doesn't match plain navigation produces .consume.
+    func testKeyHandlingResult_ctrlLeft_producesConsume_noBindings() {
         let result = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_LeftArrow),
             modifierFlags: .control,
             charactersIgnoringModifiers: nil,
-            searchQuery: "",
-            layoutBindings: [],
-            hyperTrigger: .default
+            searchQuery: ""
         )
         XCTAssertEqual(result.action, .consume)
         XCTAssertTrue(result.shouldConsume)

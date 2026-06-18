@@ -47,7 +47,7 @@ final class LiveSymbolicHotkeyController: SymbolicHotkeyControlling {
 /// | 82 | Move right a Space (Ctrl+Shift+→) |
 ///
 /// All IDs have `enabled = true` as their macOS default state, so restoring
-/// means re-enabling them (see Phase 0 findings in `.plan/08-phase0-outcome.md`).
+/// means re-enabling them.
 enum SymbolicHotkeyManagedIDs {
     static let all: [Int32] = [32, 33, 34, 35, 79, 80, 81, 82]
 }
@@ -163,7 +163,7 @@ final class SymbolicHotkeyController {
         hotkeysAreDisabled = false
         // Restore to macOS defaults: all managed IDs are enabled by default.
         // We do NOT use a runtime snapshot because CGSIsSymbolicHotKeyEnabled
-        // was found unreliable during Phase 0 (reported everything disabled even
+        // was found unreliable (reported everything disabled even
         // when the plist had some enabled).
         for id in SymbolicHotkeyManagedIDs.all {
             impl.setEnabled(id, true)

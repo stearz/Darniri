@@ -200,7 +200,7 @@ final class WorkspaceManager {
     private var workspacesById: [WorkspaceDescriptor.ID: WorkspaceDescriptor] = [:]
     private var workspaceIdByName: [String: WorkspaceDescriptor.ID] = [:]
     private var disconnectedVisibleWorkspaceCache: [MonitorRestoreKey: WorkspaceDescriptor.ID] = [:]
-    /// Phase 6: when a monitor detaches, ALL of its content rows (top→bottom, only those
+    /// When a monitor detaches, ALL of its content rows (top→bottom, only those
     /// that still hold windows) are remembered here keyed by the detached monitor's
     /// `MonitorRestoreKey`, so a later reattach (resolved via `OutputId`) can move the same
     /// rows back to a fresh stack on the reappearing monitor in the original order. This
@@ -628,7 +628,7 @@ final class WorkspaceManager {
     private func applyTopologyTransition(_ transition: TopologyTransitionPlan) {
         replaceMonitorsForTopologyTransition(with: transition.newMonitors)
 
-        // Phase 6: migrate the FULL row stack of any detached monitor onto a surviving
+        // Migrate the FULL row stack of any detached monitor onto a surviving
         // monitor, and restore remembered rows for any reappearing monitor. This must run
         // after `monitors` is updated (so surviving/reappearing monitors resolve) but
         // before visible-assignment restore (so the rows the assignments reference exist on
@@ -674,7 +674,7 @@ final class WorkspaceManager {
         invalidateWorkspaceProjectionCaches()
     }
 
-    // MARK: - Phase 6: full row-stack migration on monitor detach/reattach
+    // MARK: - Full row-stack migration on monitor detach/reattach
 
     /// Generalize the detach/reattach migration from the single visible row to the FULL
     /// per-monitor row stack.
@@ -3807,14 +3807,14 @@ final class WorkspaceManager {
     }
 
     private func synchronizeConfiguredWorkspaces() {
-        // Dynamic-row model (Phase 1): config no longer drives row lifecycle. Rows are
-        // created/destroyed by `normalizeRowStack`. We still parse `[workspaces]` (removed
-        // in Phase 7), but it must not mint or reap rows here. Instead, ensure every
-        // monitor has at least its empty-buffer rows.
+        // The dynamic-row model means config no longer drives row lifecycle. Rows are
+        // created/destroyed by `normalizeRowStack`. We still parse `[workspaces]`, but
+        // it must not mint or reap rows here. Instead, ensure every monitor has at
+        // least its empty-buffer rows.
         normalizeAllRowStacks()
     }
 
-    // MARK: - Dynamic row stack (Phase 1)
+    // MARK: - Dynamic row stack
 
     /// True when a row holds no windows (tiling or floating). Drives normalization.
     private func isRowEmpty(_ workspaceId: WorkspaceDescriptor.ID) -> Bool {
@@ -3960,7 +3960,7 @@ final class WorkspaceManager {
         for monitor in monitors where (rowOrderByMonitor[monitor.id]?.isEmpty ?? true) {
             createRow(on: monitor.id, at: 0)
         }
-        // Drop stacks for monitors that no longer exist. Phase 6: empty orphaned rows are
+        // Drop stacks for monitors that no longer exist. Empty orphaned rows are
         // torn down, but NON-EMPTY orphaned rows (windows still in them) are migrated onto
         // a surviving monitor so no window is stranded under a dead monitor id. (The primary
         // topology path migrates eagerly; this is the safety net for any rows that slipped
@@ -4077,7 +4077,7 @@ final class WorkspaceManager {
         disconnectedVisibleWorkspaceCache = disconnectedVisibleWorkspaceCache.filter {
             !toRemove.contains($0.value)
         }
-        // Phase 6: same hygiene for the full-stack reattach cache — drop removed ids, and
+        // Same hygiene for the full-stack reattach cache — drop removed ids, and
         // drop any key whose row list becomes empty so a reattach can't resurrect freed ids.
         disconnectedRowsCache = disconnectedRowsCache.compactMapValues { rows in
             let filtered = rows.filter { !toRemove.contains($0) }

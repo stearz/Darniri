@@ -67,7 +67,7 @@ enum WorkspaceBarDataSource {
         focusedToken: WindowToken?,
         settings _: SettingsStore // kept in signature for API symmetry; labels now positional
     ) -> [WorkspaceBarItem] {
-        // Phase 5: derive order from the dynamic row stack.
+        // Derive order from the dynamic row stack.
         // Use the interaction monitor when available (the monitor that last received
         // input), falling back to the supplied monitor.  This ensures the bar always
         // reflects the active monitor's row stack even when the bar itself is on a
@@ -157,7 +157,7 @@ enum WorkspaceBarDataSource {
                 focusedToken: focusedToken
             )
 
-            // Phase 5: labels are positional (row index) — rows are anonymous.
+            // Labels are positional (row index) — rows are anonymous.
             // We keep `rawName` for diagnostics / legacy lookup but always display
             // the 1-based index so the label is predictable and user-meaningful.
             return WorkspaceBarItem(

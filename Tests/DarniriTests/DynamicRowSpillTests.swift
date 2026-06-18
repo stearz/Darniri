@@ -255,7 +255,7 @@ final class DynamicRowSpillTests: XCTestCase {
         )
     }
 
-    // MARK: - Centering tests (Phase 3 fix)
+    // MARK: - Centering tests
 
     /// After a cross-row window move with centerFocusedColumn=always, the saved viewport's
     /// viewOffsetPixels must target the centered offset — NOT the stale zero-width offset

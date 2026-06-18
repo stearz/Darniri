@@ -918,26 +918,6 @@ final class OverviewController {
         }
     }
 
-    // MARK: - Live keymap access
-
-    /// Returns the effective hotkey bindings from the WM controller, filtered to
-    /// layout-relevant commands.  The input handler uses these to resolve raw key events
-    /// into commands while the overview is open.
-    func effectiveLayoutBindings() -> [HotkeyBinding] {
-        guard let wmController else { return [] }
-        let all = wmController.effectiveBindings(
-            for: wmController.settings.hotkeyBindings,
-            modifier: wmController.settings.navigationModifier
-        )
-        return all.filter { OverviewInputHandler.isLayoutRelevantCommand($0.command) }
-    }
-
-    /// Returns the active hyper trigger from settings so the input handler can
-    /// correctly resolve hyper-style bindings (e.g. Ctrl+Alt+← for moveColumn).
-    func effectiveHyperTrigger() -> HyperKeyTrigger {
-        wmController?.settings.hyperTrigger ?? .default
-    }
-
     // MARK: - Layout command dispatch
 
     /// Executes a layout command (focus, move, workspace navigation) in the context of

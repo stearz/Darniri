@@ -3,7 +3,7 @@ import CoreGraphics
 @testable import Darniri
 import XCTest
 
-/// Unit coverage for Phase 5: the row-indicator bar projection derived from
+/// Unit coverage for the row-indicator bar projection derived from
 /// `rowOrderByMonitor` (interaction monitor, top→bottom, buffer detection,
 /// visible-row highlight, positional labels, `hideEmptyWorkspaces` semantics).
 @MainActor

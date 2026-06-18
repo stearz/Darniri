@@ -2,7 +2,7 @@ import ApplicationServices
 @testable import Darniri
 import XCTest
 
-/// Unit coverage for the Phase 1 dynamic-row stack: the empty-buffer invariant enforced
+/// Unit coverage for the dynamic-row stack: the empty-buffer invariant enforced
 /// by `normalizeRowStack`/`normalizeAllRowStacks`, and the `createRow`/`removeRow`
 /// ordering primitives.
 @MainActor

@@ -186,9 +186,8 @@ enum ActionCatalog {
         var specs: [ActionSpec] = []
 
         // NOTE: switchWorkspace.(idx), moveToWorkspace.(idx), and
-        // moveColumnToWorkspace.(idx) numbered-jump specs have been removed
-        // (Phase 2 / decision #3).  The underlying enum cases are kept for
-        // persisted-keymap compatibility; remove them in Phase 7.
+        // moveColumnToWorkspace.(idx) numbered-jump specs have been removed.
+        // The underlying enum cases are kept for persisted-keymap compatibility.
 
         specs.append(
             action(
@@ -367,7 +366,7 @@ enum ActionCatalog {
             )
         ])
 
-        // NOTE: moveColumnToWorkspace.(idx) numbered-jump specs removed (Phase 2 / decision #3).
+        // NOTE: moveColumnToWorkspace.(idx) numbered-jump specs removed.
 
         // move.left/right: Ctrl+Shift+←/→
         // move.up/down: UNASSIGNED (plain in-column; advanced users may rebind)

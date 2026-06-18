@@ -480,7 +480,7 @@ enum HotkeyBindingRegistry {
 
     private static func isLegacyWorkspaceDefault(id: String, trigger: HotkeyTrigger) -> Bool {
         // switchWorkspace.(n) and moveToWorkspace.(n) numbered-jump specs have been
-        // removed (Phase 2 / decision #3).  No legacy migration is needed; always false.
+        // removed.  No legacy migration is needed; always false.
         return false
     }
 

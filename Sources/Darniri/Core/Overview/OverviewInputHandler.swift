@@ -10,7 +10,6 @@ final class OverviewInputHandler {
         case navigate(Direction)
         case deleteBackward
         case appendToSearch(String)
-        case layoutCommand(HotkeyCommand)
         case consume
     }
 
@@ -43,16 +42,11 @@ final class OverviewInputHandler {
         guard let controller else { return false }
         guard controller.state.isOpen else { return false }
 
-        let bindings = controller.effectiveLayoutBindings()
-        let hyperTrigger = controller.effectiveHyperTrigger()
-
         let result = Self.keyHandlingResult(
             keyCode: event.keyCode,
             modifierFlags: event.modifierFlags,
             charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-            searchQuery: searchQuery,
-            layoutBindings: bindings,
-            hyperTrigger: hyperTrigger
+            searchQuery: searchQuery
         )
         guard result.shouldConsume else { return false }
 
@@ -76,8 +70,6 @@ final class OverviewInputHandler {
         case let .appendToSearch(text):
             searchQuery += text
             controller.updateSearchQuery(searchQuery)
-        case let .layoutCommand(command):
-            controller.handleLayoutCommand(command)
         case .consume:
             break
         }
@@ -90,9 +82,7 @@ final class OverviewInputHandler {
         keyCode: UInt16,
         modifierFlags: NSEvent.ModifierFlags,
         charactersIgnoringModifiers: String?,
-        searchQuery _: String,
-        layoutBindings: [HotkeyBinding] = [],
-        hyperTrigger: HyperKeyTrigger = .default
+        searchQuery _: String
     ) -> KeyHandlingResult {
         let relevantModifiers = modifierFlags.intersection([.shift, .command, .control, .option])
 
@@ -133,16 +123,10 @@ final class OverviewInputHandler {
             }
         }
 
-        // Try to resolve this modified key event as a layout command via the live keymap.
-        if let command = resolveLayoutCommand(
-            keyCode: UInt32(keyCode),
-            modifierFlags: modifierFlags,
-            bindings: layoutBindings,
-            hyperTrigger: hyperTrigger
-        ) {
-            return .init(action: .layoutCommand(command), shouldConsume: true)
-        }
-
+        // Modified key events that don't match any plain navigation key are consumed
+        // silently (not forwarded to the application). Layout commands (focus/move/workspace)
+        // arrive as global Carbon hotkeys and are routed via CommandHandler.performCommand →
+        // WMController.handleOverviewLayoutCommand, never through this NSEvent path.
         return .init(action: .consume, shouldConsume: true)
     }
 
