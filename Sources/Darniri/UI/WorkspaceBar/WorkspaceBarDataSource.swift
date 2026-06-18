@@ -65,14 +65,32 @@ enum WorkspaceBarDataSource {
         appInfoCache: AppInfoCache,
         niriEngine: NiriLayoutEngine?,
         focusedToken: WindowToken?,
-        settings: SettingsStore
+        settings _: SettingsStore // kept in signature for API symmetry; labels now positional
     ) -> [WorkspaceBarItem] {
-        var workspaces = workspaceManager.workspaces(on: monitor.id).map { workspace in
+        // Phase 5: derive order from the dynamic row stack.
+        // Use the interaction monitor when available (the monitor that last received
+        // input), falling back to the supplied monitor.  This ensures the bar always
+        // reflects the active monitor's row stack even when the bar itself is on a
+        // secondary display.
+        let targetMonitorId: Monitor.ID
+        if let interactionMonitorId = workspaceManager.interactionMonitorId {
+            targetMonitorId = interactionMonitorId
+        } else {
+            targetMonitorId = monitor.id
+        }
+
+        // Pull the ordered row IDs directly from `rowOrderByMonitor` (top→bottom).
+        let orderedIds = workspaceManager.rowOrder(on: targetMonitorId)
+
+        // Build a snapshot for each row in stack order.
+        var allSnapshots: [(snapshot: WorkspaceSnapshot, rowIndex: Int)] = []
+        for (zeroBasedIndex, wsId) in orderedIds.enumerated() {
+            guard let workspace = workspaceManager.descriptor(for: wsId) else { continue }
             let projectedEntries = workspaceManager.barVisibleEntries(
                 in: workspace.id,
                 showFloatingWindows: options.showFloatingWindows
             )
-            return WorkspaceSnapshot(
+            let snap = WorkspaceSnapshot(
                 workspace: workspace,
                 tiledEntries: projectedEntries.filter { $0.mode == .tiling },
                 floatingEntries: projectedEntries.filter { $0.mode == .floating },
@@ -81,15 +99,38 @@ enum WorkspaceBarDataSource {
                     showFloatingWindows: options.showFloatingWindows
                 )
             )
+            allSnapshots.append((snap, zeroBasedIndex + 1)) // 1-based rowIndex
         }
 
-        if options.hideEmptyWorkspaces {
-            workspaces = workspaces.filter(\.hasBarOccupancy)
+        // Identify buffer positions: the first and last rows are buffers when empty.
+        // Guard: need at least 2 rows for there to be a buffer at each end.
+        let topIsBuffer: Bool = {
+            guard let first = allSnapshots.first else { return false }
+            return !first.snapshot.hasBarOccupancy
+        }()
+        let bottomIsBuffer: Bool = {
+            guard allSnapshots.count > 1, let last = allSnapshots.last else { return false }
+            return !last.snapshot.hasBarOccupancy
+        }()
+
+        // Apply hideEmptyWorkspaces: hide non-buffer empty rows.
+        // Buffer rows are never hidden — we always show them faintly so the user
+        // perceives "there's room above/below".
+        let filteredSnapshots: [(snapshot: WorkspaceSnapshot, rowIndex: Int, isBuffer: Bool)]
+        filteredSnapshots = allSnapshots.enumerated().compactMap { enumIndex, pair in
+            let isTopBuffer = topIsBuffer && enumIndex == 0
+            let isBottomBuffer = bottomIsBuffer && enumIndex == allSnapshots.count - 1
+            let isBuf = isTopBuffer || isBottomBuffer
+
+            if options.hideEmptyWorkspaces, !pair.snapshot.hasBarOccupancy, !isBuf {
+                return nil
+            }
+            return (pair.snapshot, pair.rowIndex, isBuf)
         }
 
-        let activeWorkspaceId = workspaceManager.activeWorkspace(on: monitor.id)?.id
+        let activeWorkspaceId = workspaceManager.activeWorkspace(on: targetMonitorId)?.id
 
-        return workspaces.map { snapshot in
+        return filteredSnapshots.map { snapshot, rowIndex, isBuffer in
             let orderedTiledEntries = WorkspaceEntryOrdering.orderedEntries(
                 snapshot.tiledEntries,
                 in: snapshot.workspace.id,
@@ -116,11 +157,16 @@ enum WorkspaceBarDataSource {
                 focusedToken: focusedToken
             )
 
+            // Phase 5: labels are positional (row index) — rows are anonymous.
+            // We keep `rawName` for diagnostics / legacy lookup but always display
+            // the 1-based index so the label is predictable and user-meaningful.
             return WorkspaceBarItem(
                 id: snapshot.workspace.id,
-                name: settings.displayName(for: snapshot.workspace.name),
+                name: "\(rowIndex)",
                 rawName: snapshot.workspace.name,
                 isFocused: snapshot.workspace.id == activeWorkspaceId,
+                rowIndex: rowIndex,
+                isBuffer: isBuffer,
                 tiledWindows: tiledWindows,
                 floatingWindows: floatingWindows
             )

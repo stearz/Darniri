@@ -3555,6 +3555,18 @@ final class WorkspaceManager {
         windows.windows(in: workspaceId).isEmpty
     }
 
+    // MARK: - Public row-stack accessors (used by WorkspaceBarDataSource)
+
+    /// Returns the ordered row IDs (top→bottom) for `monitorId`, or an empty array.
+    func rowOrder(on monitorId: Monitor.ID) -> [WorkspaceDescriptor.ID] {
+        rowOrderByMonitor[monitorId] ?? []
+    }
+
+    /// Public: true when the row holds no windows (tiling or floating).
+    func rowHasNoWindows(_ workspaceId: WorkspaceDescriptor.ID) -> Bool {
+        isRowEmpty(workspaceId)
+    }
+
     /// Mint a fresh anonymous row on `monitorId`, inserting it into `rowOrderByMonitor`
     /// at `index` (top→bottom). Creates the backing `NiriRoot` and bumps revisions.
     @discardableResult

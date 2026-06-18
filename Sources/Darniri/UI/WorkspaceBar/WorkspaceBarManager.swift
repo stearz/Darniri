@@ -36,6 +36,10 @@ enum WorkspaceBarWindowLevel: String, CaseIterable, Identifiable {
 enum WorkspaceBarPosition: String, CaseIterable, Identifiable {
     case overlappingMenuBar
     case belowMenuBar
+    /// Vertical indicator docked to the left edge of the monitor's visible area.
+    case left
+    /// Vertical indicator docked to the right edge of the monitor's visible area.
+    case right
 
     var id: String {
         rawValue
@@ -45,6 +49,16 @@ enum WorkspaceBarPosition: String, CaseIterable, Identifiable {
         switch self {
         case .overlappingMenuBar: "Overlapping Menu Bar"
         case .belowMenuBar: "Below Menu Bar"
+        case .left: "Left (Vertical)"
+        case .right: "Right (Vertical)"
+        }
+    }
+
+    /// Whether this position produces a vertical (side-edge) indicator.
+    var isVertical: Bool {
+        switch self {
+        case .left, .right: true
+        case .overlappingMenuBar, .belowMenuBar: false
         }
     }
 }
@@ -337,7 +351,8 @@ final class WorkspaceBarManager {
             backgroundOpacity: current.backgroundOpacity,
             barHeight: current.barHeight,
             accentColor: resolved.accentColor,
-            textColor: resolved.textColor
+            textColor: resolved.textColor,
+            isVertical: current.isVertical
         )
 
         if snapshot != current {
@@ -419,7 +434,8 @@ final class WorkspaceBarManager {
             backgroundOpacity: resolved.backgroundOpacity,
             barHeight: geometry.barHeight,
             accentColor: resolved.accentColor,
-            textColor: resolved.textColor
+            textColor: resolved.textColor,
+            isVertical: geometry.effectivePosition.isVertical
         )
     }
 

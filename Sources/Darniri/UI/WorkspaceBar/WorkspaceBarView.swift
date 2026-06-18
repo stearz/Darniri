@@ -7,6 +7,11 @@ struct WorkspaceBarItem: Identifiable, Equatable {
     let name: String
     let rawName: String
     let isFocused: Bool
+    /// 1-based index of this row within the monitor's stack (top = 1).
+    let rowIndex: Int
+    /// True for the topmost or bottommost empty buffer row — rendered faintly so
+    /// the user perceives "there's room above/below" without cluttering the bar.
+    let isBuffer: Bool
     let tiledWindows: [WorkspaceBarWindowItem]
     let floatingWindows: [WorkspaceBarWindowItem]
 
@@ -66,6 +71,9 @@ struct WorkspaceBarSnapshot: Equatable {
     let barHeight: CGFloat
     let accentColor: SettingsColor?
     let textColor: SettingsColor?
+    /// True when the bar is positioned on a vertical edge (left/right) and should
+    /// stack row chips vertically instead of horizontally.
+    let isVertical: Bool
 
     var items: [WorkspaceBarItem] {
         projection.items
@@ -116,6 +124,9 @@ struct WorkspaceBarMeasurementView: View {
             onFocusWindow: { _ in },
             onActivateScratchpad: {}
         )
+        // For vertical bars: constrain horizontally so fittingSize.width gives us
+        // the needed width of the panel. For horizontal bars: constrain horizontally
+        // so fittingSize.width gives the needed width.
         .fixedSize(horizontal: true, vertical: false)
     }
 }
@@ -168,6 +179,17 @@ private struct WorkspaceBarContentView: View {
     }
 
     var body: some View {
+        if snapshot.isVertical {
+            verticalBody
+        } else {
+            horizontalBody
+        }
+    }
+
+    // MARK: - Horizontal layout (top-edge bar, original)
+
+    @ViewBuilder
+    private var horizontalBody: some View {
         HStack(spacing: workspaceSpacing) {
             ForEach(snapshot.items, id: \.id) { item in
                 WorkspaceItemView(
@@ -216,6 +238,51 @@ private struct WorkspaceBarContentView: View {
             )
         }
     }
+
+    // MARK: - Vertical layout (side-edge indicator, rows stacked top→bottom)
+
+    @ViewBuilder
+    private var verticalBody: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            VStack(spacing: workspaceSpacing) {
+                ForEach(snapshot.items, id: \.id) { item in
+                    WorkspaceItemView(
+                        item: item,
+                        iconSize: iconSize,
+                        itemHeight: itemHeight,
+                        windowSpacing: windowSpacing,
+                        cornerRadius: cornerRadius,
+                        animationsEnabled: effectiveAnimationsEnabled,
+                        showLabels: snapshot.showLabels,
+                        isVertical: true,
+                        accentColor: accentColor,
+                        textColor: textColor,
+                        onFocusWorkspace: { onFocusWorkspace(item) },
+                        onFocusWindow: onFocusWindow
+                    )
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 2)
+            .background {
+                if accessibilityReduceTransparency {
+                    barShape.fill(Color(NSColor.windowBackgroundColor).opacity(0.96))
+                } else {
+                    barShape
+                        .fill(backgroundColor)
+                        .background(.ultraThinMaterial, in: barShape)
+                }
+                barShape.strokeBorder(
+                    colorSchemeContrast == .increased
+                        ? Color.primary.opacity(0.45)
+                        : Color.secondary.opacity(0.18),
+                    lineWidth: colorSchemeContrast == .increased ? 1 : 0.5
+                )
+            }
+            Spacer(minLength: 0)
+        }
+    }
 }
 
 @MainActor
@@ -227,6 +294,7 @@ private struct WorkspaceItemView: View {
     let cornerRadius: CGFloat
     let animationsEnabled: Bool
     let showLabels: Bool
+    var isVertical: Bool = false
     let accentColor: Color?
     let textColor: Color?
     let onFocusWorkspace: () -> Void
@@ -293,7 +361,7 @@ private struct WorkspaceItemView: View {
                 )
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, isVertical ? 4 : 8)
         .padding(.vertical, 2)
         .frame(height: itemHeight)
         .background {
@@ -308,10 +376,14 @@ private struct WorkspaceItemView: View {
                     }
             }
         }
+        // Buffer rows (top/bottom empty sentinels) are shown faintly so the user
+        // can perceive "there's room above/below" without the chip dominating.
+        .opacity(item.isBuffer ? 0.35 : 1.0)
         .onHover { hovering in
             isHovered = hovering
         }
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(item.isBuffer ? "Buffer row \(item.rowIndex)" : "Row \(item.rowIndex)")
     }
 }
 
@@ -339,9 +411,9 @@ private struct WorkspaceLabelButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Workspace \(item.name)")
+        .accessibilityLabel("Row \(item.rowIndex)")
         .accessibilityValue(item.isFocused ? "Focused" : "")
-        .help("Focus workspace \(item.name)")
+        .help("Focus row \(item.rowIndex)")
     }
 }
 
