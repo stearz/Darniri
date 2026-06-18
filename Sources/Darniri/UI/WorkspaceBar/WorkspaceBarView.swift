@@ -302,8 +302,26 @@ private struct WorkspaceItemView: View {
 
     @State private var isHovered = false
 
+    // In the vertical (side-edge) bar the app icons stack top→bottom so the bar
+    // stays narrow; in the horizontal bar they remain side-by-side.
+    private var contentLayout: AnyLayout {
+        isVertical
+            ? AnyLayout(VStackLayout(spacing: windowSpacing))
+            : AnyLayout(HStackLayout(spacing: windowSpacing))
+    }
+
+    // A separator that runs across the stacking axis: vertical line between
+    // horizontal items, horizontal line between vertically stacked items.
+    @ViewBuilder
+    private var separator: some View {
+        Divider()
+            .frame(width: isVertical ? iconSize : nil, height: isVertical ? nil : iconSize)
+            .padding(isVertical ? .vertical : .horizontal, 2)
+            .accessibilityHidden(true)
+    }
+
     var body: some View {
-        HStack(spacing: windowSpacing) {
+        contentLayout {
             if showLabels {
                 WorkspaceLabelButton(
                     item: item,
@@ -313,10 +331,7 @@ private struct WorkspaceItemView: View {
                 )
 
                 if !item.windows.isEmpty {
-                    Divider()
-                        .frame(height: iconSize)
-                        .padding(.horizontal, 2)
-                        .accessibilityHidden(true)
+                    separator
                 }
             } else if item.windows.isEmpty {
                 WorkspaceLabelButton(
@@ -342,10 +357,7 @@ private struct WorkspaceItemView: View {
             }
 
             if !item.tiledWindows.isEmpty && !item.floatingWindows.isEmpty {
-                Divider()
-                    .frame(height: iconSize)
-                    .padding(.horizontal, 2)
-                    .accessibilityHidden(true)
+                separator
             }
 
             if !item.floatingWindows.isEmpty {
@@ -354,6 +366,7 @@ private struct WorkspaceItemView: View {
                     iconSize: iconSize,
                     itemHeight: itemHeight,
                     isInFocusedWorkspace: item.isFocused,
+                    isVertical: isVertical,
                     animationsEnabled: animationsEnabled,
                     accentColor: accentColor,
                     textColor: textColor,
@@ -362,8 +375,9 @@ private struct WorkspaceItemView: View {
             }
         }
         .padding(.horizontal, isVertical ? 4 : 8)
-        .padding(.vertical, 2)
-        .frame(height: itemHeight)
+        .padding(.vertical, isVertical ? 4 : 2)
+        .frame(height: isVertical ? nil : itemHeight)
+        .frame(maxWidth: isVertical ? .infinity : nil)
         .background {
             if item.isFocused || isHovered {
                 RoundedRectangle(cornerRadius: cornerRadius)
@@ -423,6 +437,7 @@ private struct FloatingWindowsGroupView: View {
     let iconSize: CGFloat
     let itemHeight: CGFloat
     let isInFocusedWorkspace: Bool
+    var isVertical: Bool = false
     let animationsEnabled: Bool
     let accentColor: Color?
     let textColor: Color?
@@ -432,8 +447,14 @@ private struct FloatingWindowsGroupView: View {
         textColor ?? .secondary
     }
 
+    private var groupLayout: AnyLayout {
+        isVertical
+            ? AnyLayout(VStackLayout(spacing: 3))
+            : AnyLayout(HStackLayout(spacing: 3))
+    }
+
     var body: some View {
-        HStack(spacing: 3) {
+        groupLayout {
             Image(systemName: "rectangle.on.rectangle")
                 .font(.system(size: max(10, iconSize * 0.58), weight: .medium))
                 .foregroundStyle(resolvedSecondaryTextColor)
@@ -453,8 +474,9 @@ private struct FloatingWindowsGroupView: View {
                 )
             }
         }
-        .padding(.horizontal, 5)
-        .frame(height: max(16, itemHeight - 2))
+        .padding(isVertical ? .vertical : .horizontal, 5)
+        .frame(width: isVertical ? max(16, itemHeight - 2) : nil)
+        .frame(height: isVertical ? nil : max(16, itemHeight - 2))
         .background {
             Capsule(style: .continuous)
                 .fill(.thinMaterial)
