@@ -4,7 +4,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case general
     case niri
     case monitors
-    case workspaces
     case borders
     case bar
     case hotkeys
@@ -18,7 +17,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: "General"
         case .niri: "Niri Layout"
         case .monitors: "Monitors"
-        case .workspaces: "Workspaces"
         case .borders: "Borders"
         case .bar: "Workspace Bar"
         case .hotkeys: "Hotkeys"
@@ -30,7 +28,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .niri: "scroll"
         case .monitors: "display"
-        case .workspaces: "rectangle.3.group"
         case .borders: "square.dashed"
         case .bar: "menubar.rectangle"
         case .hotkeys: "keyboard"
@@ -55,7 +52,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
         case .layouts:
             [.niri, .monitors]
         case .workspace:
-            [.workspaces, .borders, .bar]
+            [.borders, .bar]
         case .input:
             [.hotkeys]
         }

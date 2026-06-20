@@ -44,7 +44,6 @@ enum RefreshReason: String, Sendable {
     case gapsChanged
     case workspaceTransition
     case appActivationTransition
-    case workspaceLayoutToggled
     case appTerminated
     case windowRuleReevaluation
     case layoutCommand
@@ -73,7 +72,6 @@ enum RefreshReason: String, Sendable {
         case .layoutConfigChanged,
              .monitorSettingsChanged,
              .gapsChanged,
-             .workspaceLayoutToggled,
              .windowRuleReevaluation,
              .axWindowCreated,
              .axWindowChanged,
@@ -128,7 +126,6 @@ enum RefreshReason: String, Sendable {
         case .layoutConfigChanged,
              .monitorSettingsChanged,
              .gapsChanged,
-             .workspaceLayoutToggled,
              // Retry of an already-scheduled relayout — no new content delta.
              .staleLayoutPlan,
              // Scroll/drag animation frames — the hot path; membership is unchanged.
@@ -154,7 +151,6 @@ enum RefreshReason: String, Sendable {
              .gapsChanged,
              .workspaceTransition,
              .appActivationTransition,
-             .workspaceLayoutToggled,
              .appTerminated,
              .staleFullRescan,
              .windowRuleReevaluation,

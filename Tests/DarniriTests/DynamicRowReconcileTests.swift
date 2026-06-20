@@ -35,7 +35,7 @@ final class DynamicRowReconcileTests: XCTestCase {
             autosaveEnabled: false
         )
         settings.workspaceConfigurations = [
-            WorkspaceConfiguration(name: "1", monitorAssignment: .main, layoutType: .niri)
+            WorkspaceConfiguration(name: "1", monitorAssignment: .main)
         ]
         return WorkspaceManager(settings: settings)
     }

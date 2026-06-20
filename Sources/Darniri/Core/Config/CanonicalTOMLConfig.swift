@@ -26,7 +26,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var hotkeysEnabled: Bool
         var hyperTrigger: HyperKeyTrigger
         var hyperKeyHoldThresholdMilliseconds: Int
-        var defaultLayoutType: String
         var animationsEnabled: Bool
         var navigationModifier: String
     }
@@ -91,7 +90,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var backgroundOpacity: Double
         var xOffset: Double
         var yOffset: Double
-        var labelFontSize: Double
         var accentColor: Color?
         var textColor: Color?
 
@@ -249,7 +247,6 @@ extension CanonicalTOMLConfig.General {
             default: defaults.hyperKeyHoldThresholdMilliseconds,
             recovering: recovering
         )
-        defaultLayoutType = try container.decode(String.self, forKey: .defaultLayoutType, default: defaults.defaultLayoutType, recovering: recovering)
         animationsEnabled = try container.decode(Bool.self, forKey: .animationsEnabled, default: defaults.animationsEnabled, recovering: recovering)
         navigationModifier = try container.decode(
             String.self,
@@ -406,7 +403,6 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         )
         xOffset = try container.decode(Double.self, forKey: .xOffset, default: defaults.xOffset, recovering: recovering)
         yOffset = try container.decode(Double.self, forKey: .yOffset, default: defaults.yOffset, recovering: recovering)
-        labelFontSize = try container.decode(Double.self, forKey: .labelFontSize, default: defaults.labelFontSize, recovering: recovering)
         do {
             accentColor = try container.decodeIfPresent(Color.self, forKey: .accentColor)
         } catch {
@@ -476,7 +472,6 @@ extension CanonicalTOMLConfig {
             hotkeysEnabled: export.hotkeysEnabled,
             hyperTrigger: export.hyperTrigger,
             hyperKeyHoldThresholdMilliseconds: export.hyperKeyHoldThresholdMilliseconds,
-            defaultLayoutType: export.defaultLayoutType,
             animationsEnabled: export.animationsEnabled,
             navigationModifier: export.navigationModifier
         )
@@ -530,7 +525,6 @@ extension CanonicalTOMLConfig {
             backgroundOpacity: export.workspaceBarBackgroundOpacity,
             xOffset: export.workspaceBarXOffset,
             yOffset: export.workspaceBarYOffset,
-            labelFontSize: export.workspaceBarLabelFontSize,
             accentColor: export.workspaceBarAccentColor.map(WorkspaceBar.Color.init),
             textColor: export.workspaceBarTextColor.map(WorkspaceBar.Color.init)
         )
@@ -576,7 +570,6 @@ extension CanonicalTOMLConfig {
             niriColumnWidthPresets: niri.columnWidthPresets,
             niriDefaultColumnWidth: niri.defaultColumnWidth,
             workspaceConfigurations: workspaces,
-            defaultLayoutType: general.defaultLayoutType,
             bordersEnabled: borders.enabled,
             borderWidth: borders.width,
             borderColorRed: borders.color.red,
@@ -601,7 +594,6 @@ extension CanonicalTOMLConfig {
             workspaceBarYOffset: workspaceBar.yOffset,
             workspaceBarAccentColor: workspaceBar.accentColor?.settingsColor,
             workspaceBarTextColor: workspaceBar.textColor?.settingsColor,
-            workspaceBarLabelFontSize: workspaceBar.labelFontSize,
             monitorBarSettings: monitorBarOverrides,
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationOverrides,

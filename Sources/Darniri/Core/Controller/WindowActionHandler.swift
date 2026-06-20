@@ -524,15 +524,6 @@ final class WindowActionHandler {
         }
     }
 
-    private func layoutType(for workspaceId: WorkspaceDescriptor.ID) -> LayoutType {
-        guard let controller,
-              let workspaceName = controller.workspaceManager.descriptor(for: workspaceId)?.name
-        else {
-            return .defaultLayout
-        }
-        return controller.settings.layoutType(for: workspaceName)
-    }
-
     @discardableResult
     func focusWorkspaceFromBar(named name: String) -> Bool {
         guard let controller else { return false }
@@ -559,29 +550,4 @@ final class WindowActionHandler {
         return navigateToWindowInternal(token: token, workspaceId: entry.workspaceId)
     }
 
-    func runningAppsWithWindows() -> [RunningAppInfo] {
-        guard let controller else { return [] }
-        var appInfoMap: [String: RunningAppInfo] = [:]
-
-        for entry in controller.workspaceManager.allEntries() {
-            guard entry.layoutReason == .standard else { continue }
-
-            let cachedInfo = controller.appInfoCache.info(for: entry.handle.pid)
-            guard let bundleId = cachedInfo?.bundleId else { continue }
-
-            if appInfoMap[bundleId] != nil { continue }
-
-            let frame = (AXWindowService.framePreferFast(entry.axRef)) ?? .zero
-
-            appInfoMap[bundleId] = RunningAppInfo(
-                id: bundleId,
-                bundleId: bundleId,
-                appName: cachedInfo?.name ?? "Unknown",
-                icon: cachedInfo?.icon,
-                windowSize: frame.size
-            )
-        }
-
-        return appInfoMap.values.sorted { $0.appName < $1.appName }
-    }
 }

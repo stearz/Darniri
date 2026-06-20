@@ -1372,11 +1372,7 @@ final class MouseEventHandler {
             return nil
         }
 
-        switch controller.settings.layoutType(for: workspace.name) {
-        case .niri,
-             .defaultLayout:
-            return (engine, workspace.id, monitor)
-        }
+        return (engine, workspace.id, monitor)
     }
 
     private func resetGestureState() {

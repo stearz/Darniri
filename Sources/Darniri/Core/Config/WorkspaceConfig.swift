@@ -1,21 +1,5 @@
 import Foundation
 
-enum LayoutType: String, Codable, CaseIterable, Identifiable {
-    case defaultLayout = "default"
-    case niri
-
-    var id: String {
-        rawValue
-    }
-
-    var displayName: String {
-        switch self {
-        case .defaultLayout: "Default"
-        case .niri: "Niri (Scrolling)"
-        }
-    }
-}
-
 enum MonitorAssignment: Equatable, Hashable {
     case main
     case secondary
@@ -78,7 +62,6 @@ struct WorkspaceConfiguration: Codable, Identifiable, Equatable {
     var name: String
     var displayName: String?
     var monitorAssignment: MonitorAssignment
-    var layoutType: LayoutType
 
     var effectiveDisplayName: String {
         displayName.flatMap { $0.isEmpty ? nil : $0 } ?? name
@@ -88,20 +71,35 @@ struct WorkspaceConfiguration: Codable, Identifiable, Equatable {
         id: UUID = UUID(),
         name: String,
         displayName: String? = nil,
-        monitorAssignment: MonitorAssignment = .main,
-        layoutType: LayoutType = .defaultLayout
+        monitorAssignment: MonitorAssignment = .main
     ) {
         self.id = id
         self.name = name
         self.displayName = displayName
         self.monitorAssignment = monitorAssignment
-        self.layoutType = layoutType
     }
 
-    func with(layoutType: LayoutType) -> WorkspaceConfiguration {
-        var copy = self
-        copy.layoutType = layoutType
-        return copy
+    private enum CodingKeys: String, CodingKey {
+        case id, name, displayName, monitorAssignment
+    }
+
+    // Hand-authored entries only need `name`. A missing `id` is generated so
+    // users never have to mint UUIDs themselves, and `monitorAssignment`
+    // defaults to the main display when omitted.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        monitorAssignment = try container.decodeIfPresent(MonitorAssignment.self, forKey: .monitorAssignment) ?? .main
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encode(monitorAssignment, forKey: .monitorAssignment)
     }
 
     var sortOrder: Int {

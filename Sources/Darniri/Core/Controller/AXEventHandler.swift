@@ -1406,10 +1406,6 @@ final class AXEventHandler: CGSEventDelegate {
         clearManagedFocusState(matching: token, workspaceId: affectedWorkspaceId)
         controller.nativeFullscreenPlaceholderManager.remove(token)
 
-        let layoutType = affectedWorkspaceId
-            .flatMap { controller.workspaceManager.descriptor(for: $0)?.name }
-            .map { controller.settings.layoutType(for: $0) } ?? .defaultLayout
-
         if let entry,
            let wsId = affectedWorkspaceId,
            let monitor = controller.workspaceManager.monitor(for: wsId),
@@ -1445,7 +1441,6 @@ final class AXEventHandler: CGSEventDelegate {
         if let wsId = affectedWorkspaceId {
             controller.layoutRefreshController.requestWindowRemoval(
                 workspaceId: wsId,
-                layoutType: layoutType,
                 removedNodeId: removedNodeId,
                 niriOldFrames: oldFrames,
                 shouldRecoverFocus: shouldRecoverFocus,
@@ -1539,14 +1534,9 @@ final class AXEventHandler: CGSEventDelegate {
               let focusedEntry = controller.workspaceManager.entry(for: focusedToken),
               focusedEntry.mode == .tiling,
               controller.niriEngine?.findNode(for: focusedToken) != nil,
-              let focusedWorkspace = controller.workspaceManager.descriptor(for: focusedEntry.workspaceId)
+              controller.workspaceManager.descriptor(for: focusedEntry.workspaceId) != nil
         else {
             return false
-        }
-        switch controller.settings.layoutType(for: focusedWorkspace.name) {
-        case .niri,
-             .defaultLayout:
-            break
         }
 
         deferSameAppCloseProbe(

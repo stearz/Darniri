@@ -30,7 +30,6 @@ struct SettingsExport: Equatable {
     var niriDefaultColumnWidth: Double?
 
     var workspaceConfigurations: [WorkspaceConfiguration]
-    var defaultLayoutType: String
 
     var bordersEnabled: Bool
     var borderWidth: Double
@@ -58,7 +57,6 @@ struct SettingsExport: Equatable {
     var workspaceBarYOffset: Double
     var workspaceBarAccentColor: SettingsColor?
     var workspaceBarTextColor: SettingsColor?
-    var workspaceBarLabelFontSize: Double
     var monitorBarSettings: [MonitorBarSettings]
 
     var appRules: [AppRule]
@@ -81,8 +79,6 @@ struct SettingsExport: Equatable {
     /// The modifier key used for Darniri's focus/move hotkeys (see `NavigationModifier`).
     /// Stored as raw string so the type stays in the Input module.
     var navigationModifier: String
-
-    var capabilityOverrides: [WindowCapabilityProfileTOMLOverride] = []
 }
 
 // MARK: - Defaults & Diffing
@@ -108,7 +104,6 @@ extension SettingsExport {
             niriColumnWidthPresets: BuiltInSettingsDefaults.niriColumnWidthPresets,
             niriDefaultColumnWidth: 0.5,
             workspaceConfigurations: BuiltInSettingsDefaults.workspaceConfigurations,
-            defaultLayoutType: LayoutType.niri.rawValue,
             bordersEnabled: true,
             borderWidth: 2.0,
             borderColorRed: 0.084585202284378935,
@@ -125,7 +120,7 @@ extension SettingsExport {
             workspaceBarPosition: WorkspaceBarPosition.overlappingMenuBar.rawValue,
             workspaceBarNotchAware: true,
             workspaceBarDeduplicateAppIcons: false,
-            workspaceBarHideEmptyWorkspaces: false,
+            workspaceBarHideEmptyWorkspaces: true,
             workspaceBarReserveLayoutSpace: false,
             workspaceBarHeight: 24.0,
             workspaceBarBackgroundOpacity: 0.1,
@@ -133,7 +128,6 @@ extension SettingsExport {
             workspaceBarYOffset: 0.0,
             workspaceBarAccentColor: nil,
             workspaceBarTextColor: nil,
-            workspaceBarLabelFontSize: 12,
             monitorBarSettings: [],
             appRules: BuiltInSettingsDefaults.appRules,
             monitorOrientationSettings: [],
@@ -149,8 +143,7 @@ extension SettingsExport {
             statusBarUseWorkspaceId: false,
             animationsEnabled: true,
             appearanceMode: AppearanceMode.dark.rawValue,
-            navigationModifier: NavigationModifier.control.rawValue,
-            capabilityOverrides: []
+            navigationModifier: NavigationModifier.control.rawValue
         )
     }
 }

@@ -29,11 +29,15 @@ enum NiriAxisSolver {
         guard !windows.isEmpty else { return [] }
 
         if isTabbed {
-            let usableSpace = max(0, availableSpace - gapSize * 2)
-            return solveTabbed(windows: windows, availableSpace: usableSpace)
+            // The tabbed stack fills the container flush; edge spacing is handled
+            // by the outer gaps already baked into `availableSpace`.
+            return solveTabbed(windows: windows, availableSpace: max(0, availableSpace))
         }
 
-        let totalGaps = gapSize * CGFloat(windows.count + 1)
+        // Inner gaps sit only *between* windows (count - 1), never at the leading
+        // or trailing edge — the container is already inset by the outer gaps, so
+        // adding an inner gap at the edges would double up against the screen edge.
+        let totalGaps = gapSize * CGFloat(max(0, windows.count - 1))
         let usableSpace = max(0, availableSpace - totalGaps)
         let epsilon: CGFloat = 0.001
         let minConstraints = windows.map { sanitizedMinimum($0.minConstraint) }

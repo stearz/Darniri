@@ -386,9 +386,13 @@ final class CommandHandler {
     private func focusWindowOrWorkspaceInNiri(direction: Direction) {
         guard direction == .down || direction == .up else { return }
         executeCombinedNavigation(onNoTarget: { [weak self] in
+            // Only cross into the adjacent workspace if it actually has windows.
+            // If there is no next window and the neighbour is a blank/spare row,
+            // stay put on the currently focused window.
             self?.controller?.workspaceNavigationHandler.switchWorkspaceRelative(
                 isNext: direction == .down,
-                wrapAround: false
+                wrapAround: false,
+                requireOccupied: true
             )
         }) { engine, currentNode, wsId, motion, state, workingFrame, gaps in
             engine.focusTarget(
@@ -653,22 +657,5 @@ final class CommandHandler {
                 }
             }
         }
-    }
-
-    @discardableResult
-    func setWorkspaceLayout(_ newLayout: LayoutType, forWorkspaceNamed workspaceName: String? = nil) -> Bool {
-        guard let controller else { return false }
-        let resolvedWorkspaceName = workspaceName ?? controller.activeWorkspace()?.name
-        guard let resolvedWorkspaceName else { return false }
-
-        var configs = controller.settings.workspaceConfigurations
-        guard let index = configs.firstIndex(where: { $0.name == resolvedWorkspaceName }) else { return false }
-
-        guard configs[index].layoutType != newLayout else { return false }
-
-        configs[index] = configs[index].with(layoutType: newLayout)
-        controller.settings.workspaceConfigurations = configs
-        controller.layoutRefreshController.requestRelayout(reason: .workspaceLayoutToggled)
-        return true
     }
 }

@@ -22,7 +22,6 @@ import QuartzCore
 
     struct WindowRemovalPayload {
         var workspaceId: WorkspaceDescriptor.ID
-        let layoutType: LayoutType
         let removedNodeId: NodeId?
         let niriOldFrames: [WindowToken: CGRect]
         let shouldRecoverFocus: Bool
@@ -380,22 +379,16 @@ import QuartzCore
             let wsId = workspace.id
             guard workspaceIds.contains(wsId) else { continue }
 
-            let layoutType = controller.settings.layoutType(for: workspace.name)
+            guard let engine = controller.niriEngine else { continue }
+            let state = controller.workspaceManager.niriViewportState(for: wsId)
 
-            switch layoutType {
-            case .niri,
-                 .defaultLayout:
-                guard let engine = controller.niriEngine else { continue }
-                let state = controller.workspaceManager.niriViewportState(for: wsId)
-
-                niriHandler.applyFramesOnDemand(
-                    wsId: wsId,
-                    state: state,
-                    engine: engine,
-                    monitor: monitor,
-                    animationTime: nil
-                )
-            }
+            niriHandler.applyFramesOnDemand(
+                wsId: wsId,
+                state: state,
+                engine: engine,
+                monitor: monitor,
+                animationTime: nil
+            )
         }
 
         let preferredSides = preferredHideSides(for: controller.workspaceManager.monitors)
@@ -858,7 +851,6 @@ import QuartzCore
 
     func requestWindowRemoval(
         workspaceId: WorkspaceDescriptor.ID,
-        layoutType: LayoutType,
         removedNodeId: NodeId?,
         niriOldFrames: [WindowToken: CGRect],
         shouldRecoverFocus: Bool,
@@ -873,7 +865,6 @@ import QuartzCore
                 postLayout: makePostLayoutAction(postLayout, workspaceIds: [workspaceId]),
                 windowRemovalPayload: .init(
                     workspaceId: workspaceId,
-                    layoutType: layoutType,
                     removedNodeId: removedNodeId,
                     niriOldFrames: niriOldFrames,
                     shouldRecoverFocus: shouldRecoverFocus,
@@ -1172,7 +1163,7 @@ import QuartzCore
         if !affectedWorkspaceIds.isEmpty, layoutWorkspaceIds.isEmpty {
             return .init()
         }
-        let niriWorkspaces = partitionWorkspacesByLayoutType(layoutWorkspaceIds)
+        let niriWorkspaces = layoutWorkspaceIds
         var workspacePlans: [WorkspaceLayoutPlan] = []
         workspacePlans.reserveCapacity(niriWorkspaces.count)
 
@@ -1588,7 +1579,7 @@ import QuartzCore
         try Task.checkCancellation()
 
         let activeWorkspaceIds = currentActiveWorkspaceIds()
-        let niriWorkspaces = partitionWorkspacesByLayoutType(activeWorkspaceIds)
+        let niriWorkspaces = activeWorkspaceIds
         var workspacePlans: [WorkspaceLayoutPlan] = []
         workspacePlans.reserveCapacity(niriWorkspaces.count)
 
@@ -1729,23 +1720,6 @@ import QuartzCore
             frame.intersects(monitor.visibleFrame)
                 && monitor.visibleFrame.contains(CGPoint(x: frame.midX, y: frame.midY))
         }
-    }
-
-    private func partitionWorkspacesByLayoutType(
-        _ workspaces: Set<WorkspaceDescriptor.ID>
-    ) -> Set<WorkspaceDescriptor.ID> {
-        guard let controller else { return [] }
-
-        var niriWorkspaces: Set<WorkspaceDescriptor.ID> = []
-
-        for wsId in workspaces {
-            guard controller.workspaceManager.descriptor(for: wsId) != nil else {
-                continue
-            }
-            niriWorkspaces.insert(wsId)
-        }
-
-        return niriWorkspaces
     }
 
     private func liveLayoutWorkspaceIds(

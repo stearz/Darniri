@@ -138,19 +138,6 @@ final class StatusBarMenuBuilder {
     }
 
     private func addSettingsSection(to menu: NSMenu) {
-        let appRulesRow = MenuActionRowView(
-            icon: "slider.horizontal.3",
-            label: "App Rules",
-            showChevron: true,
-            motionPolicy: motionPolicy
-        ) { [weak self] in
-            guard let self, let controller = self.controller else { return }
-            AppRulesWindowController.shared.show(settings: self.settings, controller: controller)
-        }
-        let appRulesItem = NSMenuItem()
-        appRulesItem.view = appRulesRow
-        menu.addItem(appRulesItem)
-
         let settingsRow = MenuActionRowView(
             icon: "gearshape",
             label: "Settings",

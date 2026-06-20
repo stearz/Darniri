@@ -92,25 +92,6 @@ extension WindowCapabilityResolutionSource {
     }
 }
 
-struct WindowCapabilityProfileTOMLOverride: Codable, Equatable, Sendable {
-    var bundleId: String
-    var frameWrite: WindowCapabilityProfile.FrameWriteReliability?
-    var focusActivation: WindowCapabilityProfile.FocusActivationBehavior?
-    var nfrReplacement: WindowCapabilityProfile.NativeFullscreenReplacement?
-    var transient: WindowCapabilityProfile.TransientTreatment?
-    var restore: WindowCapabilityProfile.RestoreHandling?
-
-    func merged(onTopOf base: WindowCapabilityProfile) -> WindowCapabilityProfile {
-        WindowCapabilityProfile(
-            frameWrite: frameWrite ?? base.frameWrite,
-            focusActivation: focusActivation ?? base.focusActivation,
-            nfrReplacement: nfrReplacement ?? base.nfrReplacement,
-            transient: transient ?? base.transient,
-            restore: restore ?? base.restore
-        )
-    }
-}
-
 extension WindowCapabilityProfile.FrameWriteReliability: Codable {}
 extension WindowCapabilityProfile.FocusActivationBehavior: Codable {}
 extension WindowCapabilityProfile.NativeFullscreenReplacement: Codable {}

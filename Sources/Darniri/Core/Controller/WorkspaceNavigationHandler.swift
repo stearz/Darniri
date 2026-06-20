@@ -285,9 +285,13 @@ final class WorkspaceNavigationHandler {
         )
     }
 
-    func switchWorkspaceRelative(isNext: Bool, wrapAround: Bool = false) {
+    /// Switch to the adjacent workspace in stack order.
+    ///
+    /// When `requireOccupied` is true, the switch is suppressed if the adjacent
+    /// workspace is empty (e.g. a blank/spare buffer row). This keeps focus on the
+    /// current window rather than jumping into an empty workspace.
+    func switchWorkspaceRelative(isNext: Bool, wrapAround: Bool = false, requireOccupied: Bool = false) {
         guard let controller else { return }
-        controller.focusBorderController.hide()
 
         guard let currentMonitorId = interactionMonitorId(for: controller)
         else { return }
@@ -308,6 +312,14 @@ final class WorkspaceNavigationHandler {
         }
 
         guard let targetWorkspace else { return }
+
+        if requireOccupied, controller.workspaceManager.entries(in: targetWorkspace.id).isEmpty {
+            return
+        }
+
+        // Only hide the focus border once we're committed to actually switching —
+        // doing it earlier would clear the glow even when we stay put.
+        controller.focusBorderController.hide()
 
         saveNiriViewportState(for: currentWorkspace.id)
         guard controller.workspaceManager.setActiveWorkspace(targetWorkspace.id, on: currentMonitorId) else {

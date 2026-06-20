@@ -725,11 +725,13 @@ extension NiriLayoutEngine {
         let windowRenderOffsets = windows.map { $0.renderOffset(at: time) }
         let windowTokens = windows.map { $0.token }
 
+        // Start flush at the container edge — the container is already inset by the
+        // outer gaps. Inner gaps are added only between windows (see below), never
+        // as a leading gap at the top/left edge.
         var pos: CGFloat = switch orientation {
         case .horizontal: contentRect.origin.y
         case .vertical: contentRect.origin.x
         }
-        pos += secondaryGap
 
         for i in 0 ..< windows.count {
             let span = resolvedSpans[i]

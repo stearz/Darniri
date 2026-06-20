@@ -101,12 +101,6 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var defaultLayoutType = LayoutType(
-        rawValue: SettingsStore.defaultExport.defaultLayoutType
-    ) ?? .niri {
-        didSet { scheduleSave() }
-    }
-
     var bordersEnabled = SettingsStore.defaultExport.bordersEnabled {
         didSet { scheduleSave() }
     }
@@ -351,7 +345,6 @@ final class SettingsStore {
             niriColumnWidthPresets: niriColumnWidthPresets,
             niriDefaultColumnWidth: niriDefaultColumnWidth,
             workspaceConfigurations: workspaceConfigurations,
-            defaultLayoutType: defaultLayoutType.rawValue,
             bordersEnabled: bordersEnabled,
             borderWidth: borderWidth,
             borderColorRed: borderColorRed,
@@ -376,7 +369,6 @@ final class SettingsStore {
             workspaceBarYOffset: workspaceBarYOffset,
             workspaceBarAccentColor: workspaceBarAccentColor,
             workspaceBarTextColor: workspaceBarTextColor,
-            workspaceBarLabelFontSize: 12,
             monitorBarSettings: monitorBarSettings,
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationSettings,
@@ -392,8 +384,7 @@ final class SettingsStore {
             statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             animationsEnabled: animationsEnabled,
             appearanceMode: appearanceMode.rawValue,
-            navigationModifier: navigationModifier.rawValue,
-            capabilityOverrides: []
+            navigationModifier: navigationModifier.rawValue
         )
     }
 
@@ -427,7 +418,6 @@ final class SettingsStore {
             export.workspaceConfigurations,
             monitors: monitors
         )
-        defaultLayoutType = LayoutType(rawValue: export.defaultLayoutType) ?? .niri
 
         bordersEnabled = export.bordersEnabled
         borderWidth = export.borderWidth
@@ -557,16 +547,6 @@ final class SettingsStore {
 
     func configuredWorkspaceNames() -> [String] {
         workspaceConfigurations.map(\.name)
-    }
-
-    func layoutType(for workspaceName: String) -> LayoutType {
-        if let config = workspaceConfigurations.first(where: { $0.name == workspaceName }) {
-            if config.layoutType == .defaultLayout {
-                return defaultLayoutType
-            }
-            return config.layoutType
-        }
-        return defaultLayoutType
     }
 
     func displayName(for workspaceName: String) -> String {

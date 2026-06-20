@@ -24,6 +24,28 @@ struct GeneralSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
 
+    private var outerGapsAreUniform: Bool {
+        let value = settings.outerGapLeft
+        return settings.outerGapRight == value
+            && settings.outerGapTop == value
+            && settings.outerGapBottom == value
+    }
+
+    /// Drives all four outer margins from a single control. Reads the top margin
+    /// as the representative value; writing applies the value to every side.
+    private var uniformOuterGap: Binding<Double> {
+        Binding(
+            get: { settings.outerGapTop },
+            set: { newValue in
+                settings.outerGapLeft = newValue
+                settings.outerGapRight = newValue
+                settings.outerGapTop = newValue
+                settings.outerGapBottom = newValue
+                syncOuterGaps()
+            }
+        )
+    }
+
     var body: some View {
         let animationsEnabled = Binding(
             get: { controller.motionPolicy.animationsEnabled },
@@ -78,57 +100,16 @@ struct GeneralSettingsTab: View {
                     controller.setGapSize(newValue)
                 }
 
-                Text("Outer Margins")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
                 SettingsSliderRow(
-                    label: "Left",
-                    value: $settings.outerGapLeft,
+                    label: "Outer Margins",
+                    value: uniformOuterGap,
                     range: 0 ... 64,
                     step: 1,
-                    valueText: "\(Int(settings.outerGapLeft)) px",
+                    valueText: outerGapsAreUniform ? "\(Int(settings.outerGapTop)) px" : "Mixed",
                     valueWidth: 64
                 )
-                .onChange(of: settings.outerGapLeft) { _, _ in
-                    syncOuterGaps()
-                }
 
-                SettingsSliderRow(
-                    label: "Right",
-                    value: $settings.outerGapRight,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapRight)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapRight) { _, _ in
-                    syncOuterGaps()
-                }
-
-                SettingsSliderRow(
-                    label: "Top",
-                    value: $settings.outerGapTop,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapTop)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapTop) { _, _ in
-                    syncOuterGaps()
-                }
-
-                SettingsSliderRow(
-                    label: "Bottom",
-                    value: $settings.outerGapBottom,
-                    range: 0 ... 64,
-                    step: 1,
-                    valueText: "\(Int(settings.outerGapBottom)) px",
-                    valueWidth: 64
-                )
-                .onChange(of: settings.outerGapBottom) { _, _ in
-                    syncOuterGaps()
-                }
+                SettingsCaption("Applies to all screen edges. Set a different margin per side by editing the configuration file.")
             }
 
             Section("Scroll Gestures") {
@@ -172,6 +153,14 @@ struct GeneralSettingsTab: View {
                 }
 
                 SettingsCaption("Hold this modifier combo + right mouse drag to resize tiled windows")
+            }
+
+            Section("Configuration File") {
+                Button("Open Configuration File") {
+                    _ = try? SettingsFileWorkflow.perform(.open, settings: settings)
+                }
+
+                SettingsCaption("Advanced options not shown here — such as per-side outer margins — can be set by editing the configuration file directly. Changes are picked up automatically.")
             }
         }
         .formStyle(.grouped)

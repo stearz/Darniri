@@ -2473,9 +2473,6 @@ final class WMController {
         focusWindow(nextFocusToken)
     }
 
-    func runningAppsWithWindows() -> [RunningAppInfo] {
-        windowActionHandler.runningAppsWithWindows()
-    }
 }
 
 extension WMController {

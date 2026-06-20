@@ -113,16 +113,16 @@ enum WorkspaceBarDataSource {
             return !last.snapshot.hasBarOccupancy
         }()
 
-        // Apply hideEmptyWorkspaces: hide non-buffer empty rows.
-        // Buffer rows are never hidden — we always show them faintly so the user
-        // perceives "there's room above/below".
+        // Apply hideEmptyWorkspaces: hide every empty row, including the faint
+        // top/bottom buffer rows. When the option is off, buffer rows are still
+        // shown faintly so the user perceives "there's room above/below".
         let filteredSnapshots: [(snapshot: WorkspaceSnapshot, rowIndex: Int, isBuffer: Bool)]
         filteredSnapshots = allSnapshots.enumerated().compactMap { enumIndex, pair in
             let isTopBuffer = topIsBuffer && enumIndex == 0
             let isBottomBuffer = bottomIsBuffer && enumIndex == allSnapshots.count - 1
             let isBuf = isTopBuffer || isBottomBuffer
 
-            if options.hideEmptyWorkspaces, !pair.snapshot.hasBarOccupancy, !isBuf {
+            if options.hideEmptyWorkspaces, !pair.snapshot.hasBarOccupancy {
                 return nil
             }
             return (pair.snapshot, pair.rowIndex, isBuf)
