@@ -67,6 +67,23 @@ enum NavigationModifier: String, CaseIterable {
     case option
 }
 
+/// The keymap used for directional navigation hotkeys.  `.arrows` uses the arrow
+/// keys; `.vim` swaps only the arrow keycodes for h/j/k/l while preserving each
+/// binding's modifiers and Darniri (hyper) usage.
+enum HotkeyKeymap: String, CaseIterable, Identifiable, Codable, Sendable {
+    case arrows
+    case vim
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .arrows: "Arrows"
+        case .vim: "Vim (hjkl)"
+        }
+    }
+}
+
 // MARK: - Controller
 
 /// Manages the disable/restore lifecycle of the conflicting macOS symbolic hotkeys.

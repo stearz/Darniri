@@ -117,13 +117,50 @@ enum ActionCatalog {
         }
     }
 
+    /// Maps an arrow keycode to its Vim (hjkl) equivalent, or nil if `keyCode` is
+    /// not one of the four arrow keys.
+    private static func vimKeyCode(forArrow keyCode: UInt32) -> UInt32? {
+        switch keyCode {
+        case UInt32(kVK_LeftArrow): UInt32(kVK_ANSI_H)
+        case UInt32(kVK_DownArrow): UInt32(kVK_ANSI_J)
+        case UInt32(kVK_UpArrow): UInt32(kVK_ANSI_K)
+        case UInt32(kVK_RightArrow): UInt32(kVK_ANSI_L)
+        default: nil
+        }
+    }
+
+    /// Returns the raw navigation KeyBindings for `modifier`, with the keycodes
+    /// remapped according to `keymap`.  The Vim keymap swaps ONLY the arrow keycode
+    /// for hjkl, preserving each binding's modifiers and usesHyper.
+    static func navigationBindings(
+        for modifier: NavigationModifier,
+        keymap: HotkeyKeymap
+    ) -> [String: KeyBinding] {
+        let raw = navigationRawBindings(for: modifier)
+        guard keymap == .vim else { return raw }
+        return raw.mapValues { binding in
+            guard let vimCode = vimKeyCode(forArrow: binding.keyCode) else { return binding }
+            return KeyBinding(keyCode: vimCode, modifiers: binding.modifiers, usesHyper: binding.usesHyper)
+        }
+    }
+
     /// The full default binding list, with navigation defaults derived from `modifier`.
     /// When `modifier == .control` the output is byte-identical to `defaultHotkeyBindings()`.
     static func defaultHotkeyBindings(modifier: NavigationModifier) -> [HotkeyBinding] {
-        guard modifier != .control else {
+        defaultHotkeyBindings(modifier: modifier, keymap: .arrows)
+    }
+
+    /// The full default binding list, with navigation defaults derived from `modifier`
+    /// and `keymap`.  When `modifier == .control && keymap == .arrows` the output is
+    /// byte-identical to `defaultHotkeyBindings()`.
+    static func defaultHotkeyBindings(
+        modifier: NavigationModifier,
+        keymap: HotkeyKeymap
+    ) -> [HotkeyBinding] {
+        guard !(modifier == .control && keymap == .arrows) else {
             return defaultHotkeyBindings()
         }
-        let raw = navigationRawBindings(for: modifier)
+        let raw = navigationBindings(for: modifier, keymap: keymap)
         return specs.map { spec in
             if let rawBinding = raw[spec.id] {
                 return HotkeyBinding(

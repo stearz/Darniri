@@ -12,7 +12,6 @@ final class StatusBarMenuBuilder {
     private let settings: SettingsStore
     private let motionPolicy: MotionPolicy
     private weak var controller: WMController?
-    var settingsFileActionPerformer: (SettingsFileAction, SettingsStore) throws -> SettingsFileStatus
     private var toggleViews: [String: MenuToggleRowView] = [:]
     var isUpdateAvailable = false
     var onRestartRequested: (() -> Void)?
@@ -21,12 +20,6 @@ final class StatusBarMenuBuilder {
         self.settings = settings
         motionPolicy = controller.motionPolicy
         self.controller = controller
-        settingsFileActionPerformer = { action, settings in
-            try SettingsFileWorkflow.perform(
-                action,
-                settings: settings
-            )
-        }
     }
 
     func buildMenu() -> NSMenu {
@@ -153,41 +146,6 @@ final class StatusBarMenuBuilder {
         let settingsItem = NSMenuItem()
         settingsItem.view = settingsRow
         menu.addItem(settingsItem)
-
-        menu.addItem(createSectionLabel("SETTINGS FILE"))
-
-        let revealSettingsFileRow = MenuActionRowView(
-            icon: "folder",
-            label: "Reveal Settings File",
-            motionPolicy: motionPolicy
-        ) { [weak self] in
-            self?.performSettingsFileAction(.reveal)
-        }
-        let revealSettingsFileItem = NSMenuItem()
-        revealSettingsFileItem.view = revealSettingsFileRow
-        menu.addItem(revealSettingsFileItem)
-
-        let openSettingsFileRow = MenuActionRowView(
-            icon: "pencil",
-            label: "Edit Settings File",
-            motionPolicy: motionPolicy
-        ) { [weak self] in
-            self?.performSettingsFileAction(.open)
-        }
-        let openSettingsFileItem = NSMenuItem()
-        openSettingsFileItem.view = openSettingsFileRow
-        menu.addItem(openSettingsFileItem)
-    }
-
-    func performSettingsFileAction(_ action: SettingsFileAction) {
-        do {
-            _ = try settingsFileActionPerformer(
-                action,
-                settings
-            )
-        } catch {
-            NSLog("Darniri settings file action failed: \(error.localizedDescription)")
-        }
     }
 
     private func addQuitSection(to menu: NSMenu) {

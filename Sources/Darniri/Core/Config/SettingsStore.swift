@@ -217,45 +217,9 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
-    var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
-        didSet { scheduleSave() }
-    }
-
-    var scrollSensitivity = SettingsStore.defaultExport.scrollSensitivity {
-        didSet { scheduleSave() }
-    }
-
-    var scrollModifierKey = ScrollModifierKey(
-        rawValue: SettingsStore.defaultExport.scrollModifierKey
-    ) ?? .optionShift {
-        didSet { scheduleSave() }
-    }
-
     var mouseResizeModifierKey = MouseResizeModifierKey(
         rawValue: SettingsStore.defaultExport.mouseResizeModifierKey
     ) ?? .option {
-        didSet { scheduleSave() }
-    }
-
-    var gestureFingerCount = GestureFingerCount(
-        rawValue: SettingsStore.defaultExport.gestureFingerCount
-    ) ?? .three {
-        didSet { scheduleSave() }
-    }
-
-    var gestureInvertDirection = SettingsStore.defaultExport.gestureInvertDirection {
-        didSet { scheduleSave() }
-    }
-
-    var statusBarShowWorkspaceName = SettingsStore.defaultExport.statusBarShowWorkspaceName {
-        didSet { scheduleSave() }
-    }
-
-    var statusBarShowAppNames = SettingsStore.defaultExport.statusBarShowAppNames {
-        didSet { scheduleSave() }
-    }
-
-    var statusBarUseWorkspaceId = SettingsStore.defaultExport.statusBarUseWorkspaceId {
         didSet { scheduleSave() }
     }
 
@@ -276,6 +240,12 @@ final class SettingsStore {
     var navigationModifier = NavigationModifier(
         rawValue: SettingsStore.defaultExport.navigationModifier
     ) ?? .control {
+        didSet { scheduleSave() }
+    }
+
+    var hotkeyKeymap = HotkeyKeymap(
+        rawValue: SettingsStore.defaultExport.hotkeyKeymap
+    ) ?? .arrows {
         didSet { scheduleSave() }
     }
 
@@ -373,18 +343,11 @@ final class SettingsStore {
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationSettings,
             monitorNiriSettings: monitorNiriSettings,
-            scrollGestureEnabled: scrollGestureEnabled,
-            scrollSensitivity: scrollSensitivity,
-            scrollModifierKey: scrollModifierKey.rawValue,
             mouseResizeModifierKey: mouseResizeModifierKey.rawValue,
-            gestureFingerCount: gestureFingerCount.rawValue,
-            gestureInvertDirection: gestureInvertDirection,
-            statusBarShowWorkspaceName: statusBarShowWorkspaceName,
-            statusBarShowAppNames: statusBarShowAppNames,
-            statusBarUseWorkspaceId: statusBarUseWorkspaceId,
             animationsEnabled: animationsEnabled,
             appearanceMode: appearanceMode.rawValue,
-            navigationModifier: navigationModifier.rawValue
+            navigationModifier: navigationModifier.rawValue,
+            hotkeyKeymap: hotkeyKeymap.rawValue
         )
     }
 
@@ -454,19 +417,12 @@ final class SettingsStore {
         )
         monitorNiriSettings = SettingsStore.reboundMonitorSettings(export.monitorNiriSettings, monitors: monitors)
 
-        scrollGestureEnabled = export.scrollGestureEnabled
-        scrollSensitivity = export.scrollSensitivity
-        scrollModifierKey = ScrollModifierKey(rawValue: export.scrollModifierKey) ?? .optionShift
         mouseResizeModifierKey = MouseResizeModifierKey(rawValue: export.mouseResizeModifierKey) ?? .option
-        gestureFingerCount = GestureFingerCount(rawValue: export.gestureFingerCount) ?? .three
-        gestureInvertDirection = export.gestureInvertDirection
-        statusBarShowWorkspaceName = export.statusBarShowWorkspaceName
-        statusBarShowAppNames = export.statusBarShowAppNames
-        statusBarUseWorkspaceId = export.statusBarUseWorkspaceId
         animationsEnabled = export.animationsEnabled
 
         appearanceMode = AppearanceMode(rawValue: export.appearanceMode) ?? .dark
         navigationModifier = NavigationModifier(rawValue: export.navigationModifier) ?? .control
+        hotkeyKeymap = HotkeyKeymap(rawValue: export.hotkeyKeymap) ?? .arrows
     }
 
     private func handleExternalReload(_ export: SettingsExport) {

@@ -51,15 +51,6 @@ enum Direction: String, Codable {
     }
 }
 
-extension ScrollModifierKey {
-    var cgEventFlag: CGEventFlags {
-        switch self {
-        case .optionShift: [.maskAlternate, .maskShift]
-        case .controlShift: [.maskControl, .maskShift]
-        }
-    }
-}
-
 extension MouseResizeModifierKey {
     var cgEventFlag: CGEventFlags {
         switch self {

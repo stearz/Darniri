@@ -40,13 +40,6 @@ struct WindowFocusOperations {
 
 @MainActor @Observable
 final class WMController {
-    struct StatusBarWorkspaceSummary: Equatable {
-        let monitorId: Monitor.ID
-        let workspaceLabel: String
-        let workspaceRawName: String
-        let focusedAppName: String?
-    }
-
     struct WindowDecisionEvaluation {
         let token: WindowToken
         let facts: WindowRuleFacts
@@ -195,7 +188,11 @@ final class WMController {
         // hotkey state is correct when hotkeys are (re)started.
         symbolicHotkeyController.setModifier(settings.navigationModifier)
         updateHotkeyBindings(
-            effectiveBindings(for: settings.hotkeyBindings, modifier: settings.navigationModifier)
+            effectiveBindings(
+                for: settings.hotkeyBindings,
+                modifier: settings.navigationModifier,
+                keymap: settings.hotkeyKeymap
+            )
         )
         setHotkeysEnabled(settings.hotkeysEnabled)
 
@@ -233,15 +230,13 @@ final class WMController {
 
         setWorkspaceBarEnabled(settings.workspaceBarEnabled)
 
-        // External edits to settings.toml otherwise stop here at refreshStatusBar
-        // and skip subsystems that read settings only at trigger time. Push the
-        // remaining live values explicitly so editor saves take effect without
-        // an app relaunch.
+        // External edits to settings.toml otherwise skip subsystems that read
+        // settings only at trigger time. Push the remaining live values
+        // explicitly so editor saves take effect without an app relaunch.
         updateWorkspaceBarSettings()
         _ = syncMouseWarpPolicy()
 
         setEnabled(true)
-        refreshStatusBar()
     }
 
     func setAnimationsEnabled(_ enabled: Bool, persist: Bool = true) {
@@ -395,34 +390,6 @@ final class WMController {
 
     func isManagedWindowSuspendedForNativeFullscreen(_ token: WindowToken) -> Bool {
         workspaceManager.isNativeFullscreenSuspended(token)
-    }
-
-    func refreshStatusBar() {
-        statusBarController?.refreshWorkspaces()
-    }
-
-    func activeStatusBarWorkspaceSummary() -> StatusBarWorkspaceSummary? {
-        guard let monitor = monitorForInteraction(),
-              let workspace = workspaceManager.currentActiveWorkspace(on: monitor.id)
-        else {
-            return nil
-        }
-
-        let focusedAppName: String? = if let focusedToken = workspaceManager.focusedToken,
-                                         let entry = workspaceManager.entry(for: focusedToken),
-                                         entry.workspaceId == workspace.id
-        {
-            resolvedAppInfo(for: entry.pid)?.name
-        } else {
-            nil
-        }
-
-        return StatusBarWorkspaceSummary(
-            monitorId: monitor.id,
-            workspaceLabel: settings.displayName(for: workspace.name),
-            workspaceRawName: workspace.name,
-            focusedAppName: focusedAppName
-        )
     }
 
     func updateWorkspaceBarSettings() {
@@ -603,13 +570,14 @@ final class WMController {
     /// persisted for those actions.
     func effectiveBindings(
         for bindings: [HotkeyBinding],
-        modifier: NavigationModifier
+        modifier: NavigationModifier,
+        keymap: HotkeyKeymap
     ) -> [HotkeyBinding] {
-        guard modifier != .control else {
-            // .control is the default; buildSpecs() already embeds control bindings.
+        guard !(modifier == .control && keymap == .arrows) else {
+            // .control + .arrows is the default; buildSpecs() already embeds these bindings.
             return bindings
         }
-        let newDefaults = ActionCatalog.defaultHotkeyBindings(modifier: modifier)
+        let newDefaults = ActionCatalog.defaultHotkeyBindings(modifier: modifier, keymap: keymap)
         let newDefaultsByID = Dictionary(uniqueKeysWithValues: newDefaults.map { ($0.id, $0) })
         return bindings.map { binding in
             guard ActionCatalog.navigationActionIDs.contains(binding.id),
@@ -619,6 +587,19 @@ final class WMController {
             }
             return newDefault
         }
+    }
+
+    /// Updates the active keymap and re-registers the navigation hotkeys to match.
+    func setHotkeyKeymap(_ keymap: HotkeyKeymap) {
+        settings.hotkeyKeymap = keymap
+        updateHotkeyBindings(
+            effectiveBindings(
+                for: settings.hotkeyBindings,
+                modifier: settings.navigationModifier,
+                keymap: keymap
+            ),
+            force: true
+        )
     }
 
     func updateWorkspaceConfig() {
@@ -644,12 +625,8 @@ final class WMController {
         settings.workspaceBarEnabled || settings.monitorBarSettings.contains(where: { $0.enabled == true })
     }
 
-    private var statusBarRefreshIsEnabled: Bool {
-        statusBarController != nil && settings.statusBarShowWorkspaceName
-    }
-
     private var anyBarRefreshIsEnabled: Bool {
-        workspaceBarRefreshIsEnabled || statusBarRefreshIsEnabled
+        workspaceBarRefreshIsEnabled
     }
 
     private var hasWorkspaceBarRefreshConsumers: Bool {
@@ -669,9 +646,6 @@ final class WMController {
 
         if workspaceBarRefreshIsEnabled {
             workspaceBarManager.update()
-        }
-        if statusBarRefreshIsEnabled {
-            refreshStatusBar()
         }
     }
 
@@ -743,9 +717,6 @@ final class WMController {
 
     private func handleSessionStateChanged() {
         _ = focusNotificationDispatcher.notifyFocusChangesIfNeeded()
-        if statusBarRefreshIsEnabled {
-            refreshStatusBar()
-        }
     }
 
     private func handleRuntimeRevisionChanged(

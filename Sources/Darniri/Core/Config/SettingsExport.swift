@@ -63,15 +63,7 @@ struct SettingsExport: Equatable {
     var monitorOrientationSettings: [MonitorOrientationSettings]
     var monitorNiriSettings: [MonitorNiriSettings]
 
-    var scrollGestureEnabled: Bool
-    var scrollSensitivity: Double
-    var scrollModifierKey: String
     var mouseResizeModifierKey: String
-    var gestureFingerCount: Int
-    var gestureInvertDirection: Bool
-    var statusBarShowWorkspaceName: Bool
-    var statusBarShowAppNames: Bool
-    var statusBarUseWorkspaceId: Bool
     var animationsEnabled: Bool
 
     var appearanceMode: String
@@ -79,6 +71,10 @@ struct SettingsExport: Equatable {
     /// The modifier key used for Darniri's focus/move hotkeys (see `NavigationModifier`).
     /// Stored as raw string so the type stays in the Input module.
     var navigationModifier: String
+
+    /// The keymap used for directional navigation hotkeys (see `HotkeyKeymap`).
+    /// Stored as raw string so the type stays in the Input module.
+    var hotkeyKeymap: String
 }
 
 // MARK: - Defaults & Diffing
@@ -132,18 +128,11 @@ extension SettingsExport {
             appRules: BuiltInSettingsDefaults.appRules,
             monitorOrientationSettings: [],
             monitorNiriSettings: [],
-            scrollGestureEnabled: true,
-            scrollSensitivity: 5.0,
-            scrollModifierKey: ScrollModifierKey.optionShift.rawValue,
             mouseResizeModifierKey: MouseResizeModifierKey.option.rawValue,
-            gestureFingerCount: GestureFingerCount.three.rawValue,
-            gestureInvertDirection: true,
-            statusBarShowWorkspaceName: false,
-            statusBarShowAppNames: false,
-            statusBarUseWorkspaceId: false,
             animationsEnabled: true,
             appearanceMode: AppearanceMode.dark.rawValue,
-            navigationModifier: NavigationModifier.control.rawValue
+            navigationModifier: NavigationModifier.control.rawValue,
+            hotkeyKeymap: HotkeyKeymap.arrows.rawValue
         )
     }
 }

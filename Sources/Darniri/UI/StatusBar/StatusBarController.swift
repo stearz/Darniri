@@ -29,8 +29,6 @@ final class StatusBarController: NSObject {
         installOwnedStatusItems()
     }
 
-    static let maxStatusBarAppNameLength = 15
-
     private func installOwnedStatusItems() {
         guard statusItem == nil, let controller else { return }
 
@@ -61,7 +59,6 @@ final class StatusBarController: NSObject {
         updateChecker.start()
 
         rebuildMenu()
-        refreshWorkspaces()
     }
 
     @objc private func handleClick(_: NSStatusBarButton) {
@@ -84,41 +81,6 @@ final class StatusBarController: NSObject {
 
     func rebuildMenu() {
         menu = menuBuilder?.buildMenu()
-    }
-
-    static func truncatedStatusBarAppName(_ appName: String) -> String {
-        guard appName.count > maxStatusBarAppNameLength else { return appName }
-        return String(appName.prefix(maxStatusBarAppNameLength)) + "\u{2026}"
-    }
-
-    static func statusButtonTitle(workspaceLabel: String, focusedAppName: String?) -> String {
-        var title = " \(workspaceLabel)"
-        if let focusedAppName, !focusedAppName.isEmpty {
-            title += " \u{2013} \(truncatedStatusBarAppName(focusedAppName))"
-        }
-        return title
-    }
-
-    func refreshWorkspaces() {
-        guard let button = statusItem?.button else { return }
-
-        if button.image == nil {
-            button.image = NSImage(systemSymbolName: "o.circle", accessibilityDescription: "Darniri")
-            button.image?.isTemplate = true
-        }
-
-        guard settings.statusBarShowWorkspaceName,
-              let summary = controller?.activeStatusBarWorkspaceSummary()
-        else {
-            button.title = ""
-            button.imagePosition = .imageOnly
-            return
-        }
-
-        let workspaceLabel = settings.statusBarUseWorkspaceId ? summary.workspaceRawName : summary.workspaceLabel
-        let focusedAppName = settings.statusBarShowAppNames ? summary.focusedAppName : nil
-        button.title = Self.statusButtonTitle(workspaceLabel: workspaceLabel, focusedAppName: focusedAppName)
-        button.imagePosition = .imageLeft
     }
 
     func cleanup() {

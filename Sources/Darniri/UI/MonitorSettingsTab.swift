@@ -56,17 +56,6 @@ struct MonitorSettingsTab: View {
                     .frame(maxWidth: 260)
                 }
 
-                LabeledContent("Trigger Margin") {
-                    Stepper(value: Binding(
-                        get: { settings.mouseWarpMargin },
-                        set: { settings.mouseWarpMargin = $0 }
-                    ), in: 1 ... 10) {
-                        Text("\(settings.mouseWarpMargin) px")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
-
                 SettingsCaption(
                     "Horizontal mode uses left and right edges. Vertical mode uses top and bottom edges."
                 )

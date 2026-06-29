@@ -13,7 +13,6 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     var borders: Borders
     var workspaceBar: WorkspaceBar
     var gestures: Gestures
-    var statusBar: StatusBar
     var appearance: Appearance
     var hotkeys: [HotkeyBinding]
     var workspaces: [WorkspaceConfiguration]
@@ -28,6 +27,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var hyperKeyHoldThresholdMilliseconds: Int
         var animationsEnabled: Bool
         var navigationModifier: String
+        var hotkeyKeymap: String
     }
 
     struct Focus: Codable, Equatable {
@@ -120,18 +120,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     }
 
     struct Gestures: Codable, Equatable {
-        var scrollEnabled: Bool
-        var scrollSensitivity: Double
-        var scrollModifierKey: String
         var mouseResizeModifierKey: String
-        var fingerCount: Int
-        var invertDirection: Bool
-    }
-
-    struct StatusBar: Codable, Equatable {
-        var showWorkspaceName: Bool
-        var showAppNames: Bool
-        var useWorkspaceId: Bool
     }
 
     struct Appearance: Codable, Equatable {
@@ -197,7 +186,6 @@ extension CanonicalTOMLConfig {
             recovering: recovering
         )
         gestures = try container.decode(Gestures.self, forKey: .gestures, default: defaults.gestures, recovering: recovering)
-        statusBar = try container.decode(StatusBar.self, forKey: .statusBar, default: defaults.statusBar, recovering: recovering)
         appearance = try container.decode(Appearance.self, forKey: .appearance, default: defaults.appearance, recovering: recovering)
         hotkeys = try container.decode([HotkeyBinding].self, forKey: .hotkeys, default: defaults.hotkeys, recovering: recovering)
         workspaces = try container.decode(
@@ -252,6 +240,12 @@ extension CanonicalTOMLConfig.General {
             String.self,
             forKey: .navigationModifier,
             default: defaults.navigationModifier,
+            recovering: recovering
+        )
+        hotkeyKeymap = try container.decode(
+            String.self,
+            forKey: .hotkeyKeymap,
+            default: defaults.hotkeyKeymap,
             recovering: recovering
         )
     }
@@ -430,29 +424,12 @@ extension CanonicalTOMLConfig.Gestures {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = CanonicalTOMLConfig.recoveryDefaults().gestures
 
-        scrollEnabled = try container.decode(Bool.self, forKey: .scrollEnabled, default: defaults.scrollEnabled, recovering: recovering)
-        scrollSensitivity = try container.decode(Double.self, forKey: .scrollSensitivity, default: defaults.scrollSensitivity, recovering: recovering)
-        scrollModifierKey = try container.decode(String.self, forKey: .scrollModifierKey, default: defaults.scrollModifierKey, recovering: recovering)
         mouseResizeModifierKey = try container.decode(
             String.self,
             forKey: .mouseResizeModifierKey,
             default: defaults.mouseResizeModifierKey,
             recovering: recovering
         )
-        fingerCount = try container.decode(Int.self, forKey: .fingerCount, default: defaults.fingerCount, recovering: recovering)
-        invertDirection = try container.decode(Bool.self, forKey: .invertDirection, default: defaults.invertDirection, recovering: recovering)
-    }
-}
-
-extension CanonicalTOMLConfig.StatusBar {
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let recovering = decoder.recoversMissingSettingsTOMLKeys
-        let defaults = CanonicalTOMLConfig.recoveryDefaults().statusBar
-
-        showWorkspaceName = try container.decode(Bool.self, forKey: .showWorkspaceName, default: defaults.showWorkspaceName, recovering: recovering)
-        showAppNames = try container.decode(Bool.self, forKey: .showAppNames, default: defaults.showAppNames, recovering: recovering)
-        useWorkspaceId = try container.decode(Bool.self, forKey: .useWorkspaceId, default: defaults.useWorkspaceId, recovering: recovering)
     }
 }
 
@@ -473,7 +450,8 @@ extension CanonicalTOMLConfig {
             hyperTrigger: export.hyperTrigger,
             hyperKeyHoldThresholdMilliseconds: export.hyperKeyHoldThresholdMilliseconds,
             animationsEnabled: export.animationsEnabled,
-            navigationModifier: export.navigationModifier
+            navigationModifier: export.navigationModifier,
+            hotkeyKeymap: export.hotkeyKeymap
         )
         focus = Focus(
             followsWindowToMonitor: export.focusFollowsWindowToMonitor
@@ -529,17 +507,7 @@ extension CanonicalTOMLConfig {
             textColor: export.workspaceBarTextColor.map(WorkspaceBar.Color.init)
         )
         gestures = Gestures(
-            scrollEnabled: export.scrollGestureEnabled,
-            scrollSensitivity: export.scrollSensitivity,
-            scrollModifierKey: export.scrollModifierKey,
-            mouseResizeModifierKey: export.mouseResizeModifierKey,
-            fingerCount: export.gestureFingerCount,
-            invertDirection: export.gestureInvertDirection
-        )
-        statusBar = StatusBar(
-            showWorkspaceName: export.statusBarShowWorkspaceName,
-            showAppNames: export.statusBarShowAppNames,
-            useWorkspaceId: export.statusBarUseWorkspaceId
+            mouseResizeModifierKey: export.mouseResizeModifierKey
         )
         appearance = Appearance(mode: export.appearanceMode)
         hotkeys = export.hotkeyBindings
@@ -598,18 +566,11 @@ extension CanonicalTOMLConfig {
             appRules: appRules,
             monitorOrientationSettings: monitorOrientationOverrides,
             monitorNiriSettings: monitorNiriOverrides,
-            scrollGestureEnabled: gestures.scrollEnabled,
-            scrollSensitivity: gestures.scrollSensitivity,
-            scrollModifierKey: gestures.scrollModifierKey,
             mouseResizeModifierKey: gestures.mouseResizeModifierKey,
-            gestureFingerCount: gestures.fingerCount,
-            gestureInvertDirection: gestures.invertDirection,
-            statusBarShowWorkspaceName: statusBar.showWorkspaceName,
-            statusBarShowAppNames: statusBar.showAppNames,
-            statusBarUseWorkspaceId: statusBar.useWorkspaceId,
             animationsEnabled: general.animationsEnabled,
             appearanceMode: appearance.mode,
-            navigationModifier: general.navigationModifier
+            navigationModifier: general.navigationModifier,
+            hotkeyKeymap: general.hotkeyKeymap
         )
     }
 }
