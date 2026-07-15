@@ -283,6 +283,7 @@ import QuartzCore
 
     func stopScrollAnimation(for displayId: CGDirectDisplayID) {
         niriHandler.scrollAnimationByDisplay.removeValue(forKey: displayId)
+        niriHandler.scrollTickFailureCountByDisplay.removeValue(forKey: displayId)
         stopDisplayLinkIfIdle(for: displayId)
     }
 

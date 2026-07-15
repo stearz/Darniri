@@ -136,6 +136,13 @@ final class MouseEventHandler {
         }
     }
 
+    /// Re-enables the mouse event tap if the system disabled it (e.g. across sleep/wake).
+    func reenableEventTapIfNeeded() {
+        if let tap = state.eventTap, !CGEvent.tapIsEnabled(tap: tap) {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+    }
+
     func cleanup() {
         if let source = state.runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)

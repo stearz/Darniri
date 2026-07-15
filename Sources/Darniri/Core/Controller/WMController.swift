@@ -97,6 +97,12 @@ final class WMController {
     private var runtimeFrameJobCancellationSuppressionDepth: Int = 0
     @ObservationIgnored
     private var hiddenWorkspaceBarMonitorIds: Set<Monitor.ID> = []
+
+    // Monitors whose bar is auto-hidden because a fullscreen window is focused there.
+    // Kept separate from `hiddenWorkspaceBarMonitorIds` (the manual toggle) so the two
+    // never clobber each other.
+    @ObservationIgnored
+    private var fullscreenHiddenMonitorIds: Set<Monitor.ID> = []
     @ObservationIgnored
     private lazy var commandPaletteController: CommandPaletteController = .init(motionPolicy: motionPolicy)
 
@@ -267,6 +273,15 @@ final class WMController {
             serviceLifecycleManager.stop()
         }
         reconcileEnabledAndHotkeysState()
+    }
+
+    /// Re-enables all input event taps if macOS disabled them. Called on system wake,
+    /// where taps are commonly disabled and would otherwise silently stay dead (no
+    /// hotkeys, no mouse handling) until the app is restarted.
+    func reenableEventTapsAfterWake() {
+        hotkeys.reenableEventTapIfNeeded()
+        mouseEventHandler.reenableEventTapIfNeeded()
+        mouseWarpHandler.reenableEventTapIfNeeded()
     }
 
     func setHotkeysEnabled(_ enabled: Bool) {
@@ -656,7 +671,47 @@ final class WMController {
 
     func isWorkspaceBarVisible(on monitor: Monitor, resolved: ResolvedBarSettings? = nil) -> Bool {
         let effective = resolved ?? settings.resolvedBarSettings(for: monitor)
-        return effective.enabled && !hiddenWorkspaceBarMonitorIds.contains(monitor.id)
+        return effective.enabled
+            && !hiddenWorkspaceBarMonitorIds.contains(monitor.id)
+            && !fullscreenHiddenMonitorIds.contains(monitor.id)
+    }
+
+    /// Auto-hides the workspace bar on the monitor of the focused window while that
+    /// window is fullscreen (native fullscreen or simply covering the whole screen,
+    /// e.g. a game), and restores it otherwise. Gated by `workspaceBarHideOnFullscreen`.
+    private func updateFullscreenBarHiding() {
+        // Use the WM's tracked fullscreen state, NOT a live AX query. Native fullscreen
+        // moves the window to its own Space, where an AX read transiently reports
+        // "not fullscreen" — that race made the bar flicker back in mid-transition.
+        // `isAppFullscreenActive` is set by the WM's window evaluation (which includes
+        // the whole-screen frame check, so it also covers borderless-fullscreen games)
+        // and stays stable across the Space transition.
+        var newHidden: Set<Monitor.ID> = []
+        if settings.workspaceBarHideOnFullscreen,
+           workspaceManager.isAppFullscreenActive,
+           let monitor = focusedWindowMonitor()
+        {
+            newHidden = [monitor.id]
+        }
+
+        guard newHidden != fullscreenHiddenMonitorIds else { return }
+        fullscreenHiddenMonitorIds = newHidden
+        cancelPendingWorkspaceBarRefresh()
+        workspaceBarManager.setup(controller: self, settings: settings)
+        layoutRefreshController.requestRelayout(reason: .monitorSettingsChanged)
+    }
+
+    /// Best-effort monitor of the focused window, falling back to the interaction
+    /// monitor when the entry is momentarily unavailable (e.g. during a fullscreen
+    /// Space transition) so the auto-hide decision stays stable.
+    private func focusedWindowMonitor() -> Monitor? {
+        if let token = workspaceManager.focusedToken,
+           let entry = workspaceManager.entry(for: token),
+           let monitor = workspaceManager.monitor(for: entry.workspaceId)
+        {
+            return monitor
+        }
+        return monitorForInteraction()
     }
 
     private func pruneHiddenWorkspaceBarMonitorIds() {
@@ -717,6 +772,7 @@ final class WMController {
 
     private func handleSessionStateChanged() {
         _ = focusNotificationDispatcher.notifyFocusChangesIfNeeded()
+        updateFullscreenBarHiding()
     }
 
     private func handleRuntimeRevisionChanged(
@@ -724,6 +780,11 @@ final class WMController {
         domains: RuntimeRevisionDomain
     ) {
         guard domains.contains(.workspace) || domains.contains(.fullscreen) else { return }
+        if domains.contains(.fullscreen) {
+            // A window entered/left fullscreen in place (no focus change) — re-evaluate
+            // whether the focused window's monitor bar should be auto-hidden.
+            updateFullscreenBarHiding()
+        }
         guard runtimeFrameJobCancellationSuppressionDepth == 0 else { return }
         cancelPendingFrameJobsForRuntimeRevision(workspaceId: workspaceId)
     }

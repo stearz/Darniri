@@ -173,6 +173,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var workspaceBarHideOnFullscreen = SettingsStore.defaultExport.workspaceBarHideOnFullscreen {
+        didSet { scheduleSave() }
+    }
+
     var workspaceBarReserveLayoutSpace = SettingsStore.defaultExport.workspaceBarReserveLayoutSpace {
         didSet { scheduleSave() }
     }
@@ -332,6 +336,7 @@ final class SettingsStore {
             workspaceBarNotchAware: workspaceBarNotchAware,
             workspaceBarDeduplicateAppIcons: workspaceBarDeduplicateAppIcons,
             workspaceBarHideEmptyWorkspaces: workspaceBarHideEmptyWorkspaces,
+            workspaceBarHideOnFullscreen: workspaceBarHideOnFullscreen,
             workspaceBarReserveLayoutSpace: workspaceBarReserveLayoutSpace,
             workspaceBarHeight: workspaceBarHeight,
             workspaceBarBackgroundOpacity: workspaceBarBackgroundOpacity,
@@ -401,6 +406,7 @@ final class SettingsStore {
         workspaceBarNotchAware = export.workspaceBarNotchAware
         workspaceBarDeduplicateAppIcons = export.workspaceBarDeduplicateAppIcons
         workspaceBarHideEmptyWorkspaces = export.workspaceBarHideEmptyWorkspaces
+        workspaceBarHideOnFullscreen = export.workspaceBarHideOnFullscreen
         workspaceBarReserveLayoutSpace = export.workspaceBarReserveLayoutSpace
         workspaceBarHeight = export.workspaceBarHeight
         workspaceBarBackgroundOpacity = export.workspaceBarBackgroundOpacity

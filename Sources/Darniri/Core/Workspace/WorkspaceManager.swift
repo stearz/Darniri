@@ -3620,12 +3620,26 @@ final class WorkspaceManager {
 
     func garbageCollectUnusedWorkspaces(focusedWorkspaceId: WorkspaceDescriptor.ID?) {
         let configured = configuredWorkspaceNameSet()
+        // Rows belonging to a monitor's dynamic stack are owned by `normalizeRowStack`,
+        // which deliberately keeps an empty top/bottom buffer row as the up/down spill
+        // target. GC must NEVER collect a row-stack row: removing an empty buffer deletes
+        // the spill target (you can no longer move windows to another row), and removing
+        // its descriptor while it stays in `rowOrderByMonitor` leaves a dangling id that
+        // makes `collapseEdgeEmptyRuns` spin forever. Row-stack hygiene is normalize's job.
+        var stackIds: Set<WorkspaceDescriptor.ID> = []
+        for ids in rowOrderByMonitor.values {
+            stackIds.formUnion(ids)
+        }
+
         var toRemove: [WorkspaceDescriptor.ID] = []
         for (id, workspace) in workspacesById {
             if configured.contains(workspace.name) {
                 continue
             }
             if focusedWorkspaceId == id {
+                continue
+            }
+            if stackIds.contains(id) {
                 continue
             }
             if !windows.windows(in: id).isEmpty {
@@ -3862,14 +3876,20 @@ final class WorkspaceManager {
     /// Tear down a row: remove its `NiriRoot`, drop it from `rowOrderByMonitor`, and
     /// clean every per-workspace cache/session keyed by its id.
     func removeRow(_ id: WorkspaceDescriptor.ID) {
-        guard workspacesById[id] != nil else { return }
+        // Always drop the id from the row stack, even if its descriptor is already gone
+        // from `workspacesById`. A dangling id left in `rowOrderByMonitor` would make
+        // `collapseEdgeEmptyRuns` spin forever: its `while` loop calls `removeRow`
+        // expecting the stack to shrink, and the previous `workspacesById` guard turned
+        // this into a no-op for a missing descriptor — an infinite main-thread loop.
         rowLayoutEngine?.discardRoot(for: id)
         for monitorId in rowOrderByMonitor.keys {
             rowOrderByMonitor[monitorId]?.removeAll { $0 == id }
         }
         rowOrderByMonitor = rowOrderByMonitor.filter { !$0.value.isEmpty }
         windows.removeWorkspaceTokens(id)
-        removeWorkspaces([id])
+        if workspacesById[id] != nil {
+            removeWorkspaces([id])
+        }
     }
 
     /// Adopt workspaces that already exist (legacy `[[workspaces]]`-loaded, window-adopted,
@@ -4037,6 +4057,9 @@ final class WorkspaceManager {
             let victim = first == visibleId ? second : first
             removeRow(victim)
             if victim == visibleId { break } // safety: shouldn't happen, but never loop on visible
+            // Progress guard: if the stack didn't actually shrink (e.g. a row `removeRow`
+            // could not drop), stop rather than spin the main thread forever.
+            guard ids().count < stack.count else { break }
         }
 
         // Bottom edge.
@@ -4049,6 +4072,7 @@ final class WorkspaceManager {
             let victim = last == visibleId ? penultimate : last
             removeRow(victim)
             if victim == visibleId { break }
+            guard ids().count < stack.count else { break }
         }
     }
 

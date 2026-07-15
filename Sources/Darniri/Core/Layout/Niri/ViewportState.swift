@@ -93,8 +93,12 @@ enum ViewOffset {
 
     var isAnimating: Bool {
         switch self {
-        case .spring:
-            return true
+        case let .spring(anim):
+            // A spring that has reached its target is NOT animating. Reporting a
+            // completed-but-not-yet-cleared spring as "animating" makes relayout paths
+            // perpetually re-arm the scroll display link (a main-thread CPU-peg loop that
+            // surfaces after the machine sleeps and the wake rescan reignites it).
+            return !anim.isComplete(at: CACurrentMediaTime())
         case let .gesture(g):
             return g.animation != nil
         case .static:

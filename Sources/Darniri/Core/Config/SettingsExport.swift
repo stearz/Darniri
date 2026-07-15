@@ -50,6 +50,7 @@ struct SettingsExport: Equatable {
     var workspaceBarNotchAware: Bool
     var workspaceBarDeduplicateAppIcons: Bool
     var workspaceBarHideEmptyWorkspaces: Bool
+    var workspaceBarHideOnFullscreen: Bool
     var workspaceBarReserveLayoutSpace: Bool
     var workspaceBarHeight: Double
     var workspaceBarBackgroundOpacity: Double
@@ -117,6 +118,7 @@ extension SettingsExport {
             workspaceBarNotchAware: true,
             workspaceBarDeduplicateAppIcons: false,
             workspaceBarHideEmptyWorkspaces: true,
+            workspaceBarHideOnFullscreen: true,
             workspaceBarReserveLayoutSpace: false,
             workspaceBarHeight: 24.0,
             workspaceBarBackgroundOpacity: 0.1,

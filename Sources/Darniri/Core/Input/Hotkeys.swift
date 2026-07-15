@@ -539,6 +539,15 @@ final class HotkeyCenter {
         return true
     }
 
+    /// Re-enables the hyperkey event tap if the system disabled it (e.g. across sleep/wake).
+    /// A disabled tap silently drops all hotkeys until re-enabled.
+    func reenableEventTapIfNeeded() {
+        guard let tap = virtualHyperTap else { return }
+        if !CGEvent.tapIsEnabled(tap: tap) {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+    }
+
     private func stopVirtualHyperTap() {
         resetVirtualHyperState()
         if let source = virtualHyperRunLoopSource {

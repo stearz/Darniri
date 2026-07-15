@@ -431,4 +431,39 @@ final class DynamicRowStackTests: XCTestCase {
         XCTAssertEqual(rowIds(manager, on: primary.id).count, 3, "Primary gains top+bottom buffers")
         XCTAssertEqual(rowIds(manager, on: secondary.id).count, 1, "Secondary stays a single empty row")
     }
+
+    // MARK: - Regression: GC must not eat row-stack buffers or hang normalization
+
+    /// Regression covering two coupled bugs. Garbage collection was collecting the dynamic
+    /// row stack's empty top/bottom buffer rows (they are empty + unconfigured + unfocused):
+    ///   1. It deleted the up/down spill targets, so windows could no longer be moved to
+    ///      another row until the app was restarted.
+    ///   2. Removing a buffer's descriptor while its id stayed in `rowOrderByMonitor` left a
+    ///      dangling id that made `collapseEdgeEmptyRuns` spin the main thread forever.
+    /// GC must leave every row-stack row (buffers included) intact; normalize owns the stack.
+    func testGarbageCollectPreservesDynamicRowStackBuffers() {
+        let manager = makeManager()
+        let mon = monitorId(manager)
+
+        let content = rowIds(manager, on: mon)[0]
+        XCTAssertTrue(manager.setActiveWorkspace(content, on: mon))
+        _ = addWindow(manager, to: content)
+        manager.normalizeRowStack(on: mon)
+
+        let before = rowIds(manager, on: mon)
+        XCTAssertEqual(before.count, 3, "content row is buffered top and bottom")
+
+        manager.garbageCollectUnusedWorkspaces(focusedWorkspaceId: content)
+
+        // The whole row stack — both empty buffers included — must survive GC intact,
+        // with no dangling ids (descriptor present for every stacked id).
+        XCTAssertEqual(rowIds(manager, on: mon), before, "GC must leave the dynamic row stack intact")
+        for id in manager.rowOrder(on: mon) {
+            XCTAssertNotNil(manager.descriptor(for: id), "no dangling row-stack ids after GC")
+        }
+
+        // Normalization stays a no-op on the already-valid stack and terminates.
+        manager.normalizeRowStack(on: mon)
+        XCTAssertEqual(rowIds(manager, on: mon).count, 3, "buffers preserved as up/down spill targets")
+    }
 }

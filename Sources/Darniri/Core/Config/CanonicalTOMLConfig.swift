@@ -85,6 +85,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var notchAware: Bool
         var deduplicateAppIcons: Bool
         var hideEmptyWorkspaces: Bool
+        var hideOnFullscreen: Bool
         var reserveLayoutSpace: Bool
         var height: Double
         var backgroundOpacity: Double
@@ -382,6 +383,12 @@ extension CanonicalTOMLConfig.WorkspaceBar {
             default: defaults.hideEmptyWorkspaces,
             recovering: recovering
         )
+        hideOnFullscreen = try container.decode(
+            Bool.self,
+            forKey: .hideOnFullscreen,
+            default: defaults.hideOnFullscreen,
+            recovering: recovering
+        )
         reserveLayoutSpace = try container.decode(
             Bool.self,
             forKey: .reserveLayoutSpace,
@@ -498,6 +505,7 @@ extension CanonicalTOMLConfig {
             notchAware: export.workspaceBarNotchAware,
             deduplicateAppIcons: export.workspaceBarDeduplicateAppIcons,
             hideEmptyWorkspaces: export.workspaceBarHideEmptyWorkspaces,
+            hideOnFullscreen: export.workspaceBarHideOnFullscreen,
             reserveLayoutSpace: export.workspaceBarReserveLayoutSpace,
             height: export.workspaceBarHeight,
             backgroundOpacity: export.workspaceBarBackgroundOpacity,
@@ -555,6 +563,7 @@ extension CanonicalTOMLConfig {
             workspaceBarNotchAware: workspaceBar.notchAware,
             workspaceBarDeduplicateAppIcons: workspaceBar.deduplicateAppIcons,
             workspaceBarHideEmptyWorkspaces: workspaceBar.hideEmptyWorkspaces,
+            workspaceBarHideOnFullscreen: workspaceBar.hideOnFullscreen,
             workspaceBarReserveLayoutSpace: workspaceBar.reserveLayoutSpace,
             workspaceBarHeight: workspaceBar.height,
             workspaceBarBackgroundOpacity: workspaceBar.backgroundOpacity,

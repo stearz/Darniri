@@ -209,9 +209,10 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
 
     // MARK: - hideEmptyWorkspaces
 
-    /// When `hideEmptyWorkspaces` is true, non-buffer empty rows are hidden but
-    /// the top/bottom buffer rows are always kept so the user can see room above/below.
-    func testHideEmptyWorkspacesKeepsBuffers() {
+    /// When `hideEmptyWorkspaces` is true, ALL empty rows are hidden — including the
+    /// top/bottom buffer rows. There is no "keep buffers" exemption: an empty workspace
+    /// should not appear in the bar regardless of whether it is a buffer.
+    func testHideEmptyWorkspacesHidesBuffers() {
         let manager = makeManager()
         let settings = makeSettings()
         let mon = monitorId(manager)
@@ -221,7 +222,7 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         _ = addWindow(manager, to: contentRow)
         manager.normalizeRowStack(on: mon)
 
-        // With hideEmpty = false: should have 3 items.
+        // With hideEmpty = false: should have 3 items (buffer, content, buffer).
         let fullItems = makeProjectionItems(
             manager: manager,
             settings: settings,
@@ -229,24 +230,21 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         )
         XCTAssertEqual(fullItems.count, 3)
 
-        // With hideEmpty = true: buffers are kept, content stays.
+        // With hideEmpty = true: the empty buffers are hidden, only the content stays.
         let filteredItems = makeProjectionItems(
             manager: manager,
             settings: settings,
             options: options(hideEmpty: true)
         )
-        // Content row has windows → not hidden.
-        // Buffer rows are never hidden (protected).
-        XCTAssertEqual(filteredItems.count, 3)
+        XCTAssertEqual(filteredItems.count, 1)
 
-        // All buffer items present.
-        XCTAssertEqual(filteredItems.filter(\.isBuffer).count, 2)
+        // No buffer items remain.
+        XCTAssertEqual(filteredItems.filter(\.isBuffer).count, 0)
     }
 
-    /// When all rows are empty and `hideEmptyWorkspaces` is true, non-buffer empty
-    /// rows (interior) are hidden.  With [buffer, content (no windows), buffer] after
-    /// normalization there is no interior empty row.  But if we artificially add an
-    /// interior empty row and re-check, it should be hidden.
+    /// When `hideEmptyWorkspaces` is true, every empty row is removed. Starting from
+    /// [buffer, content1, content2, buffer], the two empty buffers are hidden and only
+    /// the two content rows remain.
     func testHideEmptyWorkspacesRemovesInteriorEmptyRows() {
         let manager = makeManager()
         let settings = makeSettings()
@@ -276,13 +274,14 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         let allItems = makeProjectionItems(manager: manager, settings: settings, options: opts)
         XCTAssertEqual(allItems.count, 4)
 
-        // No interior empty rows exist at this point, so hideEmpty makes no difference.
+        // hideEmpty hides the two empty buffer rows, leaving the two content rows.
         let hiddenItems = makeProjectionItems(
             manager: manager,
             settings: settings,
             options: options(hideEmpty: true)
         )
-        XCTAssertEqual(hiddenItems.count, 4)
+        XCTAssertEqual(hiddenItems.count, 2)
+        XCTAssertEqual(hiddenItems.filter(\.isBuffer).count, 0)
     }
 
     // MARK: - rowOrder accessor

@@ -337,6 +337,7 @@ final class ServiceLifecycleManager {
             MainActor.assumeIsolated {
                 guard let controller = self?.controller else { return }
                 _ = controller.workspaceManager.recordReconcileEvent(.systemWake(source: .service))
+                controller.reenableEventTapsAfterWake()
                 controller.layoutRefreshController.requestFullRescan(reason: .unlock)
             }
         }

@@ -51,6 +51,12 @@ enum NiriWindowMoveResult {
 
     var scrollAnimationByDisplay: [CGDirectDisplayID: WorkspaceDescriptor.ID] = [:]
 
+    /// Consecutive scroll-animation ticks on a display where frames could not be applied.
+    /// Guards against a pegged main thread: if frames keep failing (e.g. displays/AX
+    /// unavailable after wake), we tear the animation down instead of ticking forever.
+    var scrollTickFailureCountByDisplay: [CGDirectDisplayID: Int] = [:]
+    private let maxConsecutiveScrollTickFailures = 30
+
     init(controller: WMController?) {
         self.controller = controller
     }
@@ -72,6 +78,7 @@ enum NiriWindowMoveResult {
             return false
         }
         scrollAnimationByDisplay[displayId] = workspaceId
+        scrollTickFailureCountByDisplay[displayId] = nil
         return true
     }
 
@@ -110,12 +117,24 @@ enum NiriWindowMoveResult {
             animationTime: targetTime
         )
         guard didApplyFrames else {
+            let failures = (scrollTickFailureCountByDisplay[displayId] ?? 0) + 1
+            if failures >= maxConsecutiveScrollTickFailures {
+                // Frames have failed to apply for too many consecutive ticks (displays/AX
+                // unavailable, e.g. right after wake). Stop driving the animation rather
+                // than spin the main thread; a normal relayout will correct positions once
+                // things recover.
+                scrollTickFailureCountByDisplay[displayId] = nil
+                controller.layoutRefreshController.stopScrollAnimation(for: displayId)
+                return
+            }
+            scrollTickFailureCountByDisplay[displayId] = failures
             controller.layoutRefreshController.requestRelayout(
                 reason: .staleLayoutPlan,
                 affectedWorkspaceIds: [wsId]
             )
             return
         }
+        scrollTickFailureCountByDisplay[displayId] = nil
         updateTabbedColumnOverlays(workspaceId: wsId, monitor: monitor)
 
         let animationsOngoing = viewportAnimationRunning
@@ -861,9 +880,16 @@ enum NiriWindowMoveResult {
         var directives: [AnimationDirective] = []
 
         if !snapshot.useScrollAnimationPath {
-            if viewportNeedsRecalc, !hasNewWindowArrival {
-                directives.append(.startNiriScroll(workspaceId: pass.wsId))
-            } else if hasColumnAnimations {
+            // A viewport spring already in flight (e.g. the centering set when a window
+            // is moved to another row) must be driven by the scroll animation, or it
+            // never advances to its target and the column renders at its start offset
+            // (un-centered). `resolveSelection` skips re-centering precisely because the
+            // spring is mid-animation, so `viewportNeedsRecalc` stays false here — hence
+            // the explicit `isAnimating` check.
+            if (viewportNeedsRecalc && !hasNewWindowArrival)
+                || hasColumnAnimations
+                || state.viewOffsetPixels.isAnimating
+            {
                 directives.append(.startNiriScroll(workspaceId: pass.wsId))
             }
         }
