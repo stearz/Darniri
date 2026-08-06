@@ -122,6 +122,73 @@ final class WorkspaceBarGeometryTests: XCTestCase {
         XCTAssertEqual(frame.origin.y, expectedY, accuracy: 0.5)
     }
 
+    // MARK: - Reserved layout space
+
+    /// A left-docked bar must reserve space on the *left* edge. Reserving on the top
+    /// (the old behaviour) left windows spanning the full width, so the panel covered
+    /// their traffic-light buttons and swallowed clicks at the screen edge.
+    func testLeftBarReservesSpaceOnLeftEdge() {
+        let resolved = makeResolved(height: 40, position: .left, reserveLayoutSpace: true)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true).reservedInsets
+
+        XCTAssertEqual(insets.left, 40, accuracy: 0.5)
+        XCTAssertEqual(insets.top, 0)
+        XCTAssertEqual(insets.right, 0)
+    }
+
+    func testRightBarReservesSpaceOnRightEdge() {
+        let resolved = makeResolved(height: 40, position: .right, reserveLayoutSpace: true)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true).reservedInsets
+
+        XCTAssertEqual(insets.right, 40, accuracy: 0.5)
+        XCTAssertEqual(insets.top, 0)
+        XCTAssertEqual(insets.left, 0)
+    }
+
+    /// The reserved strut must match the panel's real on-screen width, which is clamped
+    /// to a minimum. Otherwise a small configured height under-reserves and the panel
+    /// still overlaps windows.
+    func testVerticalReservationMatchesClampedPanelWidth() {
+        let resolved = makeResolved(height: 10, position: .left, reserveLayoutSpace: true)
+        let geometry = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)
+        let frame = geometry.frame(fittingWidth: 200, monitor: monitor, resolved: resolved)
+
+        XCTAssertEqual(geometry.reservedInsets.left, frame.width, accuracy: 0.5)
+        XCTAssertEqual(frame.width, WorkspaceBarGeometry.minimumVerticalPanelWidth, accuracy: 0.5)
+    }
+
+    /// `overlappingMenuBar` draws inside the menu-bar strip, which is already outside the
+    /// visible frame, so it must not shrink the window layout.
+    func testOverlappingMenuBarReservesNothing() {
+        let resolved = makeResolved(height: 24, position: .overlappingMenuBar, reserveLayoutSpace: true)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true).reservedInsets
+
+        XCTAssertEqual(insets, .zero)
+    }
+
+    func testBelowMenuBarReservesTopInset() {
+        let resolved = makeResolved(height: 24, position: .belowMenuBar, reserveLayoutSpace: true)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true).reservedInsets
+
+        XCTAssertEqual(insets.top, 24, accuracy: 0.5)
+        XCTAssertEqual(insets.left, 0)
+        XCTAssertEqual(insets.right, 0)
+    }
+
+    func testHiddenBarReservesNothing() {
+        let resolved = makeResolved(height: 40, position: .left, reserveLayoutSpace: true)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: false).reservedInsets
+
+        XCTAssertEqual(insets, .zero)
+    }
+
+    func testReserveDisabledReservesNothing() {
+        let resolved = makeResolved(height: 40, position: .left, reserveLayoutSpace: false)
+        let insets = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true).reservedInsets
+
+        XCTAssertEqual(insets, .zero)
+    }
+
     func testOverlappingMenuBarPositionPlacesFrameAboveVisibleArea() {
         let resolved = makeResolved(height: 32, position: .overlappingMenuBar)
         let geometry = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)

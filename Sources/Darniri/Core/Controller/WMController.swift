@@ -529,20 +529,24 @@ final class WMController {
     func insetWorkingFrame(for monitor: Monitor) -> CGRect {
         let scale = NSScreen.screens.first(where: { $0.displayId == monitor.displayId })?.backingScaleFactor ?? 2.0
         let resolved = settings.resolvedBarSettings(for: monitor)
-        let reservedTopInset = WorkspaceBarGeometry.resolve(
+        let reservedInsets = WorkspaceBarGeometry.resolve(
             monitor: monitor,
             resolved: resolved,
             isVisible: isWorkspaceBarVisible(on: monitor, resolved: resolved)
-        ).reservedTopInset
-        return insetWorkingFrame(from: monitor.visibleFrame, scale: scale, reservedTopInset: reservedTopInset)
+        ).reservedInsets
+        return insetWorkingFrame(from: monitor.visibleFrame, scale: scale, reservedInsets: reservedInsets)
     }
 
-    func insetWorkingFrame(from frame: CGRect, scale: CGFloat = 2.0, reservedTopInset: CGFloat = 0) -> CGRect {
+    func insetWorkingFrame(
+        from frame: CGRect,
+        scale: CGFloat = 2.0,
+        reservedInsets: WorkspaceBarReservedInsets = .zero
+    ) -> CGRect {
         let outer = workspaceManager.outerGaps
         let struts = Struts(
-            left: outer.left,
-            right: outer.right,
-            top: outer.top + reservedTopInset,
+            left: outer.left + reservedInsets.left,
+            right: outer.right + reservedInsets.right,
+            top: outer.top + reservedInsets.top,
             bottom: outer.bottom
         )
         return computeWorkingArea(

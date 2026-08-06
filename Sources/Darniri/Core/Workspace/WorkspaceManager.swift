@@ -3620,9 +3620,22 @@ final class WorkspaceManager {
 
     func garbageCollectUnusedWorkspaces(focusedWorkspaceId: WorkspaceDescriptor.ID?) {
         let configured = configuredWorkspaceNameSet()
+        // Rows owned by a monitor's stack are NOT garbage: their lifecycle belongs to
+        // `normalizeRowStack`, which deliberately keeps empty buffer rows at each edge and
+        // reaps surplus ones through `removeRow`. Collecting them here would delete the
+        // descriptor while leaving the id in `rowOrderByMonitor` — a dangling id that
+        // `collapseEdgeEmptyRuns` then picks as an "empty" victim forever, because
+        // `removeRow` bails on the missing descriptor and the stack never shrinks.
+        var stacked: Set<WorkspaceDescriptor.ID> = []
+        for ids in rowOrderByMonitor.values {
+            stacked.formUnion(ids)
+        }
         var toRemove: [WorkspaceDescriptor.ID] = []
         for (id, workspace) in workspacesById {
             if configured.contains(workspace.name) {
+                continue
+            }
+            if stacked.contains(id) {
                 continue
             }
             if focusedWorkspaceId == id {
@@ -3862,7 +3875,13 @@ final class WorkspaceManager {
     /// Tear down a row: remove its `NiriRoot`, drop it from `rowOrderByMonitor`, and
     /// clean every per-workspace cache/session keyed by its id.
     func removeRow(_ id: WorkspaceDescriptor.ID) {
-        guard workspacesById[id] != nil else { return }
+        // Unlink from the row stack even when the descriptor is already gone. A missing
+        // descriptor used to early-return here, so an id left in `rowOrderByMonitor` could
+        // never be removed — and the `while` loops in `collapseEdgeEmptyRuns`, which treat a
+        // descriptor-less id as an empty row, spun on it forever at 100% CPU. Removing an
+        // unknown id must always be a no-op OR a repair, never a stall.
+        let isStacked = rowOrderByMonitor.contains { $0.value.contains(id) }
+        guard workspacesById[id] != nil || isStacked else { return }
         rowLayoutEngine?.discardRoot(for: id)
         for monitorId in rowOrderByMonitor.keys {
             rowOrderByMonitor[monitorId]?.removeAll { $0 == id }
@@ -4036,6 +4055,10 @@ final class WorkspaceManager {
             // Remove whichever is not the visible row (prefer keeping the visible one).
             let victim = first == visibleId ? second : first
             removeRow(victim)
+            // Liveness guard: bail unless the stack actually shrank. Every iteration must make
+            // progress; if a `removeRow` ever fails to unlink the victim we leave the stack
+            // slightly denormalized rather than wedging the main thread in a hot loop.
+            guard ids().count < stack.count else { break }
             if victim == visibleId { break } // safety: shouldn't happen, but never loop on visible
         }
 
@@ -4048,6 +4071,7 @@ final class WorkspaceManager {
             guard isRowEmpty(last), isRowEmpty(penultimate) else { break }
             let victim = last == visibleId ? penultimate : last
             removeRow(victim)
+            guard ids().count < stack.count else { break }
             if victim == visibleId { break }
         }
     }

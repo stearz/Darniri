@@ -431,4 +431,89 @@ final class DynamicRowStackTests: XCTestCase {
         XCTAssertEqual(rowIds(manager, on: primary.id).count, 3, "Primary gains top+bottom buffers")
         XCTAssertEqual(rowIds(manager, on: secondary.id).count, 1, "Secondary stays a single empty row")
     }
+
+    // MARK: - Regression: workspace GC must not orphan stacked row ids
+
+    /// Buffer rows match `garbageCollectUnusedWorkspaces`' criteria exactly — anonymous
+    /// (`row-xxxxxxxx`, never in `[workspaces]`), unfocused, and window-less. It used to
+    /// delete their descriptors while leaving their ids in `rowOrderByMonitor`.
+    func testGarbageCollectKeepsStackedBufferRowDescriptors() {
+        let manager = makeManager()
+        let mon = monitorId(manager)
+
+        let content = rowIds(manager, on: mon)[0]
+        XCTAssertTrue(manager.setActiveWorkspace(content, on: mon))
+        _ = addWindow(manager, to: content)
+        manager.normalizeRowStack(on: mon)
+
+        let stacked = manager.rowOrder(on: mon)
+        XCTAssertEqual(stacked.count, 3, "Precondition: [emptyTop, content, emptyBottom]")
+
+        manager.garbageCollectUnusedWorkspaces(focusedWorkspaceId: content)
+
+        XCTAssertEqual(manager.rowOrder(on: mon), stacked, "GC must not touch the row stack")
+        for id in manager.rowOrder(on: mon) {
+            XCTAssertNotNil(
+                manager.descriptor(for: id),
+                "Stacked row \(id) lost its descriptor — dangling id in rowOrderByMonitor"
+            )
+        }
+    }
+
+    /// The exact hang: standing on an empty row directly below the top buffer, a GC pass
+    /// dropped the top buffer's descriptor. `collapseEdgeEmptyRuns` then saw two "empty"
+    /// rows at the top edge, chose the descriptor-less one as victim, and `removeRow` bailed
+    /// on the missing descriptor — so the stack never shrank and the `while` loop pinned the
+    /// main thread at 100% CPU, killing hotkeys and beachballing the workspace bar.
+    ///
+    /// This test does not finish at all if the loop can still fail to make progress.
+    func testNormalizationTerminatesWhenStandingOnEmptyRowAfterGarbageCollect() {
+        let manager = makeManager()
+        let mon = monitorId(manager)
+
+        let content = rowIds(manager, on: mon)[0]
+        XCTAssertTrue(manager.setActiveWorkspace(content, on: mon))
+        _ = addWindow(manager, to: content)
+        manager.normalizeRowStack(on: mon)
+
+        // Insert a second empty row just under the top buffer and stand on it, so the
+        // interior-empty sweep exempts it and the top edge holds two adjacent empty rows.
+        let standingOn = manager.createRow(on: mon, at: 1)
+        XCTAssertTrue(manager.setActiveWorkspace(standingOn, on: mon))
+        XCTAssertEqual(manager.rowOrder(on: mon).count, 4)
+
+        manager.garbageCollectUnusedWorkspaces(focusedWorkspaceId: standingOn)
+        manager.normalizeRowStack(on: mon)
+
+        // Terminated, and the invariant holds: the visible empty row survived as the top
+        // buffer, content in the middle, one empty buffer below.
+        let ids = manager.rowOrder(on: mon)
+        XCTAssertEqual(ids.count, 3, "Edge run collapsed to a single top buffer")
+        XCTAssertEqual(ids[0], standingOn, "The visible row is kept as the surviving buffer")
+        XCTAssertEqual(ids[1], content)
+        for id in ids {
+            XCTAssertNotNil(manager.descriptor(for: id), "No dangling ids left in the stack")
+        }
+    }
+
+    /// `removeRow` must always either unlink the id or be a no-op — never leave it stacked.
+    /// This is the liveness property the collapse loops depend on.
+    func testRemoveRowUnlinksIdEvenWhenCalledRepeatedly() {
+        let manager = makeManager()
+        let mon = monitorId(manager)
+
+        let content = rowIds(manager, on: mon)[0]
+        _ = addWindow(manager, to: content)
+        let extra = manager.createRow(on: mon, at: 0)
+        XCTAssertTrue(manager.rowOrder(on: mon).contains(extra))
+
+        manager.removeRow(extra)
+        XCTAssertFalse(manager.rowOrder(on: mon).contains(extra))
+        XCTAssertNil(manager.descriptor(for: extra))
+
+        // Removing an already-removed / unknown id is a harmless no-op.
+        manager.removeRow(extra)
+        manager.removeRow(UUID())
+        XCTAssertFalse(manager.rowOrder(on: mon).contains(extra))
+    }
 }

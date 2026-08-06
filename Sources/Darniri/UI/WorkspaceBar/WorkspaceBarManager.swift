@@ -501,18 +501,18 @@ final class WorkspaceBarManager {
         return geometry.frame(fittingWidth: fittingWidth, monitor: monitor, resolved: resolved)
     }
 
-    nonisolated static func reservedTopInset(
+    nonisolated static func reservedInsets(
         for monitor: Monitor,
         resolved: ResolvedBarSettings,
         isVisible: Bool,
         menuBarHeight: Double? = nil
-    ) -> CGFloat {
+    ) -> WorkspaceBarReservedInsets {
         WorkspaceBarGeometry.resolve(
             monitor: monitor,
             resolved: resolved,
             isVisible: isVisible,
             menuBarHeight: menuBarHeight.map { CGFloat($0) }
-        ).reservedTopInset
+        ).reservedInsets
     }
 
     private func setupScreenChangeObserver() {

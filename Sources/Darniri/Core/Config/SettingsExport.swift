@@ -117,7 +117,7 @@ extension SettingsExport {
             workspaceBarNotchAware: true,
             workspaceBarDeduplicateAppIcons: false,
             workspaceBarHideEmptyWorkspaces: true,
-            workspaceBarReserveLayoutSpace: false,
+            workspaceBarReserveLayoutSpace: true,
             workspaceBarHeight: 24.0,
             workspaceBarBackgroundOpacity: 0.1,
             workspaceBarXOffset: 0.0,
