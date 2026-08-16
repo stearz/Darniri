@@ -25,7 +25,7 @@ jobs:
         run: echo "value=$(shasum -a 256 Darniri-arm64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: Darniri-arm64.tar.gz
           generate_release_notes: true
