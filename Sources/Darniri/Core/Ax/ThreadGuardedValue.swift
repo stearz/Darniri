@@ -1,11 +1,8 @@
 import Foundation
 
-@usableFromInline
 final class ThreadGuardedValue<Value>: Sendable {
-    @usableFromInline
     nonisolated(unsafe) var _value: Value?
 
-    @usableFromInline
     let threadToken: AppThreadToken
 
     init(_ value: Value) {
@@ -16,7 +13,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         _value = value
     }
 
-    @inlinable
+    @inline(__always)
     var value: Value {
         get {
             #if DEBUG
@@ -37,7 +34,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         }
     }
 
-    @inlinable
+    @inline(__always)
     var valueIfExists: Value? {
         #if DEBUG
             threadToken.checkEquals(appThreadToken)
@@ -56,7 +53,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         assert(_value == nil, "The Value must be explicitly destroyed on the appropriate thread before deinit")
     }
 
-    @inlinable
+    @inline(__always)
     subscript<K: Hashable, V>(key: K) -> V? where Value == [K: V] {
         get {
             #if DEBUG
@@ -72,7 +69,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         }
     }
 
-    @inlinable
+    @inline(__always)
     func contains<T: Hashable>(_ element: T) -> Bool where Value == Set<T> {
         #if DEBUG
             threadToken.checkEquals(appThreadToken)
@@ -80,7 +77,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         return _value?.contains(element) ?? false
     }
 
-    @inlinable
+    @inline(__always)
     func insert<T: Hashable>(_ element: T) where Value == Set<T> {
         #if DEBUG
             threadToken.checkEquals(appThreadToken)
@@ -88,7 +85,7 @@ final class ThreadGuardedValue<Value>: Sendable {
         _value?.insert(element)
     }
 
-    @inlinable
+    @inline(__always)
     @discardableResult
     func remove<T: Hashable>(_ element: T) -> T? where Value == Set<T> {
         #if DEBUG
@@ -99,7 +96,7 @@ final class ThreadGuardedValue<Value>: Sendable {
 }
 
 extension ThreadGuardedValue {
-    @inlinable
+    @inline(__always)
     func forEachKey<K: Hashable, V>(_ body: (K) -> Void) where Value == [K: V] {
         #if DEBUG
             threadToken.checkEquals(appThreadToken)

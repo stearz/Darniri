@@ -7,6 +7,45 @@ import XCTest
 /// or the configured bar height is 0, which would previously produce zero/negative window
 /// content sizes and cause AppKit to throw during the hosting-view constraint pass.
 final class WorkspaceBarGeometryTests: XCTestCase {
+    @MainActor
+    func testWorkspaceBarHidesOnlyOnFullscreenMonitor() {
+        let fullscreenMonitor = Monitor.ID(displayId: 10)
+        let otherMonitor = Monitor.ID(displayId: 20)
+        let state = WorkspaceBarFullscreenState(isActive: true, monitorId: fullscreenMonitor)
+
+        XCTAssertFalse(WMController.shouldShowWorkspaceBar(
+            enabled: true,
+            manuallyHidden: false,
+            fullscreenState: state,
+            monitorId: fullscreenMonitor
+        ))
+        XCTAssertTrue(WMController.shouldShowWorkspaceBar(
+            enabled: true,
+            manuallyHidden: false,
+            fullscreenState: state,
+            monitorId: otherMonitor
+        ))
+    }
+
+    @MainActor
+    func testWorkspaceBarHidesOnAllMonitorsWhenFullscreenMonitorIsUnknown() {
+        XCTAssertFalse(WMController.shouldShowWorkspaceBar(
+            enabled: true,
+            manuallyHidden: false,
+            fullscreenState: WorkspaceBarFullscreenState(isActive: true, monitorId: nil),
+            monitorId: Monitor.ID(displayId: 10)
+        ))
+    }
+
+    func testBorderlessFullscreenFrameIsDetected() {
+        let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+
+        XCTAssertTrue(AXWindowService.isFullscreenFrame(screen, screenFrames: [screen]))
+        XCTAssertFalse(AXWindowService.isFullscreenFrame(
+            CGRect(x: 0, y: 25, width: 1920, height: 1055),
+            screenFrames: [screen]
+        ))
+    }
 
     // MARK: - Fixtures
 

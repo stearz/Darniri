@@ -1808,6 +1808,7 @@ final class AXEventHandler: CGSEventDelegate {
         let token = WindowToken(pid: pid, windowId: axRef.windowId)
 
         let appFullscreen = AXWindowService.isFullscreen(axRef)
+        controller.observeFocusedWindowFullscreen(appFullscreen, window: axRef)
 
         if let entry = controller.workspaceManager.entry(for: token) {
             if appFullscreen {

@@ -419,8 +419,8 @@ enum AXWindowService {
             fullScreenAttribute,
             &value
         )
-        if result == .success, let boolValue = value as? Bool {
-            return boolValue
+        if result == .success, let boolValue = value as? Bool, boolValue {
+            return true
         }
 
         if let frame = try? frame(window) {
@@ -460,11 +460,13 @@ enum AXWindowService {
     }
 
     private static func isFullscreenFrame(_ frame: CGRect) -> Bool {
+        isFullscreenFrame(frame, screenFrames: NSScreen.screens.map(\.frame))
+    }
+
+    static func isFullscreenFrame(_ frame: CGRect, screenFrames: [CGRect]) -> Bool {
         let center = frame.center
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) else {
-            return false
-        }
-        return frame.approximatelyEqual(to: screen.frame, tolerance: 2.0)
+        guard let screenFrame = screenFrames.first(where: { $0.contains(center) }) else { return false }
+        return frame.approximatelyEqual(to: screenFrame, tolerance: 2.0)
     }
 
     static func collectWindowFacts(

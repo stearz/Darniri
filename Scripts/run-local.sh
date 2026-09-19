@@ -3,12 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT_DIR/dist/Darniri-dev.app"
-BUILD_DIR="$ROOT_DIR/.build/debug"
 
 cd "$ROOT_DIR"
 
 echo "Building..."
 swift build
+BUILD_DIR="$(swift build --show-bin-path)"
 
 echo "Assembling $APP..."
 rm -rf "$APP"
@@ -17,7 +17,6 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BUILD_DIR/Darniri"                    "$APP/Contents/MacOS/Darniri"
 cp "$ROOT_DIR/Info.plist"                 "$APP/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns"     "$APP/Contents/Resources/AppIcon.icns"
-cp -R "$BUILD_DIR/Darniri_Darniri.bundle"  "$APP/Contents/Resources/"
 
 # Sign with a stable self-signed identity ("Darniri Dev") rather than ad-hoc (-).
 # A stable identity gives an identity-based designated requirement, so macOS TCC

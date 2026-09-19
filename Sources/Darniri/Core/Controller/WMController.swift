@@ -1,6 +1,13 @@
 import AppKit
 import Foundation
 
+struct WorkspaceBarFullscreenState: Equatable {
+    let isActive: Bool
+    let monitorId: Monitor.ID?
+
+    static let inactive = WorkspaceBarFullscreenState(isActive: false, monitorId: nil)
+}
+
 @MainActor
 struct WindowFocusOperations {
     let activateApp: (pid_t) -> Void
@@ -97,6 +104,10 @@ final class WMController {
     private var runtimeFrameJobCancellationSuppressionDepth: Int = 0
     @ObservationIgnored
     private var hiddenWorkspaceBarMonitorIds: Set<Monitor.ID> = []
+    @ObservationIgnored
+    private var focusedFullscreenMonitorId: Monitor.ID?
+    @ObservationIgnored
+    private var lastWorkspaceBarFullscreenState: WorkspaceBarFullscreenState = .inactive
     @ObservationIgnored
     private lazy var commandPaletteController: CommandPaletteController = .init(motionPolicy: motionPolicy)
 
@@ -660,7 +671,45 @@ final class WMController {
 
     func isWorkspaceBarVisible(on monitor: Monitor, resolved: ResolvedBarSettings? = nil) -> Bool {
         let effective = resolved ?? settings.resolvedBarSettings(for: monitor)
-        return effective.enabled && !hiddenWorkspaceBarMonitorIds.contains(monitor.id)
+        return Self.shouldShowWorkspaceBar(
+            enabled: effective.enabled,
+            manuallyHidden: hiddenWorkspaceBarMonitorIds.contains(monitor.id),
+            fullscreenState: currentWorkspaceBarFullscreenState(),
+            monitorId: monitor.id
+        )
+    }
+
+    static func shouldShowWorkspaceBar(
+        enabled: Bool,
+        manuallyHidden: Bool,
+        fullscreenState: WorkspaceBarFullscreenState,
+        monitorId: Monitor.ID
+    ) -> Bool {
+        guard enabled, !manuallyHidden else { return false }
+        guard fullscreenState.isActive else { return true }
+        guard let fullscreenMonitorId = fullscreenState.monitorId else { return false }
+        return fullscreenMonitorId != monitorId
+    }
+
+    func observeFocusedWindowFullscreen(_ isFullscreen: Bool, window: AXWindowRef) {
+        guard isFullscreen else {
+            focusedFullscreenMonitorId = nil
+            return
+        }
+
+        focusedFullscreenMonitorId = (try? AXWindowService.frame(window))?
+            .center
+            .monitorApproximation(in: workspaceManager.monitors)?
+            .id
+            ?? monitorForInteraction()?.id
+    }
+
+    private func currentWorkspaceBarFullscreenState() -> WorkspaceBarFullscreenState {
+        guard workspaceManager.isAppFullscreenActive else { return .inactive }
+        return WorkspaceBarFullscreenState(
+            isActive: true,
+            monitorId: focusedFullscreenMonitorId ?? monitorForInteraction()?.id
+        )
     }
 
     private func pruneHiddenWorkspaceBarMonitorIds() {
@@ -721,6 +770,11 @@ final class WMController {
 
     private func handleSessionStateChanged() {
         _ = focusNotificationDispatcher.notifyFocusChangesIfNeeded()
+
+        let fullscreenState = currentWorkspaceBarFullscreenState()
+        guard fullscreenState != lastWorkspaceBarFullscreenState else { return }
+        lastWorkspaceBarFullscreenState = fullscreenState
+        workspaceBarManager.reconfigureBars()
     }
 
     private func handleRuntimeRevisionChanged(
