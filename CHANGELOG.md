@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/stearz/Darniri/compare/v1.2.0...v1.3.0) (2026-10-31)
+
+
+### Features
+
+* preserve external window widths and use cask-only distribution ([#9](https://github.com/stearz/Darniri/issues/9)) ([d46b4a0](https://github.com/stearz/Darniri/commit/d46b4a01c01c6e668637c32007eb3fadeed9ad01))
+
 ## [1.2.0](https://github.com/stearz/Darniri/compare/v1.1.0...v1.2.0) (2026-10-31)
 
 
