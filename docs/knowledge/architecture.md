@@ -37,7 +37,9 @@ Accessibility controls window management; Screen Recording supports thumbnails a
 
 Native macOS fullscreen suspends a window's participation in the tiled layout and clears its saved Niri placement. Returning windows are inserted again rather than holding a placeholder or reserving their former column position.
 
-Update notifications and restart detection are enabled only for versioned app bundles. Standalone executables distributed through Homebrew and release archives skip the app-only notification center.
+Version metadata comes from the root `Info.plist`, embedded in the SwiftPM executable and copied into assembled app bundles. Update notifications and restart detection are enabled only for versioned app bundles. Standalone executables skip the app-only notification center.
+
+`LoginItemManager` uses `SMAppService.mainApp` for startup registration of the installed stable app. macOS registration status is authoritative; UserDefaults records only whether the initial default has been applied. A default registration is requested once on first launch from Applications, and later user opt-outs are preserved. Login registration is machine-local and is not part of the portable TOML configuration. Development bundles and standalone executables do not register automatically.
 
 # Related project knowledge
 

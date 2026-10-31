@@ -23,7 +23,7 @@ Use the [README](../../README.md) for supported macOS and Swift requirements and
 
 The [Makefile](../../Makefile) defines `make verify` and `make release-check` as formatting checks, linting, a build, and the full Swift test suite; formatter and linter versions are pinned there. `Scripts/install-check-tools.sh` installs those versions locally. A successful build does not establish working focus, permissions, or window behavior.
 
-The [release procedure](../RELEASING.md) owns versioning, release notes, and publication. Pull requests and tag releases run the Checks workflow, including ARM64 release packaging. Tagged releases publish the executable archive and update the Homebrew formula only after Checks passes.
+The [release procedure](../RELEASING.md) owns versioning, release notes, and publication. Pull requests and tag releases run the Checks workflow, including ARM64 release packaging. Tagged releases publish an app ZIP for the Homebrew cask and an executable tarball for the formula only after Checks passes. Packaging verifies both artifacts and their version metadata. Switching an existing formula installation to the cask is documented in the README.
 
 # Verification boundaries
 

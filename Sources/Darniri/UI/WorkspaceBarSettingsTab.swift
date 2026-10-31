@@ -34,7 +34,7 @@ struct WorkspaceBarSettingsTab: View {
                         }
 
                     SettingsSliderRow(
-                        label: "Bar Height",
+                        label: "Bar Size",
                         value: $settings.workspaceBarHeight,
                         range: 20 ... 40,
                         step: 2,

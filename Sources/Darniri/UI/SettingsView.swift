@@ -35,6 +35,7 @@ struct SettingsView: View {
 struct GeneralSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
+    @Bindable var loginItems: LoginItemManager
 
     private var outerGapsAreUniform: Bool {
         let value = settings.outerGapLeft
@@ -65,6 +66,27 @@ struct GeneralSettingsTab: View {
         )
 
         Form {
+            Section("Startup") {
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { loginItems.isEnabled },
+                    set: { loginItems.setEnabled($0) }
+                ))
+                .disabled(!loginItems.isSupported)
+
+                if !loginItems.isSupported {
+                    SettingsCaption("Install Darniri.app in Applications to enable launch at login.")
+                }
+                if loginItems.status == .requiresApproval {
+                    SettingsCaption("Allow Darniri in macOS Login Items to finish enabling launch at login.")
+                    Button("Open Login Items Settings") {
+                        loginItems.openLoginItemsSettings()
+                    }
+                }
+                if let error = loginItems.errorMessage {
+                    Text(error).foregroundStyle(.red)
+                }
+            }
+
             Section("Appearance") {
                 Picker("Theme", selection: $settings.appearanceMode) {
                     ForEach(AppearanceMode.allCases, id: \.self) { mode in
@@ -129,6 +151,10 @@ struct GeneralSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { loginItems.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            loginItems.refresh()
+        }
     }
 
     private func syncOuterGaps() {

@@ -1,6 +1,6 @@
 # Releasing Darniri
 
-Stable releases ship an ARM64 executable in `Darniri-arm64.tar.gz`, available through GitHub Releases and `stearz/tap/darniri` on Homebrew.
+Stable releases ship `Darniri-arm64.zip` containing `Darniri.app` for the Homebrew cask and `Darniri-arm64.tar.gz` for the standalone executable formula. Both are available through GitHub Releases. The cask installs the app in Applications and links a launcher that opens it without retaining the terminal process.
 
 ## Prepare a release
 
@@ -22,7 +22,7 @@ Stable releases ship an ARM64 executable in `Darniri-arm64.tar.gz`, available th
    tar -tzf dist/Darniri-arm64.tar.gz
    ```
 
-   The script builds an explicit ARM64 release executable, checks its architecture, and prints the archive checksum. The archive must contain only `Darniri`.
+   The script builds an explicit ARM64 release executable and assembles an ad-hoc signed app bundle. `Scripts/verify-release.py` checks both archives, ARM64 architecture, embedded and bundled version metadata, the app icon, and the terminal launcher. The tar archive must contain only `Darniri`. The script prints both archive checksums.
 
 5. Open the release preparation pull request. The Checks workflow runs the same checks and verifies ARM64 release packaging. Merge after review and successful checks.
 
@@ -35,8 +35,8 @@ git tag v<version> <merged-commit>
 git push origin v<version>
 ```
 
-The Release workflow reruns Checks before publishing. It validates the tag against `Info.plist`, requires the matching release notes, builds the archive, creates the GitHub release using those notes, and updates the Homebrew formula with the tag and SHA256.
+The Release workflow reruns Checks before publishing. It validates the tag against `Info.plist`, requires the matching release notes, builds both archives, creates the GitHub release using those notes, and updates the Homebrew formula and cask with the tag and their respective SHA256 checksums. Repeating the tap update succeeds if both definitions already match.
 
 The repository's `TAP_GITHUB_TOKEN` Actions secret must permit writes to `stearz/homebrew-tap`. If the tap update fails after the GitHub release is created, update the formula using that release's artifact and checksum before announcing availability through Homebrew.
 
-Verify that the published release has the expected archive and notes and that the tap points to the new version and checksum. `Scripts/package-app.sh` remains a separate helper for local app bundles; the release workflow uses `Scripts/package-release.sh`.
+Verify that the published release has both archives and the expected notes and that the formula and cask point to the new version and their respective checksums. `Scripts/package-app.sh` supports Developer ID signing and notarization when credentials are configured; the release workflow uses `Scripts/package-release.sh` with ad-hoc signing.
