@@ -2,6 +2,7 @@
 """Check release metadata and archive contents without launching the window manager."""
 
 import io
+import json
 import pathlib
 import plistlib
 import struct
@@ -10,6 +11,11 @@ import zipfile
 
 root = pathlib.Path(__file__).resolve().parent.parent
 expected = plistlib.loads((root / "Info.plist").read_bytes())
+version = (root / "VERSION").read_text().strip()
+manifest = json.loads((root / ".release-please-manifest.json").read_text())
+assert expected["CFBundleShortVersionString"] == version, "App version differs from VERSION"
+assert expected["CFBundleVersion"] == version, "Build version differs from VERSION"
+assert manifest["."] == version, "Release Please manifest differs from VERSION"
 
 
 def verify_executable(binary):

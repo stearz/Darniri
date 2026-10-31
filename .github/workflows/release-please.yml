@@ -1,0 +1,36 @@
+name: Release Please
+
+# As in voidshell: collect conventional commits in a release PR, then create
+# the tag and GitHub release when that PR is merged.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check release credentials
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set RELEASE_TOKEN with Contents and Pull requests write access to stearz/Darniri."
+            exit 1
+          fi
+          gh api repos/stearz/Darniri --silent
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

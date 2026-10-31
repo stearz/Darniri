@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "bootstrap-sha": "3f516f14bf277ee4890d6db4a811547d8ca52474",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "VERSION",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "Info.plist"
+        }
+      ]
+    }
+  }
+}
