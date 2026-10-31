@@ -21,7 +21,9 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, minHeight: 560)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+        .onReceive(NotificationCenter.default
+            .publisher(for: NSApplication.didChangeScreenParametersNotification))
+        { _ in
             showsMonitors = Monitor.current().count > 1
             if !showsMonitors, selectedSection == .monitors {
                 selectedSection = .general
@@ -101,7 +103,9 @@ struct GeneralSettingsTab: View {
                     valueWidth: 64
                 )
 
-                SettingsCaption("Applies to all screen edges. Set a different margin per side by editing the configuration file.")
+                SettingsCaption(
+                    "Applies to all screen edges. Set a different margin per side by editing the configuration file."
+                )
             }
 
             Section("Mouse Resize") {
@@ -119,7 +123,9 @@ struct GeneralSettingsTab: View {
                     _ = try? SettingsFileWorkflow.perform(.open, settings: settings)
                 }
 
-                SettingsCaption("Advanced options not shown here — such as per-side outer margins, per-monitor workspace pinning, and app rules — can be set by editing the configuration file directly. Changes are picked up automatically.")
+                SettingsCaption(
+                    "Advanced options not shown here — such as per-side outer margins, per-monitor workspace pinning, and app rules — can be set by editing the configuration file directly. Changes are picked up automatically."
+                )
             }
         }
         .formStyle(.grouped)

@@ -74,7 +74,9 @@ enum HotkeyKeymap: String, CaseIterable, Identifiable, Codable, Sendable {
     case arrows
     case vim
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: String {
         switch self {
@@ -206,7 +208,7 @@ final class SymbolicHotkeyController {
 /// (not through the protocol) because signal/atexit handlers must be C-compatible
 /// and cannot capture context or dispatch to `@MainActor`.
 enum SymbolicHotkeyCrashSafety {
-    nonisolated(unsafe) private static var installed = false
+    private nonisolated(unsafe) static var installed = false
 
     static func install() {
         guard !installed else { return }

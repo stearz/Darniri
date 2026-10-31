@@ -57,8 +57,10 @@ enum WorkspaceBarPosition: String, CaseIterable, Identifiable {
     /// Whether this position produces a vertical (side-edge) indicator.
     var isVertical: Bool {
         switch self {
-        case .left, .right: true
-        case .overlappingMenuBar, .belowMenuBar: false
+        case .left,
+             .right: true
+        case .overlappingMenuBar,
+             .belowMenuBar: false
         }
     }
 }

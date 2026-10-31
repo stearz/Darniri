@@ -1032,44 +1032,108 @@ final class OverviewController {
             wmController.commandHandler.handleFocusWindowOrWorkspaceForOverview(direction: .down)
 
         case .focusWindowDownOrTop:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusWindowDownOrTop(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusWindowDownOrTop(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusWindowUpOrBottom:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusWindowUpOrBottom(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusWindowUpOrBottom(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusWindowTop:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusWindowTop(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusWindowTop(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusWindowBottom:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusWindowBottom(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusWindowBottom(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusDownOrLeft:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusDownOrLeft(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusDownOrLeft(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusUpOrRight:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusUpOrRight(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusUpOrRight(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusColumnFirst:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusColumnFirst(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusColumnFirst(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case .focusColumnLast:
-            wmController.commandHandler.handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
-                engine.focusColumnLast(currentSelection: node, in: wsId, motion: motion, state: &state, workingFrame: frame, gaps: gaps)
-            }
+            wmController.commandHandler
+                .handleCombinedNavigationForOverview { engine, node, wsId, motion, state, frame, gaps in
+                    engine.focusColumnLast(
+                        currentSelection: node,
+                        in: wsId,
+                        motion: motion,
+                        state: &state,
+                        workingFrame: frame,
+                        gaps: gaps
+                    )
+                }
 
         case let .move(direction):
             wmController.niriLayoutHandler.moveWindow(direction: direction)

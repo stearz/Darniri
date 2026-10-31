@@ -84,35 +84,71 @@ enum ActionCatalog {
         switch modifier {
         case .control:
             return [
-                "focus.left":                      KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey)),
-                "focus.right":                     KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey)),
-                "focusWindowOrWorkspaceUp":         KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey)),
-                "focusWindowOrWorkspaceDown":       KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey)),
-                "move.left":                       KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey | shiftKey)),
-                "move.right":                      KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | shiftKey)),
-                "moveWindowUpOrToWorkspaceUp":      KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey | shiftKey)),
-                "moveWindowDownOrToWorkspaceDown":  KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey | shiftKey)),
+                "focus.left": KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(controlKey)),
+                "focus.right": KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey)),
+                "focusWindowOrWorkspaceUp": KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(controlKey)),
+                "focusWindowOrWorkspaceDown": KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(controlKey)),
+                "move.left": KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(controlKey | shiftKey)),
+                "move.right": KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | shiftKey)),
+                "moveWindowUpOrToWorkspaceUp": KeyBinding(
+                    keyCode: UInt32(kVK_UpArrow),
+                    modifiers: UInt32(controlKey | shiftKey)
+                ),
+                "moveWindowDownOrToWorkspaceDown": KeyBinding(
+                    keyCode: UInt32(kVK_DownArrow),
+                    modifiers: UInt32(controlKey | shiftKey)
+                ),
                 // Ctrl+Alt+← / → — the defaultBinding() transform strips optionKey and sets usesHyper=true
-                "moveColumn.left":                 KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(controlKey | optionKey)),
-                "moveColumn.right":                KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(controlKey | optionKey)),
-                "moveColumnToWorkspaceUp":          KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(controlKey | optionKey)),
-                "moveColumnToWorkspaceDown":        KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(controlKey | optionKey))
+                "moveColumn.left": KeyBinding(
+                    keyCode: UInt32(kVK_LeftArrow),
+                    modifiers: UInt32(controlKey | optionKey)
+                ),
+                "moveColumn.right": KeyBinding(
+                    keyCode: UInt32(kVK_RightArrow),
+                    modifiers: UInt32(controlKey | optionKey)
+                ),
+                "moveColumnToWorkspaceUp": KeyBinding(
+                    keyCode: UInt32(kVK_UpArrow),
+                    modifiers: UInt32(controlKey | optionKey)
+                ),
+                "moveColumnToWorkspaceDown": KeyBinding(
+                    keyCode: UInt32(kVK_DownArrow),
+                    modifiers: UInt32(controlKey | optionKey)
+                )
             ]
         case .option:
             return [
-                "focus.left":                      KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey)),
-                "focus.right":                     KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey)),
-                "focusWindowOrWorkspaceUp":         KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey)),
-                "focusWindowOrWorkspaceDown":       KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey)),
-                "move.left":                       KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey | shiftKey)),
-                "move.right":                      KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | shiftKey)),
-                "moveWindowUpOrToWorkspaceUp":      KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey | shiftKey)),
-                "moveWindowDownOrToWorkspaceDown":  KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey | shiftKey)),
+                "focus.left": KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(optionKey)),
+                "focus.right": KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey)),
+                "focusWindowOrWorkspaceUp": KeyBinding(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(optionKey)),
+                "focusWindowOrWorkspaceDown": KeyBinding(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(optionKey)),
+                "move.left": KeyBinding(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(optionKey | shiftKey)),
+                "move.right": KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | shiftKey)),
+                "moveWindowUpOrToWorkspaceUp": KeyBinding(
+                    keyCode: UInt32(kVK_UpArrow),
+                    modifiers: UInt32(optionKey | shiftKey)
+                ),
+                "moveWindowDownOrToWorkspaceDown": KeyBinding(
+                    keyCode: UInt32(kVK_DownArrow),
+                    modifiers: UInt32(optionKey | shiftKey)
+                ),
                 // Opt+Ctrl+← / → — also carries optionKey, so defaultBinding() strips it → usesHyper=true
-                "moveColumn.left":                 KeyBinding(keyCode: UInt32(kVK_LeftArrow),  modifiers: UInt32(optionKey | controlKey)),
-                "moveColumn.right":                KeyBinding(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(optionKey | controlKey)),
-                "moveColumnToWorkspaceUp":          KeyBinding(keyCode: UInt32(kVK_UpArrow),    modifiers: UInt32(optionKey | controlKey)),
-                "moveColumnToWorkspaceDown":        KeyBinding(keyCode: UInt32(kVK_DownArrow),  modifiers: UInt32(optionKey | controlKey))
+                "moveColumn.left": KeyBinding(
+                    keyCode: UInt32(kVK_LeftArrow),
+                    modifiers: UInt32(optionKey | controlKey)
+                ),
+                "moveColumn.right": KeyBinding(
+                    keyCode: UInt32(kVK_RightArrow),
+                    modifiers: UInt32(optionKey | controlKey)
+                ),
+                "moveColumnToWorkspaceUp": KeyBinding(
+                    keyCode: UInt32(kVK_UpArrow),
+                    modifiers: UInt32(optionKey | controlKey)
+                ),
+                "moveColumnToWorkspaceDown": KeyBinding(
+                    keyCode: UInt32(kVK_DownArrow),
+                    modifiers: UInt32(optionKey | controlKey)
+                )
             ]
         }
     }

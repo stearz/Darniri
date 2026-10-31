@@ -314,9 +314,9 @@ final class DynamicRowSpillTests: XCTestCase {
         XCTAssertEqual(
             storedOffset, expectedCenteredOffset, accuracy: tolerance,
             "Viewport offset must target the centered position (-(W-w)/2). " +
-            "Got \(storedOffset), expected ~\(expectedCenteredOffset). " +
-            "If this still fails with storedOffset ≈ \(-workingWidth / 2), " +
-            "cachedWidth was still 0 when ensureSelectionVisible was called."
+                "Got \(storedOffset), expected ~\(expectedCenteredOffset). " +
+                "If this still fails with storedOffset ≈ \(-workingWidth / 2), " +
+                "cachedWidth was still 0 when ensureSelectionVisible was called."
         )
 
         // The offset must be a spring (animated), not static — centering is animated.

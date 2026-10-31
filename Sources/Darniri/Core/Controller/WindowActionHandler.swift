@@ -549,5 +549,4 @@ final class WindowActionHandler {
         guard let entry = controller.workspaceManager.entry(for: token) else { return false }
         return navigateToWindowInternal(token: token, workspaceId: entry.workspaceId)
     }
-
 }

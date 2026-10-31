@@ -454,7 +454,6 @@ final class HotkeyCenter {
             }
             nextId += 1
         }
-
     }
 
     private func dispatch(id: UInt32) {
@@ -720,7 +719,10 @@ final class HotkeyCenter {
             self?.promotePendingVirtualHyper()
         }
         virtualHyperHoldWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(configuration.hyperKeyHoldThresholdMilliseconds), execute: item)
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(configuration.hyperKeyHoldThresholdMilliseconds),
+            execute: item
+        )
     }
 
     private func promotePendingVirtualHyper() {

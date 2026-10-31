@@ -580,7 +580,6 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         }
         panel?.makeFirstResponder(textField)
     }
-
 }
 
 private struct CommandPaletteView: View {
@@ -776,5 +775,3 @@ private struct CommandPaletteWindowRow: View {
         .contentShape(Rectangle())
     }
 }
-
-

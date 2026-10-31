@@ -102,7 +102,9 @@ struct HotkeySettingsView: View {
                                     .frame(minWidth: 112, alignment: .center)
                             }
                             .buttonStyle(.bordered)
-                            .help("Change Darniri modifier. Current Darniri modifier: \(settings.hyperTrigger.humanReadableString)")
+                            .help(
+                                "Change Darniri modifier. Current Darniri modifier: \(settings.hyperTrigger.humanReadableString)"
+                            )
                             .accessibilityLabel("Change Darniri modifier")
                             .accessibilityValue(settings.hyperTrigger.humanReadableString)
                         }
@@ -114,9 +116,11 @@ struct HotkeySettingsView: View {
                         get: { settings.hotkeyKeymap },
                         set: { controller.setHotkeyKeymap($0) }
                     )) { ForEach(HotkeyKeymap.allCases) { Text($0.displayName).tag($0) } }
-                    .labelsHidden().pickerStyle(.segmented).frame(maxWidth: 240)
+                        .labelsHidden().pickerStyle(.segmented).frame(maxWidth: 240)
                 }
-                SettingsCaption("Arrows uses the arrow keys for focus/move/column navigation; Vim uses h/j/k/l. Rebind individual shortcuts by editing the configuration file.")
+                SettingsCaption(
+                    "Arrows uses the arrow keys for focus/move/column navigation; Vim uses h/j/k/l. Rebind individual shortcuts by editing the configuration file."
+                )
 
                 LabeledContent("Hold Threshold") {
                     Stepper(value: $settings.hyperKeyHoldThresholdMilliseconds, in: 0 ... 1500, step: 50) {
@@ -127,7 +131,9 @@ struct HotkeySettingsView: View {
                         controller.updateHotkeyBindings(settings.hotkeyBindings)
                     }
                 }
-                SettingsCaption("How long to hold the Hyper key before it activates. 0 ms = immediate (no tap-through to native key).")
+                SettingsCaption(
+                    "How long to hold the Hyper key before it activates. 0 ms = immediate (no tap-through to native key)."
+                )
 
                 LabeledContent("Input Monitoring") {
                     HStack(spacing: 10) {

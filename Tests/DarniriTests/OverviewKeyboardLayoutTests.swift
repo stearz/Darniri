@@ -12,7 +12,6 @@ import XCTest
 /// - carbonModifiers conversion
 @MainActor
 final class OverviewKeyboardLayoutTests: XCTestCase {
-
     // MARK: - carbonModifiers
 
     func testCarbonModifiers_noModifiers_returnsZero() {

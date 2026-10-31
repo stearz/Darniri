@@ -123,5 +123,4 @@ final class FocusPolicyEngine {
         }
         return nil
     }
-
 }
