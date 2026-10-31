@@ -166,6 +166,61 @@ enum NiriWindowMoveResult {
         return controller.layoutRefreshController.executeLayoutPlan(plan)
     }
 
+    @discardableResult
+    func adoptExternalWindowWidth(for entry: WindowModel.Entry, frame: CGRect) -> Bool {
+        guard let controller, let engine = controller.niriEngine,
+              entry.mode == .tiling, entry.layoutReason == .standard,
+              controller.workspaceManager.hiddenState(for: entry.token) == nil,
+              controller.isManagedWindowDisplayable(entry.handle),
+              !controller.isInteractiveGestureActive,
+              !hasScrollAnimation(for: entry.workspaceId),
+              !engine.hasAnyColumnAnimationsRunning(in: entry.workspaceId),
+              !engine.hasAnyWindowAnimationsRunning(in: entry.workspaceId),
+              let monitor = controller.workspaceManager.monitor(for: entry.workspaceId),
+              (engine.monitor(for: monitor.id)?.orientation
+                  ?? controller.settings.effectiveOrientation(for: monitor)) == .horizontal,
+              !controller.axManager.hasPendingFrameWrite(for: entry.windowId),
+              let window = engine.findNode(for: entry.token),
+              engine.adoptWindowWidth(frame.width, for: window, in: entry.workspaceId)
+        else { return false }
+
+        controller.workspaceManager.invalidateLayoutRevision(for: [entry.workspaceId])
+        controller.layoutRefreshController.requestRelayout(
+            reason: .axWindowChanged,
+            affectedWorkspaceIds: [entry.workspaceId]
+        )
+        return true
+    }
+
+    /// AX writes can return before the app has applied its size. Re-read once
+    /// settled and reject observations belonging to a superseded layout.
+    func reconcileWindowWidth(after result: AXFrameApplyResult) {
+        guard result.writeResult.failureReason == .verificationMismatch,
+              result.writeResult.sizeError == .success,
+              result.writeResult.positionError == .success,
+              let controller
+        else { return }
+        let token = WindowToken(pid: result.pid, windowId: result.windowId)
+        guard let entry = controller.workspaceManager.entry(for: token) else { return }
+        let workspaceId = entry.workspaceId
+        let revision = controller.workspaceManager.runtimeRevision(for: workspaceId)
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard let self, let controller = self.controller,
+                  controller.workspaceManager.isRuntimeRevisionCurrent(
+                      revision, for: workspaceId, domains: .layoutCommit
+                  ),
+                  let entry = controller.workspaceManager.entry(for: token),
+                  entry.workspaceId == workspaceId,
+                  let plannedFrame = controller.niriEngine?.findNode(for: token)?.frame,
+                  abs(plannedFrame.width - result.targetFrame.width) <= 1,
+                  let actualFrame = AXWindowService.framePreferFast(entry.axRef)
+            else { return }
+            self.adoptExternalWindowWidth(for: entry, frame: actualFrame)
+        }
+    }
+
     private func finalizeAnimation() {
         guard let controller else { return }
 

@@ -21,6 +21,38 @@ extension NiriLayoutEngine {
         }
     }
 
+    /// External resizing changes the column preference, including a lone window's
+    /// aspect-ratio override. Keep the observed width even when it exceeds the screen.
+    @discardableResult
+    func adoptWindowWidth(
+        _ width: CGFloat,
+        for window: NiriWindow,
+        in workspaceId: WorkspaceDescriptor.ID
+    ) -> Bool {
+        guard width.isFinite, width > 0, window.sizingMode == .normal,
+              let column = findColumn(containing: window, in: workspaceId),
+              let previousWidth = window.frame?.width,
+              abs(width - previousWidth) > 1
+        else { return false }
+
+        let columnPixels = columnWidth(forWindowWidth: width, in: column)
+        if column.hasManualSingleWindowWidthOverride,
+           column.width == .fixed(columnPixels),
+           abs(column.cachedWidth - columnPixels) <= 1
+        {
+            return false
+        }
+        column.width = .fixed(columnPixels)
+        column.cachedWidth = columnPixels
+        column.widthAnimation = nil
+        column.targetWidth = nil
+        column.presetWidthIdx = nil
+        column.isFullWidth = false
+        column.savedWidth = nil
+        column.hasManualSingleWindowWidthOverride = true
+        return true
+    }
+
     private func cachedWidthForResizeStart(
         _ column: NiriContainer,
         in workspaceId: WorkspaceDescriptor.ID,

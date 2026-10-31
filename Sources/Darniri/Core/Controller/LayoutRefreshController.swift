@@ -3574,7 +3574,12 @@ final class LayoutDiffExecutor {
         }
 
         if !frameUpdates.isEmpty {
-            controller.axManager.applyFramesParallel(frameUpdates)
+            controller.axManager.applyFramesParallel(
+                frameUpdates,
+                terminalObserver: { [weak controller] result in
+                    controller?.niriLayoutHandler.reconcileWindowWidth(after: result)
+                }
+            )
         }
 
         if !revealFrameUpdates.isEmpty {
@@ -3589,7 +3594,7 @@ final class LayoutDiffExecutor {
             }
             controller.axManager.applyFramesParallel(
                 revealFrameUpdates.map { ($0.pid, $0.windowId, $0.frame) },
-                terminalObserver: { [weak refreshController, revealTransactionIdsByWindowId] result in
+                terminalObserver: { [weak refreshController, weak controller, revealTransactionIdsByWindowId] result in
                     guard let refreshController,
                           let transactionId = revealTransactionIdsByWindowId[result.windowId]
                           ?? refreshController.pendingRevealTransactionId(forWindowId: result.windowId)
@@ -3600,6 +3605,7 @@ final class LayoutDiffExecutor {
                         with: result,
                         transactionId: transactionId
                     )
+                    controller?.niriLayoutHandler.reconcileWindowWidth(after: result)
                 }
             )
         }

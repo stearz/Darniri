@@ -50,7 +50,7 @@ brew uninstall --formula stearz/tap/darniri
 brew install --cask stearz/tap/darniri
 ```
 
-Your TOML configuration and saved window state stay in their existing locations. The executable formula remains available for standalone use; `brew install --formula stearz/tap/darniri --HEAD` builds the development branch with Swift 6.3.2 or newer.
+Your TOML configuration and saved window state stay in their existing locations. Homebrew distribution uses the cask only. For standalone use, download the executable archive from GitHub Releases or build from source.
 
 ### GitHub Releases
 
@@ -109,6 +109,7 @@ Windows are organized into a vertical stack of rows per monitor. Each row is an 
 - There is always an empty buffer row above and below the content rows, so focus and spill never wrap around.
 - Rows are created automatically as windows are moved in, and removed when they become empty (except for the buffers).
 - Each row independently remembers its column widths and horizontal scroll position.
+- Drag a tiled window’s edge to change its column width. Darniri also accepts a different width enforced by the app and moves neighboring columns to keep the layout aligned. Windows stacked in one column share its width.
 - The active row is shown by the vertical Row Indicator Bar (see below).
 - Native macOS fullscreen windows release their space in the tiled layout. On leaving fullscreen, they are inserted into the layout again without reserving their previous column position.
 

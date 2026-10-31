@@ -3,6 +3,57 @@ import ApplicationServices
 import XCTest
 
 final class RuntimeArchitectureTests: XCTestCase {
+    @MainActor
+    func testExternalWindowWidthUpdatesColumnAndInvalidatesPendingLayout() throws {
+        let controller = Self.controller()
+        defer { controller.layoutRefreshController.resetState() }
+        controller.niriLayoutHandler.enableNiriLayout()
+        let manager = controller.workspaceManager
+        let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
+        let token = manager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(getpid()), windowId: 98_001),
+            pid: getpid(), windowId: 98_001, to: workspaceId, mode: .tiling
+        )
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let window = engine.addWindow(token: token, to: workspaceId, afterSelection: nil)
+        window.frame = CGRect(x: 0, y: 0, width: 600, height: 800)
+        let entry = try XCTUnwrap(manager.entry(for: token))
+        let column = try XCTUnwrap(engine.findColumn(containing: window, in: workspaceId))
+        let revision = manager.runtimeRevision(for: workspaceId)
+
+        XCTAssertTrue(controller.niriLayoutHandler.adoptExternalWindowWidth(
+            for: entry, frame: CGRect(x: 0, y: 0, width: 850, height: 800)
+        ))
+        XCTAssertEqual(column.width, .fixed(850))
+        XCTAssertFalse(manager.isRuntimeRevisionCurrent(revision, for: workspaceId, domains: .layoutCommit))
+        XCTAssertNotNil(controller.layoutRefreshController.layoutState.pendingRefresh)
+    }
+
+    @MainActor
+    func testExternalWindowWidthIgnoresOwnAnimationsAndSuspendedWindows() throws {
+        let controller = Self.controller()
+        defer { controller.layoutRefreshController.resetState() }
+        controller.niriLayoutHandler.enableNiriLayout()
+        let manager = controller.workspaceManager
+        let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
+        let token = manager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(getpid()), windowId: 98_002),
+            pid: getpid(), windowId: 98_002, to: workspaceId, mode: .tiling
+        )
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let window = engine.addWindow(token: token, to: workspaceId, afterSelection: nil)
+        window.frame = CGRect(x: 0, y: 0, width: 600, height: 800)
+        let actual = CGRect(x: 0, y: 0, width: 850, height: 800)
+        let entry = try XCTUnwrap(manager.entry(for: token))
+        let displayId = try XCTUnwrap(manager.monitors.first?.displayId)
+        controller.niriLayoutHandler.scrollAnimationByDisplay[displayId] = workspaceId
+        XCTAssertFalse(controller.niriLayoutHandler.adoptExternalWindowWidth(for: entry, frame: actual))
+        controller.niriLayoutHandler.scrollAnimationByDisplay.removeAll()
+        XCTAssertTrue(manager.markNativeFullscreenSuspended(token))
+        let suspendedEntry = try XCTUnwrap(manager.entry(for: token))
+        XCTAssertFalse(controller.niriLayoutHandler.adoptExternalWindowWidth(for: suspendedEntry, frame: actual))
+    }
+
     func testSnappyWindowMovementBezierStartsAndEndsAtBounds() {
         let config = CubicConfig.snappyWindowMovement
         let startTime = 4.0
