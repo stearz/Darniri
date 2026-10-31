@@ -35,6 +35,8 @@ The [README](../../README.md) documents the canonical editable TOML settings fil
 
 Accessibility controls window management; Screen Recording supports thumbnails and drag ghosts; Input Monitoring supports the documented Hyper-key bindings. Private macOS APIs and OS permissions are integration boundaries requiring actual macOS checks when affected.
 
+External width changes to visible windows in horizontal column layouts become a fixed column-width preference. This includes native edge dragging and app-enforced widths confirmed after a delayed frame readback. Windows in one column share the width; Darniri’s pending frame writes and animations are excluded from external resize adoption. Height remains governed by the layout.
+
 Native macOS fullscreen suspends a window's participation in the tiled layout and clears its saved Niri placement. Returning windows are inserted again rather than holding a placeholder or reserving their former column position.
 
 Release Please keeps `VERSION`, its manifest, and the app/build versions in the root `Info.plist` aligned in each release PR. The plist is embedded in the SwiftPM executable and copied into assembled app bundles; packaging verifies the resulting metadata. Update notifications and restart detection are enabled only for versioned app bundles. Standalone executables skip the app-only notification center.

@@ -933,6 +933,12 @@ final class AXEventHandler: CGSEventDelegate {
             return
         }
 
+        if let frame = suppressionObservedFrame ?? observedFrame(for: entry),
+           controller.niriLayoutHandler.adoptExternalWindowWidth(for: entry, frame: frame)
+        {
+            return
+        }
+
         controller.layoutRefreshController.requestRelayout(
             reason: .axWindowChanged,
             affectedWorkspaceIds: [entry.workspaceId]

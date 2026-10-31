@@ -629,7 +629,7 @@ extension NiriLayoutEngine {
             context.container.resolveAndCacheWidth(workingAreaWidth: workingFrame.width, gaps: gaps)
         }
 
-        let resolvedWidth = min(workingFrame.width, max(0, context.container.cachedWidth))
+        let resolvedWidth = max(0, context.container.cachedWidth)
         guard resolvedWidth > 0 else {
             return workingFrame.roundedToPhysicalPixels(scale: scale)
         }
