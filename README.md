@@ -262,7 +262,7 @@ To run locally without signing:
 ./Scripts/run-local.sh
 ```
 
-For development checks and the release procedure, see [Releasing](docs/RELEASING.md).
+For development checks and the automated Release Please workflow, see [Releasing](docs/RELEASING.md). New changes accumulate in a release PR; merging that PR publishes the next version and updates Homebrew after successful checks. See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Contributing
 

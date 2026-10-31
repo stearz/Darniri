@@ -1,13 +1,27 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published release tag to finish or retry
+        required: true
+        type: string
+
+concurrency:
+  group: darniri-release-publication
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
+    with:
+      ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
     permissions:
       contents: read
 
@@ -19,20 +33,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Check Homebrew credentials before publication
         env:
           GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: gh api repos/stearz/homebrew-tap --silent
 
-      - name: Validate release version and notes
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Validate release version
         run: |
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)
           test "$RELEASE_TAG" = "v$VERSION"
-          test -s "docs/releases/$VERSION.md"
-          echo "RELEASE_NOTES=docs/releases/$VERSION.md" >> "$GITHUB_ENV"
+          test "$(cat VERSION)" = "$VERSION"
+          test -s CHANGELOG.md
 
       - name: Build and package ARM64 executable and app
         run: ./Scripts/package-release.sh
@@ -43,19 +57,17 @@ jobs:
           echo "value=$(shasum -a 256 dist/Darniri-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "app=$(shasum -a 256 dist/Darniri-arm64.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            dist/Darniri-arm64.tar.gz
-            dist/Darniri-arm64.zip
-          body_path: ${{ env.RELEASE_NOTES }}
-          fail_on_unmatched_files: true
+      - name: Attach archives to the Release Please release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            dist/Darniri-arm64.tar.gz dist/Darniri-arm64.zip --clobber
 
       - name: Update Homebrew formula and cask
         env:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.RELEASE_TAG }}
           SHA256: ${{ steps.sha256.outputs.value }}
           APP_SHA256: ${{ steps.sha256.outputs.app }}
         run: |
@@ -132,3 +144,17 @@ jobs:
           fi
           git commit -m "darniri ${VERSION_NUM}"
           git push
+
+      - name: Verify published archives and Homebrew update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERIFY_DIR=$(mktemp -d)
+          trap 'rm -rf "$VERIFY_DIR"' EXIT
+          gh release download "$RELEASE_TAG" \
+            --pattern Darniri-arm64.tar.gz --pattern Darniri-arm64.zip --dir "$VERIFY_DIR"
+          cmp dist/Darniri-arm64.tar.gz "$VERIFY_DIR/Darniri-arm64.tar.gz"
+          cmp dist/Darniri-arm64.zip "$VERIFY_DIR/Darniri-arm64.zip"
+          git -C homebrew-tap fetch origin main
+          test "$(git -C homebrew-tap rev-parse HEAD)" = "$(git -C homebrew-tap rev-parse origin/main)"
+          echo "Release $RELEASE_TAG: both archives and Homebrew formula/cask verified." >> "$GITHUB_STEP_SUMMARY"

@@ -23,7 +23,9 @@ Use the [README](../../README.md) for supported macOS and Swift requirements and
 
 The [Makefile](../../Makefile) defines `make verify` and `make release-check` as formatting checks, linting, a build, and the full Swift test suite; formatter and linter versions are pinned there. `Scripts/install-check-tools.sh` installs those versions locally. A successful build does not establish working focus, permissions, or window behavior.
 
-The [release procedure](../RELEASING.md) owns versioning, release notes, and publication. Pull requests and tag releases run the Checks workflow, including ARM64 release packaging. Tagged releases publish an app ZIP for the Homebrew cask and an executable tarball for the formula only after Checks passes. Packaging verifies both artifacts and their version metadata. Switching an existing formula installation to the cask is documented in the README.
+The [release procedure](../RELEASING.md) owns versioning, release notes, credentials, and publication. Like voidshell, Release Please collects Conventional Commits on main into a release PR that updates `VERSION`, `CHANGELOG.md`, its manifest, and the app/build versions in `Info.plist`. Merging that PR creates a tag and GitHub release; the published-release event starts packaging and Homebrew distribution. Ordinary fix/feature PR merges are not releases.
+
+The Release workflow checks the exact release tag, publishes an app ZIP for the Homebrew cask and an executable tarball for the formula, and verifies the uploaded artifacts and pushed tap commit. A release is complete only after that workflow succeeds. `RELEASE_TOKEN` allows automation-created PRs/releases to trigger follow-up workflows; `TAP_GITHUB_TOKEN` permits the separate tap update. The manual Release workflow input retries publication of an existing tag without retagging it. Switching an existing formula installation to the cask is documented in the README.
 
 # Verification boundaries
 

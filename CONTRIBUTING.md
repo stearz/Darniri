@@ -28,6 +28,7 @@ Bug fixes, documentation improvements, performance work, focused cleanups, featu
 
 ## Pull Request Expectations
 
+- Use a Conventional Commit PR title when squash merging: `fix:` for bug fixes, `feat:` for features, and `!` or a `BREAKING CHANGE:` footer for breaking changes. Release Please uses these commits to maintain a release PR with version updates and a changelog. Merging that release PR starts publication; see [Releasing](docs/RELEASING.md).
 - Explain the problem you are solving and why this approach makes sense.
 - Include verification notes **if possible**. Mention what you ran, checked, or verified.
 - Add screenshots or recordings when they help explain the change.
