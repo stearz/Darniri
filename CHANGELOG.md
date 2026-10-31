@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/stearz/Darniri/compare/v1.1.0...v1.2.0) (2026-10-31)
+
+
+### Bug Fixes
+
+* install Darniri as a macOS app with login startup and focused defaults ([#5](https://github.com/stearz/Darniri/issues/5)) ([70e8f79](https://github.com/stearz/Darniri/commit/70e8f79cc149ca2d641e64582f45e55d66471617))
+* remove unnecessary unsafe isolation from update identifiers ([#6](https://github.com/stearz/Darniri/issues/6)) ([8c47c97](https://github.com/stearz/Darniri/commit/8c47c97a9e7f7169b3689567a79d825c9f11825d))
+
+
+### Continuous Integration
+
+* automate releases with release-please ([8972df4](https://github.com/stearz/Darniri/commit/8972df4c7fb7699c613e7ba41f2d65b8ec78bc5a))
+
 ## [1.1.0](https://github.com/stearz/Darniri/compare/v1.0.0...v1.1.0) (2026-10-31)
 
 Darniri 1.1.0 introduces dynamic rows, improves multi-monitor window management, and simplifies configuration around the scrolling-column workflow.
