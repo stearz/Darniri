@@ -227,7 +227,8 @@ enum OverviewRenderer {
             case .before:
                 // Placeholder to the left of the target.
                 placeholderX = frame.minX - placeholderWidth - 8
-            case .after, .swap:
+            case .after,
+                 .swap:
                 // Placeholder to the right of the target.
                 placeholderX = frame.maxX + 8
             }

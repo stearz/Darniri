@@ -94,4 +94,3 @@ struct ResetIconButton: View {
         .accessibilityLabel(title)
     }
 }
-

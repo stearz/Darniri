@@ -6,7 +6,13 @@ on:
       - 'v*'
 
 jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+
   release:
+    needs: checks
     runs-on: macos-26
     permissions:
       contents: write
@@ -14,21 +20,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build
-        run: swift build --configuration release --disable-sandbox --product Darniri
+      - name: Validate release version and notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)
+          test "$RELEASE_TAG" = "v$VERSION"
+          test -s "docs/releases/$VERSION.md"
+          echo "RELEASE_NOTES=docs/releases/$VERSION.md" >> "$GITHUB_ENV"
 
-      - name: Create tarball
-        run: tar -czf Darniri-arm64.tar.gz -C .build/release Darniri
+      - name: Build and package ARM64 executable
+        run: ./Scripts/package-release.sh
 
       - name: Compute SHA256
         id: sha256
-        run: echo "value=$(shasum -a 256 Darniri-arm64.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+        run: echo "value=$(shasum -a 256 dist/Darniri-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: Darniri-arm64.tar.gz
-          generate_release_notes: true
+          files: dist/Darniri-arm64.tar.gz
+          body_path: ${{ env.RELEASE_NOTES }}
+          fail_on_unmatched_files: true
 
       - name: Update Homebrew formula
         env:
@@ -52,7 +65,8 @@ jobs:
             head "https://github.com/stearz/Darniri.git", branch: "main"
 
             depends_on macos: :sequoia
-            depends_on xcode: ["16.4", :build] if build.head?
+            depends_on arch: :arm64
+            depends_on xcode: :build if build.head?
 
             def install
               if build.head?

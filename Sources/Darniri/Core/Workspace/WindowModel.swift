@@ -748,5 +748,4 @@ final class WindowModel {
         entry.cachedConstraints = constraints.normalized()
         entry.constraintsCacheTime = Date()
     }
-
 }

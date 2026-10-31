@@ -55,7 +55,6 @@ struct NiriWorkspaceSnapshot {
     let isActiveWorkspace: Bool
 }
 
-
 struct LayoutFrameChange {
     let token: WindowToken
     let frame: CGRect

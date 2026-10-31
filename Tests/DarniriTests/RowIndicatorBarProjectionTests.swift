@@ -8,7 +8,6 @@ import XCTest
 /// visible-row highlight, positional labels, `hideEmptyWorkspaces` semantics).
 @MainActor
 final class RowIndicatorBarProjectionTests: XCTestCase {
-
     // MARK: - Fixtures
 
     private func makeManager() -> WorkspaceManager {
@@ -209,9 +208,8 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
 
     // MARK: - hideEmptyWorkspaces
 
-    /// When `hideEmptyWorkspaces` is true, non-buffer empty rows are hidden but
-    /// the top/bottom buffer rows are always kept so the user can see room above/below.
-    func testHideEmptyWorkspacesKeepsBuffers() {
+    /// Hiding empty workspaces also hides the top and bottom buffer rows.
+    func testHideEmptyWorkspacesHidesBuffers() {
         let manager = makeManager()
         let settings = makeSettings()
         let mon = monitorId(manager)
@@ -229,32 +227,24 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         )
         XCTAssertEqual(fullItems.count, 3)
 
-        // With hideEmpty = true: buffers are kept, content stays.
+        // With hideEmpty = true: only the occupied row stays.
         let filteredItems = makeProjectionItems(
             manager: manager,
             settings: settings,
             options: options(hideEmpty: true)
         )
-        // Content row has windows → not hidden.
-        // Buffer rows are never hidden (protected).
-        XCTAssertEqual(filteredItems.count, 3)
-
-        // All buffer items present.
-        XCTAssertEqual(filteredItems.filter(\.isBuffer).count, 2)
+        XCTAssertEqual(filteredItems.map(\.id), [contentRow])
+        XCTAssertTrue(filteredItems.allSatisfy { !$0.isBuffer })
+        XCTAssertEqual(filteredItems.first?.rowIndex, 2)
     }
 
-    /// When all rows are empty and `hideEmptyWorkspaces` is true, non-buffer empty
-    /// rows (interior) are hidden.  With [buffer, content (no windows), buffer] after
-    /// normalization there is no interior empty row.  But if we artificially add an
-    /// interior empty row and re-check, it should be hidden.
-    func testHideEmptyWorkspacesRemovesInteriorEmptyRows() {
+    /// Multiple occupied rows retain their stack order while buffers are hidden.
+    func testHideEmptyWorkspacesKeepsOccupiedRowsInOrder() {
         let manager = makeManager()
         let settings = makeSettings()
         let mon = monitorId(manager)
 
-        // Build a 4-row stack: buffer, content1, interior-empty, buffer.
-        // We achieve this by adding content to two adjacent rows then removing the
-        // window from the middle one (bypassing normalisation).
+        // Build a 4-row stack: buffer, content1, content2, buffer.
         let firstContent = manager.workspaces(on: mon)[0].id
         _ = manager.setActiveWorkspace(firstContent, on: mon)
         _ = addWindow(manager, to: firstContent)
@@ -276,13 +266,15 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         let allItems = makeProjectionItems(manager: manager, settings: settings, options: opts)
         XCTAssertEqual(allItems.count, 4)
 
-        // No interior empty rows exist at this point, so hideEmpty makes no difference.
+        // Both occupied rows remain; both empty buffers disappear.
         let hiddenItems = makeProjectionItems(
             manager: manager,
             settings: settings,
             options: options(hideEmpty: true)
         )
-        XCTAssertEqual(hiddenItems.count, 4)
+        XCTAssertEqual(hiddenItems.map(\.id), [firstContent, bottomBuffer])
+        XCTAssertTrue(hiddenItems.allSatisfy { !$0.isBuffer })
+        XCTAssertEqual(hiddenItems.map(\.rowIndex), [2, 3])
     }
 
     // MARK: - rowOrder accessor
@@ -355,10 +347,18 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
         // fittingWidth carries the VStack height for vertical bars; panel width = barHeight (= 48)
         let frame = geometry.frame(fittingWidth: 300, monitor: testMonitor, resolved: resolved)
 
-        XCTAssertEqual(frame.origin.x, testMonitor.visibleFrame.minX, accuracy: 0.5,
-                       "Left panel x must equal monitor left edge")
-        XCTAssertEqual(frame.origin.y, testMonitor.visibleFrame.minY, accuracy: 0.5,
-                       "Left panel y must be at monitor bottom")
+        XCTAssertEqual(
+            frame.origin.x,
+            testMonitor.visibleFrame.minX,
+            accuracy: 0.5,
+            "Left panel x must equal monitor left edge"
+        )
+        XCTAssertEqual(
+            frame.origin.y,
+            testMonitor.visibleFrame.minY,
+            accuracy: 0.5,
+            "Left panel y must be at monitor bottom"
+        )
         XCTAssertGreaterThan(frame.width, 0)
         XCTAssertGreaterThan(frame.height, 0)
     }
@@ -371,8 +371,12 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
 
         // Panel right edge should equal monitor right edge.
         let expectedRightEdge = testMonitor.visibleFrame.maxX
-        XCTAssertEqual(frame.maxX, expectedRightEdge, accuracy: 0.5,
-                       "Right panel right edge must equal monitor right edge")
+        XCTAssertEqual(
+            frame.maxX,
+            expectedRightEdge,
+            accuracy: 0.5,
+            "Right panel right edge must equal monitor right edge"
+        )
         XCTAssertGreaterThan(frame.width, 0)
         XCTAssertGreaterThan(frame.height, 0)
     }
@@ -384,8 +388,12 @@ final class RowIndicatorBarProjectionTests: XCTestCase {
             let geometry = WorkspaceBarGeometry.resolve(monitor: testMonitor, resolved: resolved, isVisible: true)
             let frame = geometry.frame(fittingWidth: 300, monitor: testMonitor, resolved: resolved)
 
-            XCTAssertEqual(frame.height, testMonitor.visibleFrame.height, accuracy: 0.5,
-                           "Vertical panel at \(position) must span full visible height")
+            XCTAssertEqual(
+                frame.height,
+                testMonitor.visibleFrame.height,
+                accuracy: 0.5,
+                "Vertical panel at \(position) must span full visible height"
+            )
         }
     }
 

@@ -43,7 +43,7 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         // Let's just use empty arrays — that makes the workspace appear EMPTY to cap,
         // which is fine for the "already empty" workspace tests.
         _ = handle
-        return [:]  // placeholder — see per-test overrides
+        return [:] // placeholder — see per-test overrides
     }
 
     // MARK: - capEmptyBufferBands
@@ -66,7 +66,9 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         // But there are no content rows between them, so: [e1, e2, e3] all-empty.
         // After leading-cap: keep last leading (e3). After trailing-cap: keep first trailing
         // from what remains after leading-cap, which is just [e3]. Result: [e3].
-        let e1 = makeWorkspaceItem(); let e2 = makeWorkspaceItem(); let e3 = makeWorkspaceItem()
+        let e1 = makeWorkspaceItem()
+        let e2 = makeWorkspaceItem()
+        let e3 = makeWorkspaceItem()
         let result = OverviewLayoutCalculator.capEmptyBufferBands([e1, e2, e3], windowsByWorkspace: [:])
         // All three are empty → leading empties = 3 → collapse to 1 (keep last of leading run).
         // Then trailing empties of the remaining 1 → just 1 → no further trimming.
@@ -78,7 +80,8 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         // Normal dynamic-row model state: [empty, content, empty].
         // Simulate "content" by giving its id a non-empty array in windowsByWorkspace.
         let topBuffer = makeWorkspaceItem()
-        let content = makeWorkspaceItem(); let contentId = content.id
+        let content = makeWorkspaceItem()
+        let contentId = content.id
         let bottomBuffer = makeWorkspaceItem()
 
         // Build a windowsByWorkspace where `contentId` has exactly one (fake) entry.
@@ -112,8 +115,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         // When all three appear empty (no windows dict), cap collapses leading/trailing.
         // 3 leading empties → collapse to 1 → 1 remaining → 0 trailing to trim.
         // So we expect 1 section (the last one after leading-cap).
-        XCTAssertEqual(layout.workspaceSections.count, 1,
-                       "3 all-empty rows: buffer-cap collapses to 1")
+        XCTAssertEqual(
+            layout.workspaceSections.count,
+            1,
+            "3 all-empty rows: buffer-cap collapses to 1"
+        )
     }
 
     // MARK: - calculateLayout: empty rows render as sections
@@ -174,8 +180,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             scale: 1.0
         )
 
-        XCTAssertEqual(layout.workspaceSections.count, 1,
-                       "Two consecutive empty rows must be capped to one rendered section")
+        XCTAssertEqual(
+            layout.workspaceSections.count,
+            1,
+            "Two consecutive empty rows must be capped to one rendered section"
+        )
     }
 
     func testCalculateLayout_emptyRowSectionIsEmptyRowTrue() {
@@ -213,8 +222,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         // draggedHandle = nil simulates dragging from outside (or a different window).
         let target = layout.resolveDragTarget(at: hitPoint, draggedHandle: nil)
 
-        XCTAssertEqual(target, .workspaceMove(workspaceId: emptyWs.id),
-                       "Dragging over empty-row section must resolve to workspaceMove")
+        XCTAssertEqual(
+            target,
+            .workspaceMove(workspaceId: emptyWs.id),
+            "Dragging over empty-row section must resolve to workspaceMove"
+        )
     }
 
     func testResolveDragTarget_missingSection_returnsNil() {
@@ -270,8 +282,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             columns: [col],
             draggedHandle: nil
         )
-        XCTAssertEqual(result, .niriColumnInsert(workspaceId: wsId, insertIndex: 0),
-                       "Cursor left of single column's midpoint → insert at index 0")
+        XCTAssertEqual(
+            result,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 0),
+            "Cursor left of single column's midpoint → insert at index 0"
+        )
     }
 
     func testNearestColumnInsert_singleColumn_rightOfMidpoint_insertsAfter() {
@@ -297,8 +312,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             draggedHandle: nil
         )
         // Should resolve to insertIndex = columnIndex + 1 = 1
-        XCTAssertEqual(result, .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
-                       "Cursor right of single column's midpoint → insert at index 1 (after)")
+        XCTAssertEqual(
+            result,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
+            "Cursor right of single column's midpoint → insert at index 1 (after)"
+        )
     }
 
     func testNearestColumnInsert_twoColumns_betweenThem_insertsBetween() {
@@ -332,8 +350,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             columns: [colA, colB],
             draggedHandle: nil
         )
-        XCTAssertEqual(result, .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
-                       "Cursor between columns, left of gap midpoint → insert between (index 1)")
+        XCTAssertEqual(
+            result,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
+            "Cursor between columns, left of gap midpoint → insert between (index 1)"
+        )
     }
 
     func testNearestColumnInsert_twoColumns_rightOfGapMidpoint_insertsBefore() {
@@ -364,8 +385,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             columns: [colA, colB],
             draggedHandle: nil
         )
-        XCTAssertEqual(result, .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
-                       "Cursor right of gap midpoint → insert before colB (index 1)")
+        XCTAssertEqual(
+            result,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
+            "Cursor right of gap midpoint → insert before colB (index 1)"
+        )
     }
 
     func testNearestColumnInsert_draggedColumnExcluded_singleColumnRow() {
@@ -394,8 +418,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
             draggedHandle: draggedHandle
         )
         // The sole column is excluded (it IS the dragged one), so we return insertIndex=0.
-        XCTAssertEqual(result, .niriColumnInsert(workspaceId: wsId, insertIndex: 0),
-                       "When only dragged column present, nearestColumnInsert returns index 0")
+        XCTAssertEqual(
+            result,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 0),
+            "When only dragged column present, nearestColumnInsert returns index 0"
+        )
     }
 
     // MARK: - Refinement C: wide column drop zones tile the section row
@@ -462,8 +489,11 @@ final class OverviewDragDropLayoutTests: XCTestCase {
 
         switch target {
         case let .niriColumnInsert(workspaceId: wid, insertIndex: _):
-            XCTAssertEqual(wid, wsId,
-                           "Empty area left of Niri column must resolve to niriColumnInsert for the same workspace")
+            XCTAssertEqual(
+                wid,
+                wsId,
+                "Empty area left of Niri column must resolve to niriColumnInsert for the same workspace"
+            )
         default:
             XCTFail("Expected niriColumnInsert, got \(String(describing: target))")
         }
@@ -498,7 +528,10 @@ final class OverviewDragDropLayoutTests: XCTestCase {
         let rightPoint = CGPoint(x: 900, y: 200)
         let target = layout.resolveDragTarget(at: rightPoint, draggedHandle: nil)
 
-        XCTAssertEqual(target, .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
-                       "Cursor to the right of the only column → insertIndex=1 (append after)")
+        XCTAssertEqual(
+            target,
+            .niriColumnInsert(workspaceId: wsId, insertIndex: 1),
+            "Cursor to the right of the only column → insertIndex=1 (append after)"
+        )
     }
 }

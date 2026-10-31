@@ -102,7 +102,6 @@ Sources/
 │   │   │                            and persisted restore models (14 files)
 │   │   ├── Rules/                   Window rule evaluation engine (1 file)
 │   │   ├── SkyLight/                Private macOS API wrappers (2 files)
-│   │   ├── Sleep/                   Sleep prevention manager (1 file)
 │   │   ├── Support/                 Utility types & extensions (3 files)
 │   │   ├── Surface/                 Shared surface policy, hit-testing,
 │   │   │                            and capture eligibility (2 files)
@@ -457,6 +456,8 @@ WorkspaceManager
 ```
 
 `WorkspaceManager` also owns the reconcile runtime. `RuntimeStore` and `ReconcileTraceRecorder` capture normalized window-management events into replayable snapshots for internal diagnostics. `PersistedWindowRestoreCatalog` stores relaunch restore intent such as workspace target, preferred monitor, and floating geometry so managed floating windows can be restored or rescued across launches.
+
+Native macOS fullscreen windows leave the Niri layout while suspended, freeing space for the remaining windows. Their saved Niri placement is cleared; leaving fullscreen inserts the window again without retaining a placeholder or reserving its previous column position.
 
 **WindowModel** (`Sources/Darniri/Core/Workspace/WindowModel.swift`)
 

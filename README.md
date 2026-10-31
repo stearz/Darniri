@@ -19,6 +19,7 @@ TBD
 ## Requirements
 
 - macOS 15+ (Sequoia)
+- Apple Silicon (ARM64) for prebuilt releases
 - Accessibility permissions (prompted on launch)
 - Screen Recording permission for overview window thumbnails and drag ghost
 - Input Monitoring permission for Hyper-key (Ctrl+Alt) column-to-row bindings
@@ -28,10 +29,10 @@ TBD
 
 ### Homebrew
 
-Darniri does not have a release artifact yet, so the Homebrew tap currently installs from source:
+Install the latest stable ARM64 release:
 
 ```sh
-brew install stearz/tap/darniri --HEAD
+brew install stearz/tap/darniri
 ```
 
 After installing, start Darniri from the terminal:
@@ -40,17 +41,18 @@ After installing, start Darniri from the terminal:
 Darniri
 ```
 
-This installs the Swift executable. A cask for installing `Darniri.app` will be added once signed release archives are available.
+This installs the executable. To update an existing installation, run `brew update` followed by `brew upgrade stearz/tap/darniri`. To build the current development branch instead, use `brew install stearz/tap/darniri --HEAD` with Swift 6.3.2 or newer.
 
 ### GitHub Releases
 
-1. Download the latest `Darniri.zip` from [Releases](https://github.com/stearz/Darniri/releases)
-2. Extract and move `Darniri.app` to `/Applications`
-3. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
-4. Log out of macOS and log back in for that change to take effect unless you had it off already
-5. Launch Darniri and grant Accessibility permissions when prompted
-6. Grant Screen Recording from System Settings > Privacy & Security > Screen Recording (required for overview thumbnails and the window drag ghost)
-7. For Ctrl+Alt column-to-row bindings, grant Input Monitoring from Settings > Hotkeys
+Download `Darniri-arm64.tar.gz` from [Releases](https://github.com/stearz/Darniri/releases) and extract it:
+
+```sh
+tar -xzf Darniri-arm64.tar.gz
+./Darniri
+```
+
+The archive contains the ARM64 executable. Follow the permission setup in Quick Start. For a local app bundle, see Building from Source.
 
 ## Documentation
 
@@ -63,7 +65,7 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 
 ## Quick Start
 
-1. Launch Darniri from your Applications folder
+1. Start `Darniri` from the terminal (or `./Darniri` from the extracted release directory)
 2. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 3. Log out of macOS and log back in for that change to take effect unless you had it off already
 4. Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility
@@ -87,10 +89,11 @@ Windows are organized into a vertical stack of rows per monitor. Each row is an 
 - Rows are created automatically as windows are moved in, and removed when they become empty (except for the buffers).
 - Each row independently remembers its column widths and horizontal scroll position.
 - The active row is shown by the vertical Row Indicator Bar (see below).
+- Native macOS fullscreen windows release their space in the tiled layout. On leaving fullscreen, they are inserted into the layout again without reserving their previous column position.
 
 ### Keyboard Shortcuts
 
-All shortcuts are customizable in Settings > Hotkeys. The default navigation modifier is **Control** (^). Darniri automatically disables the conflicting macOS Mission Control / Spaces symbolic hotkeys (Ctrl+Arrows) while it runs, then restores them when it quits. You can switch to **Option** (⌥) as the modifier in Settings if you prefer, which requires no system hotkey management.
+Settings > Hotkeys configures the Darniri modifier and an Arrow or Vim (`h/j/k/l`) keymap. Edit individual bindings and the navigation modifier in the TOML configuration file. The default navigation modifier is **Control** (^). Darniri automatically disables the conflicting macOS Mission Control / Spaces symbolic hotkeys (Ctrl+Arrows) while it runs, then restores them when it quits. Setting `navigationModifier = "option"` uses **Option** (⌥) for navigation and requires no system hotkey management.
 
 For the Ctrl+Alt column-to-row bindings, Option (⌥) acts as the Hyper trigger key. Input Monitoring permission is required for those bindings to fire.
 
@@ -169,7 +172,7 @@ A vertical indicator bar shows the row stack for the current monitor:
 - Rows are listed vertically (top to bottom).
 - The active row is highlighted.
 - Each row displays app icons for the windows it contains.
-- Empty buffer rows are shown faintly.
+- Empty buffer rows are shown faintly unless **Hide Empty Workspaces** is enabled; that option shows only occupied rows.
 - Toggle the bar from the menu bar icon or with the `Toggle Workspace Bar` hotkey.
 - Configure position, height, and appearance in Settings.
 
@@ -199,29 +202,32 @@ See all windows at once with thumbnails (requires Screen Recording permission):
 
 - **Rows** - Windows are organized automatically into rows. Move windows between rows with `Ctrl+Shift+↑/↓` (window) or `Ctrl+Alt+↑/↓` (whole column). There are no named workspaces to configure.
 - **System Hotkey Conflicts** - When using the default Control modifier, Darniri automatically disables the macOS Mission Control / Spaces shortcuts for Ctrl+Arrows. They are restored when Darniri quits.
-- **App Rules** - Exclude problematic apps from tiling or assign them to specific workspaces
+- **App Rules** - Edit `[[appRules]]` in the TOML configuration to exclude apps from tiling or assign them to workspace slots
 - **Mouse** - `Option + drag` swaps tiled windows; `Option + Shift + drag` inserts windows to a column
 - **Mouse Resize** - Hold `Option` and right-drag a tiled window to resize
-- **Scroll Gestures (Mouse)** - Hold `Option + Shift + Mouse Scroll Wheel` (default, configurable) and scroll through columns horizontally
-- **Trackpad Gestures** - Use horizontal gestures with 2/3/4 fingers (configurable); direction can be inverted (local hardware validation is limited)
 
 ## Configuration
 
-Access settings by clicking Darniri's status bar icon and selecting **Settings** or **App Rules**.
-Mouse and gesture settings are available in Settings.
+Access settings by clicking Darniri's status bar icon and selecting **Settings**. App rules, workspace slots, and individual hotkey bindings are configured in the TOML file.
 
 Darniri stores its editable config at `${XDG_CONFIG_HOME:-$HOME/.config}/darniri/settings.toml`; that file is the canonical settings source and is live-reloaded when saved from an editor.
 
-- **Reveal Settings File** and **Edit Settings File** open the canonical TOML file and recreate it from the running settings if it was deleted.
+- Open the TOML file in your preferred editor. Its generated header documents app rules and workspace slots. Changing settings in the app rewrites the file and removes custom comments outside that header.
 - The persisted window restore catalog lives in `${XDG_STATE_HOME:-$HOME/.local/state}/darniri` and stays out of dotfile-oriented config storage.
 
 ## App Rules
 
-Configure per-application behavior in Settings > App Rules:
+Configure per-application behavior using `[[appRules]]` entries in `settings.toml`:
 
-- **Always Float** - Force specific apps to always float (e.g., calculators, preferences windows)
-- **Assign to Workspace** - Open first matching app windows on a specific workspace; later windows follow the app's current workspace unless rules are explicitly applied
-- **Minimum Size** - Prevent the layout engine from sizing windows below a threshold
+- **Float** (`layout = "float"`) - Force specific apps to float (e.g., calculators, preferences windows)
+- **Assign to Workspace** (`assignToWorkspace = "3"`) - Open first matching app windows on a specific workspace; later windows follow the app's current workspace unless rules are explicitly applied
+- **Minimum Size** (`minWidth` / `minHeight`) - Prevent the layout engine from sizing windows below a threshold
+
+```toml
+[[appRules]]
+bundleId = "com.apple.calculator"
+layout = "float"
+```
 
 ## Building from Source
 
@@ -234,6 +240,8 @@ To run locally without signing:
 ```sh
 ./Scripts/run-local.sh
 ```
+
+For development checks and the release procedure, see [Releasing](docs/RELEASING.md).
 
 ## Contributing
 

@@ -2501,7 +2501,6 @@ final class WMController {
         }
         focusWindow(nextFocusToken)
     }
-
 }
 
 extension WMController {

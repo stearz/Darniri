@@ -4,24 +4,29 @@ import UserNotifications
 
 @MainActor
 final class UpdateChecker: NSObject {
-    nonisolated(unsafe) private static let categoryID = "darniri.update"
-    nonisolated(unsafe) private static let restartActionID = "restart"
-    nonisolated(unsafe) private static let notificationID = "darniri.update.available"
+    private nonisolated(unsafe) static let categoryID = "darniri.update"
+    private nonisolated(unsafe) static let restartActionID = "restart"
+    private nonisolated(unsafe) static let notificationID = "darniri.update.available"
 
     private let launchVersion: String
+    private let isAppBundle: Bool
     private var checkTimer: Timer?
     private(set) var isUpdateAvailable = false
     var onUpdateAvailable: (() -> Void)?
 
     override init() {
         launchVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        isAppBundle = Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
         super.init()
+        // Homebrew and release downloads run as standalone executables. Asking
+        // UserNotifications for a center without an app bundle raises an exception.
+        guard isAppBundle, !launchVersion.isEmpty else { return }
         registerNotificationCategory()
         UNUserNotificationCenter.current().delegate = self
     }
 
     func start() {
-        guard checkTimer == nil else { return }
+        guard isAppBundle, !launchVersion.isEmpty, checkTimer == nil else { return }
         checkTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.checkForUpdate() }
         }

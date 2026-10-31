@@ -664,6 +664,70 @@ final class RuntimeArchitectureTests: XCTestCase {
     }
 
     @MainActor
+    func testNativeFullscreenLeavesAndReentersLayoutWithoutPlaceholder() async throws {
+        let controller = Self.controller()
+        controller.niriLayoutHandler.enableNiriLayout()
+        let manager = controller.workspaceManager
+        let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let fullscreenToken = manager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(getpid()), windowId: 9_303),
+            pid: getpid(),
+            windowId: 9_303,
+            to: workspaceId
+        )
+        let neighborToken = manager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(getpid()), windowId: 9_304),
+            pid: getpid(),
+            windowId: 9_304,
+            to: workspaceId
+        )
+        for token in [fullscreenToken, neighborToken] {
+            manager.setCachedConstraints(.unconstrained, for: token)
+            _ = engine.addWindow(token: token, to: workspaceId, afterSelection: nil)
+        }
+
+        XCTAssertTrue(manager.markNativeFullscreenSuspended(fullscreenToken))
+        let fullscreenPlans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+            activeWorkspaces: [workspaceId]
+        )
+        XCTAssertNil(engine.findNode(for: fullscreenToken))
+        XCTAssertNotNil(engine.findNode(for: neighborToken))
+        XCTAssertTrue(fullscreenPlans.allSatisfy { $0.diff.nativeFullscreenPlaceholders.isEmpty })
+
+        _ = manager.restoreNativeFullscreenRecord(for: fullscreenToken)
+        _ = try await controller.niriLayoutHandler.layoutWithNiriEngine(activeWorkspaces: [workspaceId])
+        XCTAssertNotNil(engine.findNode(for: fullscreenToken))
+    }
+
+    @MainActor
+    func testNativeFullscreenReleasesSavedNiriPlacement() throws {
+        let manager = Self.workspaceManager()
+        let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
+        let token = manager.addWindow(
+            AXWindowRef(element: AXUIElementCreateApplication(getpid()), windowId: 9_302),
+            pid: getpid(),
+            windowId: 9_302,
+            to: workspaceId
+        )
+        let placement = Self.niriRestorePlacement(
+            columnIndex: 2,
+            tileIndex: 0,
+            displayMode: .normal,
+            activeTileIndex: 0,
+            columnWidth: 400
+        )
+        manager.setNiriRestorePlacements([token: placement])
+        XCTAssertEqual(manager.restoreIntent(for: token)?.niriPlacement, placement)
+
+        XCTAssertTrue(manager.markNativeFullscreenSuspended(token))
+        XCTAssertNil(manager.restoreIntent(for: token)?.niriPlacement)
+
+        _ = manager.restoreNativeFullscreenRecord(for: token)
+        XCTAssertNil(manager.restoreIntent(for: token)?.niriPlacement)
+    }
+
+    @MainActor
     func testNativeFullscreenTransitionIdsFenceStaleExpiry() throws {
         let manager = Self.workspaceManager()
         let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
@@ -1631,7 +1695,11 @@ final class RuntimeArchitectureTests: XCTestCase {
         let initialColumns = engine.columns(in: workspaceId)
         let targetColumn = initialColumns[1]
         let selectedNode = try XCTUnwrap(targetColumn.windowNodes.first)
-        let targetColumnX = state.columnX(at: 1, columns: initialColumns, gap: CGFloat(controller.workspaceManager.gaps))
+        let targetColumnX = state.columnX(
+            at: 1,
+            columns: initialColumns,
+            gap: CGFloat(controller.workspaceManager.gaps)
+        )
         let viewOrigin = targetColumnX - (monitor.visibleFrame.width - columnWidth) / 2
         state.selectedNodeId = selectedNode.id
         state.activeColumnIndex = 1
@@ -2008,7 +2076,10 @@ final class RuntimeArchitectureTests: XCTestCase {
         await Self.waitForRemovalRefresh(controller, removedToken: closingToken)
 
         XCTAssertNil(controller.workspaceManager.entry(for: closingToken))
-        XCTAssertEqual(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId, resolverFallbackNode.id)
+        XCTAssertEqual(
+            controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId,
+            resolverFallbackNode.id
+        )
         XCTAssertEqual(focusedTokens.last, resolverFallbackToken)
     }
 
@@ -2092,7 +2163,10 @@ final class RuntimeArchitectureTests: XCTestCase {
         await Self.waitForRemovalRefresh(controller, removedToken: closingToken)
 
         XCTAssertNil(controller.workspaceManager.entry(for: closingToken))
-        XCTAssertEqual(controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId, resolverFallbackNode.id)
+        XCTAssertEqual(
+            controller.workspaceManager.niriViewportState(for: workspaceId).selectedNodeId,
+            resolverFallbackNode.id
+        )
         XCTAssertEqual(controller.workspaceManager.lastFocusedToken(in: workspaceId), resolverFallbackToken)
         XCTAssertEqual(focusedTokens.last, resolverFallbackToken)
     }
@@ -2339,7 +2413,12 @@ final class RuntimeArchitectureTests: XCTestCase {
         XCTAssertEqual(patchedViewOrigin, viewOrigin, accuracy: 0.001, file: file, line: line)
         XCTAssertFalse(patchedState.viewOffsetPixels.isAnimating, file: file, line: line)
         XCTAssertEqual(patchedState.selectedNodeId, newTabNode.id, file: file, line: line)
-        XCTAssertEqual(finalColumns[position.targetColumnIndex].activeWindow?.token, newTabToken, file: file, line: line)
+        XCTAssertEqual(
+            finalColumns[position.targetColumnIndex].activeWindow?.token,
+            newTabToken,
+            file: file,
+            line: line
+        )
         XCTAssertFalse(engine.hasAnyColumnAnimationsRunning(in: workspaceId), file: file, line: line)
         XCTAssertFalse(engine.hasAnyWindowAnimationsRunning(in: workspaceId), file: file, line: line)
         XCTAssertFalse(plan.animationDirectives.containsStartNiriScroll(for: workspaceId), file: file, line: line)

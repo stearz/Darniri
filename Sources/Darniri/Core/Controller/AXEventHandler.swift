@@ -391,7 +391,8 @@ final class AXEventHandler: CGSEventDelegate {
     private var createPlacementContextsByWindowId: [UInt32: WindowCreatePlacementContext] = [:]
     private var pendingManagedReplacementBursts: [ManagedReplacementKey: PendingManagedReplacementBurst] = [:]
     private var pendingManagedReplacementTasks: [ManagedReplacementKey: Task<Void, Never>] = [:]
-    private var managedReplacementFocusTransactions: [ManagedReplacementFocusKey: ManagedReplacementFocusTransaction] = [:]
+    private var managedReplacementFocusTransactions: [ManagedReplacementFocusKey: ManagedReplacementFocusTransaction] =
+        [:]
     private var pendingNativeFullscreenFollowupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingNativeFullscreenStaleCleanupTasks: [WindowToken: Task<Void, Never>] = [:]
     private var pendingWindowRuleReevaluationTask: Task<Void, Never>?
@@ -1619,7 +1620,10 @@ final class AXEventHandler: CGSEventDelegate {
             return false
         }
 
-        cancelSameAppCloseProbe(matchingFocusedToken: transaction.anchorToken, reason: "managed_replacement_focus_transaction")
+        cancelSameAppCloseProbe(
+            matchingFocusedToken: transaction.anchorToken,
+            reason: "managed_replacement_focus_transaction"
+        )
         return true
     }
 

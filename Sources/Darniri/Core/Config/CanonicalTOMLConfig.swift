@@ -173,28 +173,63 @@ extension CanonicalTOMLConfig {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = Self.recoveryDefaults()
 
-        general = try container.decode(General.self, forKey: .general, default: defaults.general, recovering: recovering)
+        general = try container.decode(
+            General.self,
+            forKey: .general,
+            default: defaults.general,
+            recovering: recovering
+        )
         focus = try container.decode(Focus.self, forKey: .focus, default: defaults.focus, recovering: recovering)
-        mouseWarp = try container.decode(MouseWarp.self, forKey: .mouseWarp, default: defaults.mouseWarp, recovering: recovering)
+        mouseWarp = try container.decode(
+            MouseWarp.self,
+            forKey: .mouseWarp,
+            default: defaults.mouseWarp,
+            recovering: recovering
+        )
         gaps = try container.decode(Gaps.self, forKey: .gaps, default: defaults.gaps, recovering: recovering)
         niri = try container.decode(Niri.self, forKey: .niri, default: defaults.niri, recovering: recovering)
-        borders = try container.decode(Borders.self, forKey: .borders, default: defaults.borders, recovering: recovering)
+        borders = try container.decode(
+            Borders.self,
+            forKey: .borders,
+            default: defaults.borders,
+            recovering: recovering
+        )
         workspaceBar = try container.decode(
             WorkspaceBar.self,
             forKey: .workspaceBar,
             default: defaults.workspaceBar,
             recovering: recovering
         )
-        gestures = try container.decode(Gestures.self, forKey: .gestures, default: defaults.gestures, recovering: recovering)
-        appearance = try container.decode(Appearance.self, forKey: .appearance, default: defaults.appearance, recovering: recovering)
-        hotkeys = try container.decode([HotkeyBinding].self, forKey: .hotkeys, default: defaults.hotkeys, recovering: recovering)
+        gestures = try container.decode(
+            Gestures.self,
+            forKey: .gestures,
+            default: defaults.gestures,
+            recovering: recovering
+        )
+        appearance = try container.decode(
+            Appearance.self,
+            forKey: .appearance,
+            default: defaults.appearance,
+            recovering: recovering
+        )
+        hotkeys = try container.decode(
+            [HotkeyBinding].self,
+            forKey: .hotkeys,
+            default: defaults.hotkeys,
+            recovering: recovering
+        )
         workspaces = try container.decode(
             [WorkspaceConfiguration].self,
             forKey: .workspaces,
             default: defaults.workspaces,
             recovering: recovering
         )
-        appRules = try container.decode([AppRule].self, forKey: .appRules, default: defaults.appRules, recovering: recovering)
+        appRules = try container.decode(
+            [AppRule].self,
+            forKey: .appRules,
+            default: defaults.appRules,
+            recovering: recovering
+        )
         monitorBarOverrides = try container.decode(
             [MonitorBarSettings].self,
             forKey: .monitorBarOverrides,
@@ -222,7 +257,12 @@ extension CanonicalTOMLConfig.General {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = CanonicalTOMLConfig.recoveryDefaults().general
 
-        hotkeysEnabled = try container.decode(Bool.self, forKey: .hotkeysEnabled, default: defaults.hotkeysEnabled, recovering: recovering)
+        hotkeysEnabled = try container.decode(
+            Bool.self,
+            forKey: .hotkeysEnabled,
+            default: defaults.hotkeysEnabled,
+            recovering: recovering
+        )
         hyperTrigger = try container.decode(
             HyperKeyTrigger.self,
             forKey: .hyperTrigger,
@@ -235,7 +275,12 @@ extension CanonicalTOMLConfig.General {
             default: defaults.hyperKeyHoldThresholdMilliseconds,
             recovering: recovering
         )
-        animationsEnabled = try container.decode(Bool.self, forKey: .animationsEnabled, default: defaults.animationsEnabled, recovering: recovering)
+        animationsEnabled = try container.decode(
+            Bool.self,
+            forKey: .animationsEnabled,
+            default: defaults.animationsEnabled,
+            recovering: recovering
+        )
         navigationModifier = try container.decode(
             String.self,
             forKey: .navigationModifier,
@@ -272,7 +317,12 @@ extension CanonicalTOMLConfig.MouseWarp {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = CanonicalTOMLConfig.recoveryDefaults().mouseWarp
 
-        monitorOrder = try container.decode([String].self, forKey: .monitorOrder, default: defaults.monitorOrder, recovering: recovering)
+        monitorOrder = try container.decode(
+            [String].self,
+            forKey: .monitorOrder,
+            default: defaults.monitorOrder,
+            recovering: recovering
+        )
         axis = try container.decodeIfPresent(String.self, forKey: .axis)
         margin = try container.decode(Int.self, forKey: .margin, default: defaults.margin, recovering: recovering)
     }
@@ -308,9 +358,24 @@ extension CanonicalTOMLConfig.Niri {
         let recovering = decoder.recoversMissingSettingsTOMLKeys
         let defaults = CanonicalTOMLConfig.recoveryDefaults().niri
 
-        maxVisibleColumns = try container.decode(Int.self, forKey: .maxVisibleColumns, default: defaults.maxVisibleColumns, recovering: recovering)
-        infiniteLoop = try container.decode(Bool.self, forKey: .infiniteLoop, default: defaults.infiniteLoop, recovering: recovering)
-        centerFocusedColumn = try container.decode(String.self, forKey: .centerFocusedColumn, default: defaults.centerFocusedColumn, recovering: recovering)
+        maxVisibleColumns = try container.decode(
+            Int.self,
+            forKey: .maxVisibleColumns,
+            default: defaults.maxVisibleColumns,
+            recovering: recovering
+        )
+        infiniteLoop = try container.decode(
+            Bool.self,
+            forKey: .infiniteLoop,
+            default: defaults.infiniteLoop,
+            recovering: recovering
+        )
+        centerFocusedColumn = try container.decode(
+            String.self,
+            forKey: .centerFocusedColumn,
+            default: defaults.centerFocusedColumn,
+            recovering: recovering
+        )
         alwaysCenterSingleColumn = try container.decode(
             Bool.self,
             forKey: .alwaysCenterSingleColumn,
@@ -360,16 +425,36 @@ extension CanonicalTOMLConfig.WorkspaceBar {
         let defaults = CanonicalTOMLConfig.recoveryDefaults().workspaceBar
 
         enabled = try container.decode(Bool.self, forKey: .enabled, default: defaults.enabled, recovering: recovering)
-        showLabels = try container.decode(Bool.self, forKey: .showLabels, default: defaults.showLabels, recovering: recovering)
+        showLabels = try container.decode(
+            Bool.self,
+            forKey: .showLabels,
+            default: defaults.showLabels,
+            recovering: recovering
+        )
         showFloatingWindows = try container.decode(
             Bool.self,
             forKey: .showFloatingWindows,
             default: defaults.showFloatingWindows,
             recovering: recovering
         )
-        windowLevel = try container.decode(String.self, forKey: .windowLevel, default: defaults.windowLevel, recovering: recovering)
-        position = try container.decode(String.self, forKey: .position, default: defaults.position, recovering: recovering)
-        notchAware = try container.decode(Bool.self, forKey: .notchAware, default: defaults.notchAware, recovering: recovering)
+        windowLevel = try container.decode(
+            String.self,
+            forKey: .windowLevel,
+            default: defaults.windowLevel,
+            recovering: recovering
+        )
+        position = try container.decode(
+            String.self,
+            forKey: .position,
+            default: defaults.position,
+            recovering: recovering
+        )
+        notchAware = try container.decode(
+            Bool.self,
+            forKey: .notchAware,
+            default: defaults.notchAware,
+            recovering: recovering
+        )
         deduplicateAppIcons = try container.decode(
             Bool.self,
             forKey: .deduplicateAppIcons,

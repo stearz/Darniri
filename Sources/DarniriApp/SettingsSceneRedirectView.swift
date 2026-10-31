@@ -1,6 +1,6 @@
 import AppKit
-import Observation
 import Darniri
+import Observation
 import SwiftUI
 
 struct SettingsSceneRedirectView: View {

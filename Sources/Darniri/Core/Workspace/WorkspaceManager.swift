@@ -719,8 +719,10 @@ final class WorkspaceManager {
         // Also sweep any rows still stranded under a now-dead monitor id (e.g. left over
         // from an earlier path that did not migrate them). Belt-and-suspenders so the
         // post-change invariant "no rows under non-existent monitor ids" always holds.
-        migrateStrandedRows(knownMonitorIds: newIds.isEmpty ? Set(monitors.map(\.id)) : newIds,
-                            survivingMonitors: resolvedNewMonitors)
+        migrateStrandedRows(
+            knownMonitorIds: newIds.isEmpty ? Set(monitors.map(\.id)) : newIds,
+            survivingMonitors: resolvedNewMonitors
+        )
 
         invalidateWorkspaceProjectionCaches()
     }
@@ -3315,6 +3317,14 @@ final class WorkspaceManager {
     func setLayoutReason(_ reason: LayoutReason, for token: WindowToken) {
         guard windows.layoutReason(for: token) != reason else { return }
         windows.setLayoutReason(reason, for: token)
+        if reason == .nativeFullscreen,
+           var restoreIntent = windows.restoreIntent(for: token),
+           restoreIntent.niriPlacement != nil
+        {
+            restoreIntent.niriPlacement = nil
+            windows.setRestoreIntent(restoreIntent, for: token)
+            schedulePersistedWindowRestoreCatalogSave()
+        }
         guard let workspaceId = workspace(for: token) else { return }
         switch reason {
         case .nativeFullscreen:
@@ -3804,7 +3814,7 @@ final class WorkspaceManager {
         let monitorOrder = sortedMonitors().map(\.id)
         let orderedMonitorIds = monitorOrder
             + rowOrderByMonitor.keys.filter { !monitorOrder.contains($0) }
-                .sorted { $0.displayId < $1.displayId }
+            .sorted { $0.displayId < $1.displayId }
         for monitorId in orderedMonitorIds {
             for id in rowOrderByMonitor[monitorId] ?? [] {
                 guard let descriptor = workspacesById[id], seen.insert(id).inserted else { continue }
@@ -4007,7 +4017,9 @@ final class WorkspaceManager {
 
         let visibleId = visibleWorkspaceId(on: monitorId)
 
-        func ids() -> [WorkspaceDescriptor.ID] { rowOrderByMonitor[monitorId] ?? [] }
+        func ids() -> [WorkspaceDescriptor.ID] {
+            rowOrderByMonitor[monitorId] ?? []
+        }
 
         // 1. Remove interior empty rows (never the visible one).
         for id in ids() {
@@ -4043,7 +4055,9 @@ final class WorkspaceManager {
         on monitorId: Monitor.ID,
         visibleId: WorkspaceDescriptor.ID?
     ) {
-        func ids() -> [WorkspaceDescriptor.ID] { rowOrderByMonitor[monitorId] ?? [] }
+        func ids() -> [WorkspaceDescriptor.ID] {
+            rowOrderByMonitor[monitorId] ?? []
+        }
 
         // Top edge.
         while true {
