@@ -17,7 +17,11 @@ struct SettingsDetailView: View {
     private var contentView: some View {
         switch section {
         case .general:
-            GeneralSettingsTab(settings: settings, controller: controller)
+            GeneralSettingsTab(
+                settings: settings,
+                controller: controller,
+                loginItems: AppDelegate.sharedBootstrap?.loginItemManager ?? LoginItemManager()
+            )
         case .niri:
             NiriSettingsTab(settings: settings, controller: controller)
         case .monitors:

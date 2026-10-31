@@ -20,6 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Check Homebrew credentials before publication
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: gh api repos/stearz/homebrew-tap --silent
+
       - name: Validate release version and notes
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -29,25 +34,30 @@ jobs:
           test -s "docs/releases/$VERSION.md"
           echo "RELEASE_NOTES=docs/releases/$VERSION.md" >> "$GITHUB_ENV"
 
-      - name: Build and package ARM64 executable
+      - name: Build and package ARM64 executable and app
         run: ./Scripts/package-release.sh
 
       - name: Compute SHA256
         id: sha256
-        run: echo "value=$(shasum -a 256 dist/Darniri-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "value=$(shasum -a 256 dist/Darniri-arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "app=$(shasum -a 256 dist/Darniri-arm64.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/Darniri-arm64.tar.gz
+          files: |
+            dist/Darniri-arm64.tar.gz
+            dist/Darniri-arm64.zip
           body_path: ${{ env.RELEASE_NOTES }}
           fail_on_unmatched_files: true
 
-      - name: Update Homebrew formula
+      - name: Update Homebrew formula and cask
         env:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
           SHA256: ${{ steps.sha256.outputs.value }}
+          APP_SHA256: ${{ steps.sha256.outputs.app }}
         run: |
           git clone https://x-access-token:${TAP_TOKEN}@github.com/stearz/homebrew-tap.git
           cd homebrew-tap
@@ -91,8 +101,34 @@ jobs:
           sed -i '' "s|RELEASE_TAG|${VERSION}|g" Formula/darniri.rb
           sed -i '' "s|RELEASE_SHA256|${SHA256}|g" Formula/darniri.rb
 
+          mkdir -p Casks
+          cat > Casks/darniri.rb << 'CASK'
+          cask "darniri" do
+            version "RELEASE_VERSION"
+            sha256 "RELEASE_SHA256"
+
+            url "https://github.com/stearz/Darniri/releases/download/RELEASE_TAG/Darniri-arm64.zip"
+            name "Darniri"
+            desc "Scrolling-column window manager for macOS"
+            homepage "https://github.com/stearz/Darniri"
+
+            depends_on macos: ">= :sequoia"
+            depends_on arch: :arm64
+
+            app "Darniri.app"
+            binary "#{appdir}/Darniri.app/Contents/Resources/darniri", target: "Darniri"
+          end
+          CASK
+          sed -i '' "s|RELEASE_VERSION|${VERSION_NUM}|g" Casks/darniri.rb
+          sed -i '' "s|RELEASE_TAG|${VERSION}|g" Casks/darniri.rb
+          sed -i '' "s|RELEASE_SHA256|${APP_SHA256}|g" Casks/darniri.rb
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/darniri.rb
+          git add Formula/darniri.rb Casks/darniri.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew definitions already match this release."
+            exit 0
+          fi
           git commit -m "darniri ${VERSION_NUM}"
           git push

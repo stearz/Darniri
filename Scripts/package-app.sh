@@ -24,13 +24,7 @@ echo "Verifying universal binary..."
 lipo -info "$EXECUTABLE"
 
 echo "Packaging $APP_DIR"
-rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS"
-mkdir -p "$APP_DIR/Contents/Resources"
-
-cp "$EXECUTABLE" "$APP_DIR/Contents/MacOS/Darniri"
-cp "$ROOT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
-cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+"$ROOT_DIR/Scripts/assemble-app.sh" "$EXECUTABLE" "$APP_DIR"
 
 if command -v plutil >/dev/null 2>&1; then
   plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null

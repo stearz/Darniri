@@ -11,12 +11,7 @@ swift build
 BUILD_DIR="$(swift build --show-bin-path)"
 
 echo "Assembling $APP..."
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-
-cp "$BUILD_DIR/Darniri"                    "$APP/Contents/MacOS/Darniri"
-cp "$ROOT_DIR/Info.plist"                 "$APP/Contents/Info.plist"
-cp "$ROOT_DIR/Resources/AppIcon.icns"     "$APP/Contents/Resources/AppIcon.icns"
+"$ROOT_DIR/Scripts/assemble-app.sh" "$BUILD_DIR/Darniri" "$APP"
 
 # Sign with a stable self-signed identity ("Darniri Dev") rather than ad-hoc (-).
 # A stable identity gives an identity-based designated requirement, so macOS TCC

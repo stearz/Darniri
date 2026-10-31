@@ -29,30 +29,43 @@ TBD
 
 ### Homebrew
 
-Install the latest stable ARM64 release:
+Install Darniri as a macOS application:
 
 ```sh
-brew install stearz/tap/darniri
+brew install --cask stearz/tap/darniri
 ```
 
-After installing, start Darniri from the terminal:
+Open **Darniri** from Applications, Spotlight, or the terminal:
 
 ```sh
 Darniri
 ```
 
-This installs the executable. To update an existing installation, run `brew update` followed by `brew upgrade stearz/tap/darniri`. To build the current development branch instead, use `brew install stearz/tap/darniri --HEAD` with Swift 6.3.2 or newer.
+The cask installs `Darniri.app` in Applications. Its `Darniri` terminal command opens the app and returns immediately, so closing the terminal does not stop the window manager. To update, run `brew update` followed by `brew upgrade --cask stearz/tap/darniri`.
+
+If you previously installed the executable formula, quit Darniri and switch to the app installation:
+
+```sh
+brew uninstall --formula stearz/tap/darniri
+brew install --cask stearz/tap/darniri
+```
+
+Your TOML configuration and saved window state stay in their existing locations. The executable formula remains available for standalone use; `brew install --formula stearz/tap/darniri --HEAD` builds the development branch with Swift 6.3.2 or newer.
 
 ### GitHub Releases
 
-Download `Darniri-arm64.tar.gz` from [Releases](https://github.com/stearz/Darniri/releases) and extract it:
+Download `Darniri-arm64.zip` from [Releases](https://github.com/stearz/Darniri/releases), extract it, and move `Darniri.app` to `/Applications`. Open it from Applications or Spotlight.
+
+The app archive is ad-hoc signed. Developer ID signing and Apple notarization remain available through `Scripts/package-app.sh` when signing credentials are configured.
+
+For standalone use, download `Darniri-arm64.tar.gz` and extract it:
 
 ```sh
 tar -xzf Darniri-arm64.tar.gz
 ./Darniri
 ```
 
-The archive contains the ARM64 executable. Follow the permission setup in Quick Start. For a local app bundle, see Building from Source.
+The tar archive contains the ARM64 executable, which runs in the foreground. The app installation supports launch at login and runs independently of the terminal. Follow the permission setup in Quick Start.
 
 ## Documentation
 
@@ -65,7 +78,7 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 
 ## Quick Start
 
-1. Start `Darniri` from the terminal (or `./Darniri` from the extracted release directory)
+1. Open Darniri from Applications or Spotlight, or run the cask's `Darniri` command
 2. In System Settings > Desktop & Dock > Mission Control, turn **OFF** `Displays have separate Spaces`
 3. Log out of macOS and log back in for that change to take effect unless you had it off already
 4. Grant Accessibility permissions in System Settings > Privacy & Security > Accessibility
@@ -73,6 +86,14 @@ The documentation hub lives in [`docs/index.md`](docs/index.md).
 6. Windows will automatically tile in columns; rows are created dynamically as windows are added
 7. Use `Ctrl+←/→` to focus columns and `Ctrl+↑/↓` to focus windows within a column (spilling to the row above/below at the edges)
 8. Click the menu bar icon to access Settings
+
+New configurations use zero inner and outer gaps, enabled window borders, and an enabled workspace bar on the left. The bar size is 32, workspace labels are hidden, and empty rows are hidden. Existing saved configuration values are preserved.
+
+### Launch at Login
+
+The installed app enables launch at login on its first start. Change this in **Settings > General > Launch at Login** or in macOS Login Items. If macOS requires approval, use **Open Login Items Settings** in Darniri. Disabling login startup is remembered and is not overridden on the next launch.
+
+Login registration applies to `Darniri.app` installed in `/Applications` or your user's `Applications` folder. Standalone executables and temporary development bundles do not register automatically.
 
 
 ## User Guide
@@ -174,7 +195,7 @@ A vertical indicator bar shows the row stack for the current monitor:
 - Each row displays app icons for the windows it contains.
 - Empty buffer rows are shown faintly unless **Hide Empty Workspaces** is enabled; that option shows only occupied rows.
 - Toggle the bar from the menu bar icon or with the `Toggle Workspace Bar` hotkey.
-- Configure position, height, and appearance in Settings.
+- Configure position, **Bar Size**, label visibility, and empty-row visibility in Settings. Bar Size controls the height for horizontal bars and the width for side bars.
 
 #### Command Palette
 

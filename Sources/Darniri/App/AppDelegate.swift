@@ -3,6 +3,7 @@ import Observation
 
 @MainActor @Observable
 public final class AppBootstrapState {
+    let loginItemManager = LoginItemManager()
     var settings: SettingsStore?
     var controller: WMController?
 
@@ -89,6 +90,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         AppDelegate.sharedBootstrap?.settings = settings
         AppDelegate.sharedBootstrap?.controller = controller
+        AppDelegate.sharedBootstrap?.loginItemManager.applyDefaultIfNeeded()
 
         statusBarController = StatusBarController(
             settings: settings,

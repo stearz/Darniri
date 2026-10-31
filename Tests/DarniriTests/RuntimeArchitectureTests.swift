@@ -2642,6 +2642,9 @@ final class RuntimeArchitectureTests: XCTestCase {
             ),
             autosaveEnabled: false
         )
+        // These layout fixtures use the monitor's full visible frame without
+        // reserving a strut for the workspace bar.
+        settings.workspaceBarEnabled = false
         return settings
     }
 }

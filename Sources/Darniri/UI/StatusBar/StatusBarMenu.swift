@@ -165,7 +165,7 @@ final class StatusBarMenuBuilder {
 
 final class MenuHeaderView: NSView {
     private var appVersion: String {
-        Bundle.main.appVersion ?? "0.3.1"
+        Bundle.main.appVersion ?? "Development"
     }
 
     override init(frame frameRect: NSRect) {

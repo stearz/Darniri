@@ -1,6 +1,8 @@
 // swift-tools-version: 6.3
 import PackageDescription
 
+let infoPlistPath = Context.packageDirectory + "/Info.plist"
+
 let package = Package(
     name: "Darniri",
     platforms: [
@@ -39,6 +41,12 @@ let package = Package(
             path: "Sources/DarniriApp",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist", "-Xlinker", infoPlistPath
+                ])
             ]
         ),
         .testTarget(
