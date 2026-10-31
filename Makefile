@@ -1,4 +1,4 @@
-.PHONY: format format-check lint lint-fix build release-check verify check check-tool-versions check-swiftformat-version check-swiftlint-version
+.PHONY: format format-check lint lint-fix build test release-check verify check check-tool-versions check-swiftformat-version check-swiftlint-version
 
 SWIFTFORMAT_VERSION = 0.61.1
 SWIFTLINT_VERSION = 0.63.2
@@ -29,8 +29,11 @@ lint-fix: check-tool-versions
 build:
 	swift build
 
-release-check: build
+test:
+	swift test
 
-verify: format-check lint build
+release-check: verify
+
+verify: format-check lint build test
 
 check: verify

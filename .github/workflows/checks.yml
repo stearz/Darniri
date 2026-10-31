@@ -1,0 +1,26 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned check tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./Scripts/install-check-tools.sh
+          echo "$PWD/.build/check-tools" >> "$GITHUB_PATH"
+      - name: Check formatting, lint, build, and tests
+        run: make verify
+      - name: Verify ARM64 release packaging
+        run: ./Scripts/package-release.sh
