@@ -188,7 +188,6 @@ enum NiriWindowMoveResult {
         } else {
             _ = controller.focusBorderController.refresh(forceOrdering: true)
         }
-
     }
 
     func cancelActiveAnimations(for workspaceId: WorkspaceDescriptor.ID) {
@@ -388,7 +387,11 @@ enum NiriWindowMoveResult {
             insetFrame: snapshot.monitor.workingFrame,
             gap: snapshot.gap
         )
-        let windowTokens = snapshot.windows.map(\.token)
+        // Native macOS full-screen windows live in another Space. Release their
+        // layout nodes so the remaining windows can use the vacated space.
+        let windowTokens = snapshot.windows
+            .filter { !$0.isNativeFullscreenSuspended }
+            .map(\.token)
         let currentSelection = state.selectedNodeId
 
         let removal = processWindowRemovals(
@@ -935,21 +938,6 @@ enum NiriWindowMoveResult {
         for window in windows {
             let token = window.token
             if window.isNativeFullscreenSuspended {
-                if canRestoreHiddenWorkspaceWindows,
-                   window.showsNativeFullscreenPlaceholder,
-                   hiddenHandles[token] == nil,
-                   let frame = frames[token]
-                {
-                    diff.nativeFullscreenPlaceholders.append(
-                        .init(
-                            token: token,
-                            frame: frame,
-                            selected: selectedToken == token
-                                || confirmedFocusedToken == token
-                                || pendingFocusedToken == token
-                        )
-                    )
-                }
                 continue
             }
             let previousOffscreenSide = window.hiddenState?.offscreenSide
