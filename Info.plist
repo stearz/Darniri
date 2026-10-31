@@ -16,11 +16,11 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<!-- x-release-please-start-version -->
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<!-- x-release-please-end -->
 	<key>CFBundleVersion</key>
 	<!-- x-release-please-start-version -->
-	<string>1.1.0</string>
+	<string>1.2.0</string>
 	<!-- x-release-please-end -->
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
