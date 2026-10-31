@@ -4,9 +4,9 @@ import UserNotifications
 
 @MainActor
 final class UpdateChecker: NSObject {
-    private nonisolated(unsafe) static let categoryID = "darniri.update"
-    private nonisolated(unsafe) static let restartActionID = "restart"
-    private nonisolated(unsafe) static let notificationID = "darniri.update.available"
+    private nonisolated static let categoryID = "darniri.update"
+    private nonisolated static let restartActionID = "restart"
+    private nonisolated static let notificationID = "darniri.update.available"
 
     private let launchVersion: String
     private let isAppBundle: Bool
