@@ -1648,6 +1648,78 @@ final class RuntimeArchitectureTests: XCTestCase {
     }
 
     @MainActor
+    func testNiriAppActivationDuringScrollCentersNewColumnInBothDirections() throws {
+        try assertNiriAppActivationDuringScroll(from: 0, to: 1)
+        try assertNiriAppActivationDuringScroll(from: 1, to: 0)
+    }
+
+    @MainActor
+    func testNiriAppActivationPreservesScrollForSameColumnAndGestures() throws {
+        try assertNiriAppActivationDuringScroll(from: 1, to: 1)
+        try assertNiriAppActivationDuringScroll(from: 0, to: 1, gesture: true)
+    }
+
+    @MainActor
+    private func assertNiriAppActivationDuringScroll(
+        from initialIndex: Int,
+        to targetIndex: Int,
+        gesture: Bool = false
+    ) throws {
+        let controller = Self.controller()
+        defer { controller.layoutRefreshController.resetState() }
+        controller.settings.niriCenterFocusedColumn = .always
+        let manager = controller.workspaceManager
+        let workspaceId = try XCTUnwrap(manager.workspaceId(for: "1", createIfMissing: true))
+        _ = manager.focusWorkspace(named: "1")
+        controller.niriLayoutHandler.enableNiriLayout()
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let tokens = Self.addNiriRuntimeWindows(
+            count: 2, pidBase: 765_800, windowBase: 765_900,
+            to: workspaceId, controller: controller
+        )
+        Self.seedNiriEngineColumns(
+            tokens: tokens, workspaceId: workspaceId, engine: engine,
+            columnWidth: 400, tabbedColumnIndex: -1
+        )
+        let initialNode = try XCTUnwrap(engine.findNode(for: tokens[initialIndex]))
+        let targetNode = try XCTUnwrap(engine.findNode(for: tokens[targetIndex]))
+        var state = manager.niriViewportState(for: workspaceId)
+        state.selectedNodeId = initialNode.id
+        state.activeColumnIndex = initialIndex
+        let animation = SpringAnimation(
+            from: -30, to: -100, initialVelocity: 0,
+            startTime: CACurrentMediaTime(), config: .default, displayRefreshRate: 60
+        )
+        state.viewOffsetPixels = gesture
+            ? .gesture(ViewGesture(currentViewOffset: -100, isTrackpad: true))
+            : .spring(animation)
+        _ = manager.applySessionPatch(.init(
+            workspaceId: workspaceId, viewportState: state,
+            runtimeRevision: manager.runtimeRevision(for: workspaceId)
+        ))
+        let entry = try XCTUnwrap(manager.entry(for: tokens[targetIndex]))
+
+        controller.axEventHandler.handleManagedAppActivation(
+            entry: entry, isWorkspaceActive: true, appFullscreen: false
+        )
+
+        let result = manager.niriViewportState(for: workspaceId)
+        XCTAssertEqual(result.selectedNodeId, targetNode.id)
+        if gesture || initialIndex == targetIndex {
+            XCTAssertEqual(result.activeColumnIndex, initialIndex)
+            XCTAssertEqual(result.viewOffsetPixels.target(), -100, accuracy: 0.001)
+            if !gesture, case let .spring(preserved) = result.viewOffsetPixels {
+                XCTAssertTrue(preserved === animation)
+            }
+        } else {
+            XCTAssertEqual(result.activeColumnIndex, targetIndex)
+            let monitor = try XCTUnwrap(manager.monitor(for: workspaceId))
+            let frame = controller.insetWorkingFrame(for: monitor)
+            XCTAssertEqual(result.viewOffsetPixels.target(), -(frame.width - 400) / 2, accuracy: 1)
+        }
+    }
+
+    @MainActor
     func testNiriProtectedReplacementActivationPreservesViewportOffset() throws {
         let controller = Self.controller()
         let workspaceId = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
