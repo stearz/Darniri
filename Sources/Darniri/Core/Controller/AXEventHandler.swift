@@ -2313,7 +2313,14 @@ final class AXEventHandler: CGSEventDelegate {
         {
             let preferredFrame = node.renderedFrame ?? node.frame
             var state = controller.workspaceManager.niriViewportState(for: wsId)
-            let preserveActiveViewport = state.viewOffsetPixels.isGesture || state.viewOffsetPixels.isAnimating
+            // A focus confirmation for the animation's column must not restart
+            // scrolling. Focus moving to another column must retarget it, or the
+            // selected window is left beside the viewport's final destination.
+            let targetColumnIndex = engine.column(of: node).flatMap {
+                engine.columnIndex(of: $0, in: wsId)
+            }
+            let preserveActiveViewport = state.viewOffsetPixels.isGesture
+                || (state.viewOffsetPixels.isAnimating && targetColumnIndex == state.activeColumnIndex)
             let preserveReplacementViewport = isProtectedManagedReplacementFocus(
                 token: entry.token,
                 workspaceId: wsId

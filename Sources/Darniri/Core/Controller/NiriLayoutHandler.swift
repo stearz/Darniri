@@ -918,12 +918,16 @@ enum NiriWindowMoveResult {
         let hasColumnAnimations = pass.engine.hasAnyColumnAnimationsRunning(in: pass.wsId)
         var directives: [AnimationDirective] = []
 
-        if !snapshot.useScrollAnimationPath {
-            if viewportNeedsRecalc, !hasNewWindowArrival {
-                directives.append(.startNiriScroll(workspaceId: pass.wsId))
-            } else if hasColumnAnimations {
-                directives.append(.startNiriScroll(workspaceId: pass.wsId))
-            }
+        // Cross-row moves can prepare the viewport spring before this layout
+        // pass. The destination still needs its own animation driver, even if
+        // another workspace is already using the scroll animation path.
+        let needsViewportAnimationDriver = snapshot.isActiveWorkspace
+            && state.viewOffsetPixels.isAnimating
+            && !hasScrollAnimation(for: pass.wsId)
+        let needsRelayoutAnimation = !snapshot.useScrollAnimationPath
+            && ((viewportNeedsRecalc && !hasNewWindowArrival) || hasColumnAnimations)
+        if needsViewportAnimationDriver || needsRelayoutAnimation {
+            directives.append(.startNiriScroll(workspaceId: pass.wsId))
         }
 
         if let activateWindowToken {

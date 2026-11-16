@@ -255,6 +255,63 @@ final class DynamicRowSpillTests: XCTestCase {
         )
     }
 
+    func testWindowSpillUpStartsCenteringAnimationInEmptyRow() async throws {
+        for scrollPath in [false, true] {
+            try await assertSpillUpStartsCenteringAnimation(moveColumn: false, useScrollAnimationPath: scrollPath)
+        }
+    }
+
+    func testColumnSpillUpStartsCenteringAnimationInEmptyRow() async throws {
+        for scrollPath in [false, true] {
+            try await assertSpillUpStartsCenteringAnimation(moveColumn: true, useScrollAnimationPath: scrollPath)
+        }
+    }
+
+    private func assertSpillUpStartsCenteringAnimation(
+        moveColumn: Bool,
+        useScrollAnimationPath: Bool
+    ) async throws {
+        let (controller, monitorId) = makeController()
+        defer { controller.layoutRefreshController.resetState() }
+        let (_, token, _) = setupSingleWindowContentRow(controller, on: monitorId)
+        let targetRow = try XCTUnwrap(rowIds(controller, on: monitorId).first)
+        XCTAssertTrue(controller.workspaceManager.entries(in: targetRow).isEmpty)
+
+        if moveColumn {
+            controller.workspaceNavigationHandler.moveColumnToAdjacentWorkspace(direction: .up)
+        } else {
+            controller.workspaceNavigationHandler.moveWindowToAdjacentWorkspace(direction: .up)
+        }
+        // Inspect the scheduled layout before any display-link tick can run.
+        controller.layoutRefreshController.resetState()
+        XCTAssertEqual(controller.workspaceManager.workspace(for: token), targetRow)
+        XCTAssertTrue(controller.workspaceManager.niriViewportState(for: targetRow).viewOffsetPixels.isAnimating)
+        let plans = try await controller.niriLayoutHandler.layoutWithNiriEngine(
+            activeWorkspaces: [targetRow], useScrollAnimationPath: useScrollAnimationPath
+        )
+        let plan = try XCTUnwrap(plans.first)
+        XCTAssertTrue(plan.animationDirectives.contains { directive in
+            if case let .startNiriScroll(workspaceId) = directive {
+                return workspaceId == targetRow
+            }
+            return false
+        }, "A precomputed centering spring must have a display-link driver on the new row")
+        let engine = try XCTUnwrap(controller.niriEngine)
+        let monitor = try XCTUnwrap(controller.workspaceManager.monitor(for: targetRow))
+        let column = try XCTUnwrap(engine.columns(in: targetRow).first)
+        var settled = try XCTUnwrap(plan.sessionPatch.viewportState)
+        settled.cancelAnimation()
+        let workingFrame = controller.insetWorkingFrame(for: monitor)
+        XCTAssertEqual(settled.viewOffsetPixels.target(), -(workingFrame.width - column.cachedWidth) / 2, accuracy: 1)
+        let gap = CGFloat(controller.workspaceManager.gaps)
+        let frames = engine.calculateLayout(
+            state: settled, workspaceId: targetRow, monitorFrame: workingFrame,
+            gaps: (horizontal: gap, vertical: gap)
+        )
+        let finalFrame = try XCTUnwrap(frames[token])
+        XCTAssertEqual(finalFrame.midX, workingFrame.midX, accuracy: 1)
+    }
+
     // MARK: - Centering tests
 
     /// After a cross-row window move with centerFocusedColumn=always, the saved viewport's
