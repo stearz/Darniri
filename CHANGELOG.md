@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/stearz/Darniri/compare/v1.3.0...v1.3.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* center windows after activation and moves to empty rows ([#11](https://github.com/stearz/Darniri/issues/11)) ([31b36fb](https://github.com/stearz/Darniri/commit/31b36fb948f8d390faac9d7848a6989f447a1c79))
+
 ## [1.3.0](https://github.com/stearz/Darniri/compare/v1.2.0...v1.3.0) (2026-10-31)
 
 
