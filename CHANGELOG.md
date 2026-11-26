@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/stearz/Darniri/compare/v1.3.1...v1.3.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* preserve windows during CleanShot area capture ([#13](https://github.com/stearz/Darniri/issues/13)) ([39eabc5](https://github.com/stearz/Darniri/commit/39eabc52f2d5a53a960a76bffbb2241944d28bc2))
+
 ## [1.3.1](https://github.com/stearz/Darniri/compare/v1.3.0...v1.3.1) (2026-11-16)
 
 
