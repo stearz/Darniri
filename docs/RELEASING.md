@@ -16,6 +16,8 @@ The initial automation commit requests `1.2.0` using a one-time `Release-As: 1.2
 
 ## One-time GitHub setup
 
+Configure the Developer ID identity and five Apple Actions secrets in [Signing](SIGNING.md) before publishing the first signed release. The transition from old ad-hoc releases can require users to grant permissions once again.
+
 - Set the Darniri Actions secret `RELEASE_TOKEN` to a token with **Contents**, **Pull requests**, and **Issues** read/write access to `stearz/Darniri`. It creates release PRs, labels, tags, and GitHub releases. The same token used in voidshell can be reused if it is also authorized for Darniri.
 - Use a PAT or GitHub App token rather than the built-in `GITHUB_TOKEN` for Release Please: events created by `GITHUB_TOKEN` do not start the follow-up Checks and Release workflows. The Release Please workflow fails explicitly if `RELEASE_TOKEN` is missing.
 - Keep `TAP_GITHUB_TOKEN` with Contents read/write access to `stearz/homebrew-tap` for the cask update. This is a separate repository permission from `RELEASE_TOKEN`.
@@ -27,17 +29,17 @@ After setting the secret, the Release Please workflow can be run manually to cre
 
 Stable releases provide:
 
-- `Darniri-arm64.zip`: an ad-hoc signed `Darniri.app`, installed in Applications by `brew install --cask stearz/tap/darniri`. Its linked `Darniri` command opens the installed app and returns immediately.
+- `Darniri-arm64.zip`: a Developer ID signed and Apple-notarized `Darniri.app`, installed in Applications by `brew install --cask stearz/tap/darniri`. Its linked `Darniri` command opens the installed app and returns immediately.
 - `Darniri-arm64.tar.gz`: the standalone executable for manual installation.
 
-`Scripts/verify-release.py` checks the archives, ARM64 architecture, embedded and bundled metadata, app icon, launcher, and alignment of the version file and release manifest. Switching an existing formula installation to the cask is documented in the README. `Scripts/package-app.sh` supports Developer ID signing and notarization when credentials are configured.
+`Scripts/verify-release.py` checks the archives, ARM64 architecture, embedded and bundled metadata, app icon, launcher, and alignment of the version file and release manifest. Switching an existing formula installation to the cask is documented in the README. Both release packaging paths require Developer ID signing and notarization. Configure the certificate and Actions secrets using [Signing](SIGNING.md); publication stops if those credentials are unavailable.
 
 ## Local verification
 
 ```sh
 ./Scripts/install-check-tools.sh
 PATH="$PWD/.build/check-tools:$PATH" make release-check
-./Scripts/package-release.sh
+DARNIRI_NOTARIZE_PROFILE=darniri-release ./Scripts/package-release.sh
 ```
 
 Do not manually edit `VERSION` or push a release tag during the normal workflow. To choose a specific version, use Release Please's `Release-As:` commit footer and let it prepare the release PR. Historical notes under `docs/releases/` remain available; new release notes are generated in `CHANGELOG.md` and copied by Release Please into the GitHub release body.

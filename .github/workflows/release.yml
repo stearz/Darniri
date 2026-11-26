@@ -48,6 +48,15 @@ jobs:
           test "$(cat VERSION)" = "$VERSION"
           test -s CHANGELOG.md
 
+      - name: Prepare Developer ID signing and notarization
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: ./Scripts/prepare-release-signing.sh
+
       - name: Build and package ARM64 executable and app
         run: ./Scripts/package-release.sh
 
@@ -122,3 +131,9 @@ jobs:
           git -C homebrew-tap fetch origin main
           test "$(git -C homebrew-tap rev-parse HEAD)" = "$(git -C homebrew-tap rev-parse origin/main)"
           echo "Release $RELEASE_TAG: both archives and Homebrew cask verified." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/darniri-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/darniri-signing.p12"

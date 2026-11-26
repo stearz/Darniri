@@ -22,7 +22,7 @@ TBD
 - Apple Silicon (ARM64) for prebuilt releases
 - Accessibility permissions (prompted on launch)
 - Screen Recording permission for overview window thumbnails and drag ghost
-- Input Monitoring permission for Hyper-key (Ctrl+Alt) column-to-row bindings
+- Input Monitoring permission only for custom Hyper-key bindings
 - Displays have separate spaces **OFF**
 
 ## Installation
@@ -56,7 +56,7 @@ Your TOML configuration and saved window state stay in their existing locations.
 
 Download `Darniri-arm64.zip` from [Releases](https://github.com/stearz/Darniri/releases), extract it, and move `Darniri.app` to `/Applications`. Open it from Applications or Spotlight.
 
-The app archive is ad-hoc signed. Developer ID signing and Apple notarization remain available through `Scripts/package-app.sh` when signing credentials are configured.
+Release packaging now requires Developer ID signing and Apple notarization; earlier releases were ad-hoc signed. See [Signing setup](docs/SIGNING.md). The first switch from an old ad-hoc release can require granting permissions once again; subsequent builds keep the app and developer-team identity stable.
 
 For standalone use, download `Darniri-arm64.tar.gz` and extract it:
 
@@ -115,75 +115,40 @@ Windows are organized into a vertical stack of rows per monitor. Each row is an 
 
 ### Keyboard Shortcuts
 
-Settings > Hotkeys configures the Darniri modifier and an Arrow or Vim (`h/j/k/l`) keymap. Edit individual bindings and the navigation modifier in the TOML configuration file. The default navigation modifier is **Control** (^). Darniri automatically disables the conflicting macOS Mission Control / Spaces symbolic hotkeys (Ctrl+Arrows) while it runs, then restores them when it quits. Setting `navigationModifier = "option"` uses **Option** (⌥) for navigation and requires no system hotkey management.
+Settings > Hotkeys shows the 15 everyday shortcuts and can reset them to defaults. Edit individual bindings in the TOML configuration file. The default navigation modifier is **Control** (^). Darniri automatically disables the conflicting macOS Mission Control / Spaces symbolic hotkeys (Ctrl+Arrows) while it runs, then restores them when it quits.
 
-For the Ctrl+Alt column-to-row bindings, Option (⌥) acts as the Hyper trigger key. Input Monitoring permission is required for those bindings to fire.
+| Action | Default Shortcut |
+| --- | --- |
+| Focus left / right | `Ctrl + ← / →` |
+| Focus up / down; continue to the adjacent row at the column edge | `Ctrl + ↑ / ↓` |
+| Move window left / right within the row | `Ctrl + Shift + ← / →` |
+| Move window up / down; press again at the edge to move to the adjacent row | `Ctrl + Shift + ↑ / ↓` |
+| Move whole column left / right | `Ctrl + Option + ← / →` |
+| Move whole column to the row above / below | `Ctrl + Option + ↑ / ↓` |
+| Increase window width | `Ctrl + .` |
+| Decrease window width | `Ctrl + ,` |
+| Toggle command palette | `Ctrl + Option + Space` |
 
-The tables below list all the default hotkeys:
+`Ctrl + P` is unassigned. All defaults are direct key combinations; they do not use the Hyper trigger or require Input Monitoring.
 
-#### Row Navigation
+Width presets default to **25%, 50%, 75%, and 100%** of the available layout width. Increase/decrease stops at the largest/smallest preset. Windows stacked in one column share its width; application minimum sizes and layout gaps still apply. `Move Left / Right` expels the focused window from a multi-window column or consumes a single-window column into its neighbor. `Move Up / Down` reorders windows in the current column, then moves to the adjacent row on a further key press at the edge.
 
-| Action                                              | Default Shortcut       |
-| --------------------------------------------------- | ---------------------- |
-| Focus left / right column                           | `Ctrl + ← / →`         |
-| Focus window up/down in column, spill to row above/below at edge | `Ctrl + ↑ / ↓` |
-| Move window up/down in column, spill to row above/below at edge  | `Ctrl + Shift + ↑ / ↓` |
-| Move column to row above / below                    | `Ctrl + Alt + ↑ / ↓`   |
-| Switch to row (workspace) back and forth            | `Ctrl + Option + Tab`  |
+Older configurations are compacted on load: unused entries and former extra default bindings are removed, while individually customized shortcuts remain. Legacy action IDs, the Vim keymap, and the Option navigation modifier remain readable in the configuration file.
 
-#### Focus
+The app and Dock use `Resources/AppIcon.icns`, generated from the supplied artwork. The menu bar uses a monochrome window-and-orbit template for light and dark appearances. Regenerate the icon files from the repository root with `swift Scripts/generate-icons.swift`.
 
-| Action                         | Default Shortcut           |
-| ------------------------------ | -------------------------- |
-| Focus Left / Right             | `Ctrl + ← / →`             |
-| Focus Up / Down (in-column spill) | `Ctrl + ↑ / ↓`          |
-| Focus Previous Window          | `Option + Tab`             |
-| Focus First Column             | `Option + Home`            |
-| Focus Last Column              | `Option + End`             |
-| Toggle Command Palette         | `Control + Option + Space` |
-| Toggle Workspace Bar           | `Unassigned`               |
-| Toggle Overview                | `Option + Shift + O`       |
+### Trackpad Navigation
 
-#### Move Window
+Swipe with **four fingers** on a MacBook trackpad or Magic Trackpad to use the same navigation as the default `Ctrl + Arrow` shortcuts:
 
-| Action                        | Default Shortcut              |
-| ----------------------------- | ----------------------------- |
-| Move Left / Right             | `Ctrl + Shift + ← / →`        |
-| Move Up / Down (in-column, spill at edge) | `Ctrl + Shift + ↑ / ↓` |
+- **Left / right:** focus the neighboring window in that direction.
+- **Up / down:** focus the next window vertically; at the column edge, continue to the row above / below.
 
-#### Monitor
+Each swipe performs one focus change; lift all fingers before the next swipe. Direction follows your fingers, independently of Natural Scrolling. Two- and three-finger gestures keep their usual behavior. Gestures pause while Darniri is disabled, during screen lock or Secure Input, and during window dragging/resizing.
 
-| Action                 | Default Shortcut            |
-| ---------------------- | --------------------------- |
-| Focus Next Monitor     | `Control + Command + Tab`   |
-| Focus Previous Monitor | `Unassigned`                |
-| Focus Last Monitor     | `` Control + Command + ` `` |
+In **System Settings > Trackpad > More Gestures**, set **Swipe between full-screen applications**, **Mission Control**, and **App Exposé** to three fingers or disable them if they use four fingers. Otherwise macOS can also perform its system action during Darniri navigation. Darniri does not change these system settings.
 
-#### Layout
-
-| Action                              | Default Shortcut     |
-| ----------------------------------- | -------------------- |
-| Toggle Fullscreen                   | `Option + Return`    |
-| Toggle Native Fullscreen            | `Unassigned`         |
-| Balance Sizes                       | `Option + Shift + B` |
-| Raise All Floating Windows          | `Option + Shift + R` |
-| Toggle Focused Window Floating      | `Unassigned`         |
-| Assign Focused Window to Scratchpad | `Unassigned`         |
-| Toggle Scratchpad Window            | `Unassigned`         |
-
-#### Column
-
-| Action                      | Default Shortcut                   |
-| --------------------------- | ---------------------------------- |
-| Move Column Left / Right    | `Ctrl + Alt + ← / →`               |
-| Move Column to Row Above    | `Ctrl + Alt + ↑`                   |
-| Move Column to Row Below    | `Ctrl + Alt + ↓`                   |
-| Toggle Column Tabbed        | `Option + T`                       |
-| Cycle Column Width Forward  | `Option + .`                       |
-| Cycle Column Width Backward | `Option + ,`                       |
-| Toggle Column Full Width    | `Option + Shift + F`               |
-
-`Move Left / Right` expels the focused window out of multi-window columns or consumes a single-window column into the adjacent column. `Move Up / Down` reorders windows within the current column.
+Gesture input uses the private macOS MultitouchSupport framework. If it is unavailable, keyboard navigation remains available. Trackpads connected after launch and devices returning from sleep are detected automatically.
 
 ### Features
 
@@ -257,7 +222,7 @@ Requirements:
 - SwiftPM with Swift 6.3.2+
 - macOS 15.0+
 
-To run locally without signing:
+To run locally as a standalone SwiftPM executable (without the stable app-bundle identity):
 
 ```sh
 ./Scripts/run-local.sh

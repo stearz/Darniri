@@ -392,7 +392,9 @@ enum HotkeyBindingRegistry {
     )
     private static let defaultBindings = DefaultHotkeyBindings.all()
     private static let bindingsByID = Dictionary(
-        defaultBindings.map { ($0.id, $0) },
+        (defaultBindings + ActionCatalog.legacySpecs().map {
+            HotkeyBinding(id: $0.id, command: $0.command, binding: $0.defaultBinding)
+        }).map { ($0.id, $0) },
         uniquingKeysWith: { first, _ in first }
     )
 
@@ -448,19 +450,32 @@ enum HotkeyBindingRegistry {
             overrides[commandPaletteID] = legacyBinding
         }
 
-        return defaultBindings.map { binding in
+        let coreBindings = defaultBindings.map { binding in
             guard explicitOverrideIDs.contains(binding.id) else { return binding }
             let override = overrides[binding.id] ?? .unassigned
             return HotkeyBinding(id: binding.id, command: binding.command, trigger: override)
         }
+        let coreIDs = Set(defaultBindings.map(\.id))
+        let customBindings = persisted.compactMap { entry -> HotkeyBinding? in
+            guard !coreIDs.contains(entry.id), let trigger = overrides[entry.id] else { return nil }
+            return makeBinding(id: entry.id, trigger: trigger)
+        }
+        return migrateLegacyDefaultWorkspaceBindings(coreBindings + customBindings)
     }
 
     static func migrateLegacyDefaultWorkspaceBindings(_ bindings: [HotkeyBinding]) -> [HotkeyBinding] {
-        bindings.map { binding in
-            guard isLegacyWorkspaceDefault(id: binding.id, trigger: binding.binding),
-                  let defaultBinding = bindingsByID[binding.id]
-            else { return binding }
-            return defaultBinding
+        let coreByID = Dictionary(uniqueKeysWithValues: defaultBindings.map { ($0.id, $0) })
+        let legacyByID = Dictionary(uniqueKeysWithValues: ActionCatalog.legacySpecs().map { ($0.id, $0) })
+        return bindings.compactMap { binding in
+            guard let legacy = legacyByID[binding.id] else { return binding }
+            let legacyTrigger = HotkeyTrigger.chord(legacy.defaultBinding)
+            let matchesOldDefault = binding.binding == legacyTrigger ||
+                (binding.binding.isUnassigned && legacy.defaultBinding.isUnassigned)
+            if let current = coreByID[binding.id] {
+                return matchesOldDefault ? current : binding
+            }
+            // Keep intentional custom bindings, rather than unused actions or old defaults.
+            return binding.binding.isUnassigned || matchesOldDefault ? nil : binding
         }
     }
 

@@ -27,6 +27,8 @@ The [release procedure](../RELEASING.md) owns versioning, release notes, credent
 
 The Release workflow checks the exact release tag, publishes an app ZIP for the Homebrew cask and an executable tarball for manual installation, and verifies the uploaded artifacts and pushed tap commit. A release is complete only after that workflow succeeds. `RELEASE_TOKEN` allows automation-created PRs/releases to trigger follow-up workflows; `TAP_GITHUB_TOKEN` permits the separate tap update. The manual Release workflow input retries publication of an existing tag without retagging it. Homebrew distribution uses only the cask; release publication removes the legacy formula. Switching an existing formula installation to the cask is documented in the README.
 
+Developer ID setup and the signing/notarization procedures are owned by [Signing](../SIGNING.md). Public releases require certificate and notarization credentials in Actions secrets; PR packaging checks opt into ad-hoc signing without those secrets. Local app builds fail if the Developer ID identity is unavailable rather than silently changing the privacy identity.
+
 # Verification boundaries
 
 Changes to accessibility, focus, displays, input, and private framework integration require relevant macOS runtime checks. Repository documentation describes intended behavior and does not prove the current state of a running application.

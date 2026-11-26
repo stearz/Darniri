@@ -85,6 +85,7 @@ final class ServiceLifecycleManager {
         }
         setupWorkspaceObservation()
         controller.mouseEventHandler.setup()
+        controller.trackpadGestureMonitor.start()
         controller.syncMouseWarpPolicy()
         setupDisplayObserver()
         setupAppActivationObserver()
@@ -354,6 +355,7 @@ final class ServiceLifecycleManager {
         controller.workspaceManager.onGapsChanged = nil
 
         controller.layoutRefreshController.resetState()
+        controller.trackpadGestureMonitor.stop()
         controller.mouseEventHandler.cleanup()
         controller.resetMouseWarpPolicy()
         controller.axEventHandler.cleanup()

@@ -31,9 +31,11 @@ enum ActionCatalog {
         UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9)
     ]
 
+    private static let legacy: [ActionSpec] = buildLegacySpecs()
     private static let specs: [ActionSpec] = buildSpecs()
     private static let specsByID = Dictionary(
-        uniqueKeysWithValues: specs.map { ($0.id, $0) }
+        (legacySpecs() + specs).map { ($0.id, $0) },
+        uniquingKeysWith: { _, current in current }
     )
 
     static func allSpecs() -> [ActionSpec] {
@@ -45,7 +47,7 @@ enum ActionCatalog {
     }
 
     static func spec(for command: HotkeyCommand) -> ActionSpec? {
-        specs.first { $0.command == command }
+        specs.first { $0.command == command } ?? legacySpecs().first { $0.command == command }
     }
 
     static func title(for command: HotkeyCommand) -> String? {
@@ -78,8 +80,7 @@ enum ActionCatalog {
     ]
 
     /// Returns the raw (pre-defaultBinding-transform) KeyBinding for each navigation
-    /// action under the given modifier.  The `.control` bindings are byte-identical to
-    /// what buildSpecs() embeds today.
+    /// action under the given modifier, using direct keyboard chords.
     static func navigationRawBindings(for modifier: NavigationModifier) -> [String: KeyBinding] {
         switch modifier {
         case .control:
@@ -98,7 +99,7 @@ enum ActionCatalog {
                     keyCode: UInt32(kVK_DownArrow),
                     modifiers: UInt32(controlKey | shiftKey)
                 ),
-                // Ctrl+Alt+← / → — the defaultBinding() transform strips optionKey and sets usesHyper=true
+                // Whole columns use a direct Control+Option chord.
                 "moveColumn.left": KeyBinding(
                     keyCode: UInt32(kVK_LeftArrow),
                     modifiers: UInt32(controlKey | optionKey)
@@ -132,7 +133,7 @@ enum ActionCatalog {
                     keyCode: UInt32(kVK_DownArrow),
                     modifiers: UInt32(optionKey | shiftKey)
                 ),
-                // Opt+Ctrl+← / → — also carries optionKey, so defaultBinding() strips it → usesHyper=true
+                // Whole columns use the same Control+Option chord in either mode.
                 "moveColumn.left": KeyBinding(
                     keyCode: UInt32(kVK_LeftArrow),
                     modifiers: UInt32(optionKey | controlKey)
@@ -202,7 +203,7 @@ enum ActionCatalog {
                 return HotkeyBinding(
                     id: spec.id,
                     command: spec.command,
-                    binding: defaultBinding(for: rawBinding)
+                    binding: rawBinding
                 )
             }
             return HotkeyBinding(id: spec.id, command: spec.command, binding: spec.defaultBinding)
@@ -255,7 +256,41 @@ enum ActionCatalog {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The small everyday shortcut set. Older actions remain readable for custom
+    /// configurations, but are no longer emitted as dozens of unused entries.
     private static func buildSpecs() -> [ActionSpec] {
+        let navigation = navigationRawBindings(for: .control)
+        let core = legacySpecs().filter { navigationActionIDs.contains($0.id) }.map { spec in
+            ActionSpec(
+                id: spec.id, command: spec.command, title: displayName(for: spec.command),
+                keywords: spec.keywords, category: spec.category, visibility: .normal,
+                layoutCompatibility: spec.layoutCompatibility,
+                defaultBinding: navigation[spec.id] ?? .unassigned
+            )
+        }
+        return core + [
+            action(
+                id: "cycleColumnWidthForward", command: .cycleColumnWidthForward, category: .column,
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Period), modifiers: UInt32(controlKey))
+            ),
+            action(
+                id: "cycleColumnWidthBackward", command: .cycleColumnWidthBackward, category: .column,
+                binding: KeyBinding(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(controlKey))
+            ),
+            ActionSpec(
+                id: "openCommandPalette", command: .openCommandPalette, title: "Open Command Palette",
+                keywords: ["palette", "search"], category: .focus, visibility: .normal,
+                layoutCompatibility: .shared,
+                defaultBinding: KeyBinding(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | optionKey))
+            )
+        ]
+    }
+
+    static func legacySpecs() -> [ActionSpec] {
+        legacy
+    }
+
+    private static func buildLegacySpecs() -> [ActionSpec] {
         var specs: [ActionSpec] = []
 
         // NOTE: switchWorkspace.(idx), moveToWorkspace.(idx), and
@@ -955,8 +990,8 @@ enum ActionCatalog {
         case .moveWindowToWorkspaceUp: "Move Window to Workspace Up"
         case .moveWindowToWorkspaceDown: "Move Window to Workspace Down"
         case let .moveColumnToWorkspace(idx): "Move Column to Workspace \(idx + 1)"
-        case .moveColumnToWorkspaceUp: "Move Column to Workspace Up"
-        case .moveColumnToWorkspaceDown: "Move Column to Workspace Down"
+        case .moveColumnToWorkspaceUp: "Move Column to Row Above"
+        case .moveColumnToWorkspaceDown: "Move Column to Row Below"
         case let .switchWorkspace(idx): "Switch to Workspace \(idx + 1)"
         case .switchWorkspaceNext: "Switch to Next Workspace"
         case .switchWorkspacePrevious: "Switch to Previous Workspace"
@@ -971,8 +1006,8 @@ enum ActionCatalog {
         case let .moveColumnToIndex(idx): "Move Column to Index \(idx)"
         case .moveWindowDown: "Move Window Down"
         case .moveWindowUp: "Move Window Up"
-        case .moveWindowDownOrToWorkspaceDown: "Move Window Down or to Workspace Down"
-        case .moveWindowUpOrToWorkspaceUp: "Move Window Up or to Workspace Up"
+        case .moveWindowDownOrToWorkspaceDown: "Move Window Down (Next Row at Edge)"
+        case .moveWindowUpOrToWorkspaceUp: "Move Window Up (Previous Row at Edge)"
         case .consumeOrExpelWindowLeft: "Consume or Expel Window Left"
         case .consumeOrExpelWindowRight: "Consume or Expel Window Right"
         case .consumeWindowIntoColumn: "Consume Window into Column"
@@ -985,15 +1020,15 @@ enum ActionCatalog {
         case .focusWindowBottom: "Focus Bottom Window"
         case .focusWindowDownOrTop: "Focus Down or Top"
         case .focusWindowUpOrBottom: "Focus Up or Bottom"
-        case .focusWindowOrWorkspaceDown: "Focus Window or Workspace Down"
-        case .focusWindowOrWorkspaceUp: "Focus Window or Workspace Up"
+        case .focusWindowOrWorkspaceDown: "Focus Down (Next Row at Edge)"
+        case .focusWindowOrWorkspaceUp: "Focus Up (Previous Row at Edge)"
         case .focusColumnFirst: "Focus First Column"
         case .focusColumnLast: "Focus Last Column"
         case let .focusColumn(idx): "Focus Column \(idx + 1)"
         case .centerColumn: "Center Column"
         case .centerVisibleColumns: "Center Visible Columns"
-        case .cycleColumnWidthForward: "Cycle Column Width Forward"
-        case .cycleColumnWidthBackward: "Cycle Column Width Backward"
+        case .cycleColumnWidthForward: "Increase Window Width"
+        case .cycleColumnWidthBackward: "Decrease Window Width"
         case .cycleWindowWidthForward: "Cycle Window Width Forward"
         case .cycleWindowWidthBackward: "Cycle Window Width Backward"
         case .cycleWindowHeightForward: "Cycle Window Height Forward"

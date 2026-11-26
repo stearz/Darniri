@@ -11,6 +11,7 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$EXECUTABLE" "$APP_DIR/Contents/MacOS/Darniri"
 cp "$ROOT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+cp "$ROOT_DIR/Resources/StatusIcon.png" "$ROOT_DIR/Resources/StatusIcon@2x.png" "$APP_DIR/Contents/Resources/"
 
 # Homebrew links this launcher, rather than the long-running app executable.
 cat > "$APP_DIR/Contents/Resources/darniri" <<'LAUNCHER'

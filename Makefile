@@ -31,6 +31,7 @@ build:
 
 test:
 	swift test
+	python3 Scripts/test-signing.py
 
 release-check: verify
 

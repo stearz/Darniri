@@ -33,3 +33,9 @@ The [README](../../README.md) owns setup and user behavior; the [architecture gu
 
 - [Architecture](architecture.md)
 - [Operating model](operating-model.md)
+
+# Everyday controls and identity
+
+The [README](../../README.md) owns the compact default shortcut set: Control with arrows for focus, Shift for window movement, and Option for whole-column movement. Vertical window moves cross into an adjacent row only when invoked at the column edge. Width steps are 25%, 50%, 75%, and 100% and stop at either end. The command palette remains Control+Option+Space; Control+P is unassigned. Legacy actions stay available to explicitly customized configurations, while unused and former default entries are removed on load.
+
+App/Dock artwork and the derived monochrome menu-bar template live under `Resources/`; [the generator](../../Scripts/generate-icons.swift) reproduces the raster assets and ICNS from the source artwork.
