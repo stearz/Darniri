@@ -340,41 +340,19 @@ final class SymbolicHotkeyControllerTests: XCTestCase {
         XCTAssertEqual(downSpec.defaultBinding.modifiers, UInt32(controlKey | shiftKey))
     }
 
-    func testMoveColumnLeftRightBoundToControlAltArrows() throws {
-        let leftSpec = try XCTUnwrap(ActionCatalog.spec(for: "moveColumn.left"))
-        let rightSpec = try XCTUnwrap(ActionCatalog.spec(for: "moveColumn.right"))
-
-        // ActionCatalog.defaultBinding() strips optionKey and sets usesHyper=true.
-        // So Ctrl+Alt+← is stored as {keyCode:←, modifiers:controlKey, usesHyper:true}.
-        XCTAssertFalse(leftSpec.defaultBinding.isUnassigned)
-        XCTAssertEqual(leftSpec.defaultBinding.keyCode, UInt32(kVK_LeftArrow))
-        XCTAssertEqual(leftSpec.defaultBinding.modifiers, UInt32(controlKey))
-        XCTAssertTrue(
-            leftSpec.defaultBinding.usesHyper,
-            "moveColumn.left default binding must use hyper (Ctrl+Alt transformed by defaultBinding)"
-        )
-
-        XCTAssertFalse(rightSpec.defaultBinding.isUnassigned)
-        XCTAssertEqual(rightSpec.defaultBinding.keyCode, UInt32(kVK_RightArrow))
-        XCTAssertEqual(rightSpec.defaultBinding.modifiers, UInt32(controlKey))
-        XCTAssertTrue(rightSpec.defaultBinding.usesHyper)
-    }
-
-    func testMoveColumnToWorkspaceUpDownBoundToControlAltArrows() throws {
-        let upSpec = try XCTUnwrap(ActionCatalog.spec(for: "moveColumnToWorkspaceUp"))
-        let downSpec = try XCTUnwrap(ActionCatalog.spec(for: "moveColumnToWorkspaceDown"))
-
-        // ActionCatalog.defaultBinding() strips optionKey and sets usesHyper=true.
-        // So Ctrl+Alt+↑ is stored as {keyCode:↑, modifiers:controlKey, usesHyper:true}.
-        XCTAssertFalse(upSpec.defaultBinding.isUnassigned)
-        XCTAssertEqual(upSpec.defaultBinding.keyCode, UInt32(kVK_UpArrow))
-        XCTAssertEqual(upSpec.defaultBinding.modifiers, UInt32(controlKey))
-        XCTAssertTrue(upSpec.defaultBinding.usesHyper)
-
-        XCTAssertFalse(downSpec.defaultBinding.isUnassigned)
-        XCTAssertEqual(downSpec.defaultBinding.keyCode, UInt32(kVK_DownArrow))
-        XCTAssertEqual(downSpec.defaultBinding.modifiers, UInt32(controlKey))
-        XCTAssertTrue(downSpec.defaultBinding.usesHyper)
+    func testColumnBindingsUseDirectControlOptionChords() throws {
+        let pairs: [(String, UInt32)] = [
+            ("moveColumn.left", UInt32(kVK_LeftArrow)),
+            ("moveColumn.right", UInt32(kVK_RightArrow)),
+            ("moveColumnToWorkspaceUp", UInt32(kVK_UpArrow)),
+            ("moveColumnToWorkspaceDown", UInt32(kVK_DownArrow))
+        ]
+        for (id, keyCode) in pairs {
+            let spec = try XCTUnwrap(ActionCatalog.spec(for: id))
+            XCTAssertEqual(spec.defaultBinding.keyCode, keyCode)
+            XCTAssertEqual(spec.defaultBinding.modifiers, UInt32(controlKey | optionKey))
+            XCTAssertFalse(spec.defaultBinding.usesHyper)
+        }
     }
 
     func testNumberedDirectJumpSpecsAbsent() {
@@ -517,99 +495,19 @@ final class SymbolicHotkeyControllerTests: XCTestCase {
         }
     }
 
-    // --- Option mode: navigation bindings must go through Hyper mechanism ---
-
-    func testOptionModeFocusBindingsUseHyper() throws {
-        let optionDefaults = ActionCatalog.defaultHotkeyBindings(modifier: .option)
-        let byID = Dictionary(uniqueKeysWithValues: optionDefaults.map { ($0.id, $0) })
-
-        let pairs: [(String, UInt32)] = [
-            ("focus.left", UInt32(kVK_LeftArrow)),
-            ("focus.right", UInt32(kVK_RightArrow)),
-            ("focusWindowOrWorkspaceUp", UInt32(kVK_UpArrow)),
-            ("focusWindowOrWorkspaceDown", UInt32(kVK_DownArrow))
-        ]
-        for (id, expectedKeyCode) in pairs {
-            let hotkeyBinding = try XCTUnwrap(byID[id], "missing binding for \(id)")
-            guard case let .chord(kb) = hotkeyBinding.binding else {
-                XCTFail("\(id) must have a chord binding in option mode")
-                continue
+    func testOptionModeUsesDirectChords() throws {
+        let bindings = ActionCatalog.defaultHotkeyBindings(modifier: .option)
+        for binding in bindings where ActionCatalog.navigationActionIDs.contains(binding.id) {
+            let chord = try XCTUnwrap(binding.binding.chordBinding)
+            XCTAssertFalse(chord.usesHyper)
+            XCTAssertNotEqual(chord.modifiers & UInt32(optionKey), 0)
+            if binding.id.hasPrefix("moveColumn") {
+                XCTAssertEqual(chord.modifiers, UInt32(controlKey | optionKey))
+            } else if binding.id.hasPrefix("move") {
+                XCTAssertEqual(chord.modifiers, UInt32(optionKey | shiftKey))
+            } else {
+                XCTAssertEqual(chord.modifiers, UInt32(optionKey))
             }
-            XCTAssertTrue(
-                kb.usesHyper,
-                "\(id) must use Hyper in option mode (optionKey stripped by defaultBinding())"
-            )
-            XCTAssertEqual(
-                kb.keyCode,
-                expectedKeyCode,
-                "\(id) must have expected keyCode"
-            )
-            // After stripping optionKey, modifiers should be 0 for plain Opt+Arrow
-            XCTAssertEqual(
-                kb.modifiers,
-                0,
-                "\(id) should have no residual modifiers after optionKey strip"
-            )
-        }
-    }
-
-    func testOptionModeMoveBindingsUseHyper() throws {
-        let optionDefaults = ActionCatalog.defaultHotkeyBindings(modifier: .option)
-        let byID = Dictionary(uniqueKeysWithValues: optionDefaults.map { ($0.id, $0) })
-
-        let pairs: [(String, UInt32)] = [
-            ("move.left", UInt32(kVK_LeftArrow)),
-            ("move.right", UInt32(kVK_RightArrow)),
-            ("moveWindowUpOrToWorkspaceUp", UInt32(kVK_UpArrow)),
-            ("moveWindowDownOrToWorkspaceDown", UInt32(kVK_DownArrow))
-        ]
-        for (id, expectedKeyCode) in pairs {
-            let hotkeyBinding = try XCTUnwrap(byID[id], "missing binding for \(id)")
-            guard case let .chord(kb) = hotkeyBinding.binding else {
-                XCTFail("\(id) must have a chord binding in option mode")
-                continue
-            }
-            XCTAssertTrue(
-                kb.usesHyper,
-                "\(id) must use Hyper in option mode (optionKey stripped by defaultBinding())"
-            )
-            XCTAssertEqual(kb.keyCode, expectedKeyCode)
-            // After stripping optionKey from Opt+Shift, only shiftKey should remain
-            XCTAssertEqual(
-                kb.modifiers,
-                UInt32(shiftKey),
-                "\(id) should have shiftKey remaining after optionKey strip"
-            )
-        }
-    }
-
-    func testOptionModeMoveColumnBindingsUseHyper() throws {
-        let optionDefaults = ActionCatalog.defaultHotkeyBindings(modifier: .option)
-        let byID = Dictionary(uniqueKeysWithValues: optionDefaults.map { ($0.id, $0) })
-
-        let pairs: [(String, UInt32)] = [
-            ("moveColumn.left", UInt32(kVK_LeftArrow)),
-            ("moveColumn.right", UInt32(kVK_RightArrow)),
-            ("moveColumnToWorkspaceUp", UInt32(kVK_UpArrow)),
-            ("moveColumnToWorkspaceDown", UInt32(kVK_DownArrow))
-        ]
-        for (id, expectedKeyCode) in pairs {
-            let hotkeyBinding = try XCTUnwrap(byID[id], "missing binding for \(id)")
-            guard case let .chord(kb) = hotkeyBinding.binding else {
-                XCTFail("\(id) must have a chord binding in option mode")
-                continue
-            }
-            XCTAssertTrue(
-                kb.usesHyper,
-                "\(id) must use Hyper in option mode"
-            )
-            XCTAssertEqual(kb.keyCode, expectedKeyCode)
-            // Raw: Opt+Ctrl+Arrow. After strip: controlKey remains.
-            XCTAssertEqual(
-                kb.modifiers,
-                UInt32(controlKey),
-                "\(id) should have controlKey remaining after optionKey strip (was Opt+Ctrl)"
-            )
         }
     }
 

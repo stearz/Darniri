@@ -3,10 +3,13 @@
 
 import io
 import json
+import os
 import pathlib
 import plistlib
 import struct
+import subprocess
 import tarfile
+import tempfile
 import zipfile
 
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -50,9 +53,37 @@ with zipfile.ZipFile(root / "dist/Darniri-arm64.zip") as archive:
     metadata = plistlib.load(io.BytesIO(archive.read(prefix + "Info.plist")))
     assert metadata == expected, "App bundle version differs from Info.plist"
     assert archive.read(prefix + "Resources/AppIcon.icns"), "Missing app icon"
+    for icon in ["StatusIcon.png", "StatusIcon@2x.png"]:
+        assert archive.read(prefix + "Resources/" + icon), "Missing status icon"
     launcher = archive.getinfo(prefix + "Resources/darniri")
     assert (launcher.external_attr >> 16) & 0o111, "Homebrew launcher is not executable"
     assert b'exec /usr/bin/open "$APP_DIR"' in archive.read(launcher)
     verify_executable(archive.read(prefix + "MacOS/Darniri"))
 
-print("ARM64 executable, app metadata, launcher, icon, and release archives verified.")
+# Verify the actual archived bytes too, after extraction. PR checks opt into
+# ad-hoc signing; public packaging must retain the Developer ID signature/ticket.
+with tempfile.TemporaryDirectory(prefix="darniri-release-verification-") as directory:
+    destination = pathlib.Path(directory)
+    with tarfile.open(root / "dist/Darniri-arm64.tar.gz") as archive:
+        binary = destination / "Darniri"
+        binary.write_bytes(archive.extractfile("Darniri").read())
+        binary.chmod(0o755)
+    subprocess.run(["ditto", "-x", "-k", str(root / "dist/Darniri-arm64.zip"), directory], check=True)
+    app = destination / "Darniri.app"
+    signed = os.environ.get("DARNIRI_SIGNING_MODE", "developer-id") == "developer-id"
+    requirement = ('identifier "io.github.stearz.darniri" and anchor apple generic and '
+                   'certificate leaf[field.1.2.840.113635.100.6.1.13] exists')
+    team = os.environ.get("DARNIRI_TEAM_ID")
+    if team:
+        assert len(team) == 10 and team.isascii() and team.isalnum(), "Invalid developer team"
+        requirement += f' and certificate leaf[subject.OU] = "{team}"'
+    for target in [binary, app]:
+        command = ["codesign", "--verify", "--strict"]
+        if signed:
+            command += ["--test-requirement", "=" + requirement]
+        subprocess.run(command + [str(target)], check=True)
+    if signed:
+        subprocess.run(["xcrun", "stapler", "validate", str(app)], check=True)
+        subprocess.run(["spctl", "--assess", "--type", "execute", str(app)], check=True)
+
+print("ARM64 executable, app metadata, launcher, icons, signatures, and release archives verified.")

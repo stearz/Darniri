@@ -27,8 +27,8 @@ enum SettingsTOMLCodec {
     # ---------------------------------------------------------------------------
     # [[workspaces]] — workspace slots and per-workspace monitor pinning
     # ---------------------------------------------------------------------------
-    # One entry per numbered workspace slot. Direct workspace hotkeys cover 1-9;
-    # add higher slots here. Only `name` is required; `id` is generated for you
+    # One entry per legacy workspace slot; normal navigation uses dynamic rows.
+    # Only `name` is required; `id` is generated for you
     # if omitted, and everything else is optional.
     #
     #   [[workspaces]]

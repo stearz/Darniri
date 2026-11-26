@@ -588,7 +588,7 @@ Focus management is complex because Darniri must coordinate its intent with what
 
 Uses `CGEventTap` for system-wide mouse event interception:
 - **Focus-follows-mouse**: Debounced (100ms) focus change on mouse hover
-- **Trackpad gestures**: Three-phase state machine (`idle` → `armed` → `committed`) for workspace switching via swipe
+- **Trackpad gestures**: `TrackpadGestureMonitor` (in `Core/Input/`) reads private MultitouchSupport contact frames on devices with a trackpad-sized sensor grid. It copies contacts to the main actor and uses one `FourFingerSwipeRecognizer` per device to dispatch the default directional focus commands, including vertical row spill. Four stable fingers must travel together; each swipe emits once until all contacts lift. Device discovery and wake handling attach and remove streams. Disabled/locked/Secure Input states and active mouse interactions suppress gesture navigation. Users must move conflicting macOS four-finger system gestures to three fingers or disable them; Darniri leaves those preferences unchanged.
 - **Interactive move/resize**: Option+Shift+drag for window repositioning
 - **Event coalescing**: Transient mouse events are batched and drained in coalesced bursts
 

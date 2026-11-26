@@ -41,3 +41,9 @@ STABILITY_IMPROVEMENTS.md
 /BACKPORT-LEDGER.md
 /BACKPORT-TRIAGE.tsv
 .plan/
+
+# Code-signing private material stays in Keychain / Actions secrets.
+*.p12
+*.pfx
+*.p8
+*.key

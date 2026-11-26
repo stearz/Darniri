@@ -2,9 +2,10 @@ import Foundation
 
 enum BuiltInSettingsDefaults {
     static let niriColumnWidthPresets: [Double] = [
-        0.33333333333333331,
+        0.25,
         0.5,
-        0.66666666666666663
+        0.75,
+        1.0
     ]
 
     static let workspaceConfigurations: [WorkspaceConfiguration] = [

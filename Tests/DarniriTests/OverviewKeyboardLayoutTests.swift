@@ -202,9 +202,7 @@ final class OverviewKeyboardLayoutTests: XCTestCase {
 
     // MARK: - resolveLayoutCommand (hyper / Ctrl+Alt bindings)
 
-    /// Ctrl+Alt+← with Option as hyper trigger: the stored binding has keyCode=leftArrow,
-    /// modifiers=controlKey, usesHyper=true.  The NSEvent carries modifiers [.control, .option].
-    /// resolveLayoutCommand should strip Option (the hyper trigger) and match usesHyper=true.
+    /// Direct Ctrl+Option chords must work independently of the legacy Hyper trigger.
     func testResolveLayoutCommand_ctrlOptionLeft_resolvesMoveColumnLeft_withOptionHyper() {
         let bindings = defaultLayoutBindings()
         // Default hyper trigger is .key(kVK_Option), which has modifierMaskToExclude = optionKey.
@@ -253,21 +251,14 @@ final class OverviewKeyboardLayoutTests: XCTestCase {
         XCTAssertEqual(command, .moveColumnToWorkspaceDown)
     }
 
-    /// When hyperTrigger is .system (no key exclusion), Ctrl+Alt+← should NOT resolve
-    /// as a hyper binding (system hyper requires Ctrl+Alt+Shift+Cmd).
-    func testResolveLayoutCommand_ctrlOptionLeft_doesNotMatchHyperBinding_withSystemHyper() {
-        let bindings = defaultLayoutBindings()
+    func testResolveLayoutCommand_ctrlOptionLeft_worksWithSystemHyper() {
         let command = OverviewInputHandler.resolveLayoutCommand(
             keyCode: UInt32(kVK_LeftArrow),
             modifierFlags: [.control, .option],
-            bindings: bindings,
+            bindings: defaultLayoutBindings(),
             hyperTrigger: .system
         )
-        // .system hyper has modifierMaskToExclude=0, so hyper candidate is nil.
-        // The stored binding for moveColumn.left is usesHyper=true, modifiers=controlKey.
-        // The plain candidate is modifiers=(ctrl|opt), usesHyper=false → no match.
-        // So the result should be nil (no matching layout command).
-        XCTAssertNil(command)
+        XCTAssertEqual(command, .moveColumn(.left))
     }
 
     /// An unbound key (one not in any registered binding) returns nil.

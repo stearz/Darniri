@@ -102,7 +102,8 @@ struct NiriRenderStyle {
 }
 
 final class NiriLayoutEngine {
-    static let defaultPresetColumnWidthValues: [CGFloat] = [1.0 / 3.0, 0.5, 2.0 / 3.0]
+    static let defaultPresetColumnWidthValues: [CGFloat] = BuiltInSettingsDefaults.niriColumnWidthPresets
+        .map { CGFloat($0) }
     static let defaultPresetColumnWidths: [PresetSize] = defaultPresetColumnWidthValues.map { .proportion($0) }
     static let defaultPresetWindowHeightValues: [CGFloat] = [1.0 / 3.0, 0.5, 2.0 / 3.0]
     static let defaultPresetWindowHeights: [PresetSize] = defaultPresetWindowHeightValues.map { .proportion($0) }

@@ -11,6 +11,8 @@ This site is the documentation hub for architecture notes and technical referenc
 ## Start Here
 
 - [Architecture Guide](ARCHITECTURE.md)
+- [Signing and permission retention](SIGNING.md)
+- [Release procedure](RELEASING.md)
 - [Contribution Guide](CONTRIBUTING.md)
 - [Latest Releases](https://github.com/stearz/Darniri/releases)
 

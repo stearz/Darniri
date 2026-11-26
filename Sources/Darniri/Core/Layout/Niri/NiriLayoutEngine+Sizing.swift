@@ -363,9 +363,9 @@ extension NiriLayoutEngine {
         let nextIdx: Int
         if !column.isFullWidth, let currentIdx = column.presetWidthIdx {
             if forwards {
-                nextIdx = (currentIdx + 1) % presetCount
+                nextIdx = min(currentIdx + 1, presetCount - 1)
             } else {
-                nextIdx = (currentIdx - 1 + presetCount) % presetCount
+                nextIdx = max(currentIdx - 1, 0)
             }
         } else {
             let currentTile: CGFloat
@@ -396,7 +396,7 @@ extension NiriLayoutEngine {
                     case let .window(resolved):
                         currentWindow + 1 < resolved
                     }
-                } ?? 0
+                } ?? (presetCount - 1)
             } else {
                 let matchingIndex = presetColumnWidths.lastIndex { preset in
                     switch resolvedPresetWidth(preset, for: column, workingFrame: workingFrame, gaps: gaps) {
@@ -406,7 +406,7 @@ extension NiriLayoutEngine {
                         resolved + 1 < currentWindow
                     }
                 }
-                nextIdx = matchingIndex ?? (presetCount - 1)
+                nextIdx = matchingIndex ?? 0
             }
         }
 

@@ -42,7 +42,7 @@ final class StatusBarController: NSObject {
         statusItem = ownedStatusItem
 
         guard let button = statusItem?.button else { return }
-        button.image = NSImage(systemSymbolName: "o.circle", accessibilityDescription: "Darniri")
+        button.image = Self.statusIcon()
         button.image?.isTemplate = true
         button.target = self
         button.action = #selector(handleClick(_:))
@@ -59,6 +59,50 @@ final class StatusBarController: NSObject {
         updateChecker.start()
 
         rebuildMenu()
+    }
+
+    private static func statusIcon() -> NSImage {
+        let image: NSImage
+        if let url = Bundle.main.url(forResource: "StatusIcon", withExtension: "png"),
+           let bundled = NSImage(contentsOf: url)
+        {
+            if let retinaURL = Bundle.main.url(forResource: "StatusIcon@2x", withExtension: "png"),
+               let retinaData = try? Data(contentsOf: retinaURL),
+               let retina = NSBitmapImageRep(data: retinaData)
+            {
+                retina.size = NSSize(width: 18, height: 18)
+                bundled.addRepresentation(retina)
+            }
+            image = bundled
+        } else {
+            // Standalone SwiftPM runs have no app-bundle resources.
+            image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+                NSColor.black.setStroke()
+                for rect in [
+                    NSRect(x: 2, y: 2, width: 5, height: 14),
+                    NSRect(x: 8.5, y: 8.5, width: 7.5, height: 6),
+                    NSRect(x: 8.5, y: 2, width: 6.5, height: 5)
+                ] {
+                    let path = NSBezierPath(roundedRect: rect, xRadius: 1, yRadius: 1)
+                    path.lineWidth = 1.2
+                    path.stroke()
+                }
+                let orbit = NSBezierPath()
+                orbit.move(to: NSPoint(x: 0.8, y: 6))
+                orbit.curve(
+                    to: NSPoint(x: 17.2, y: 12),
+                    controlPoint1: NSPoint(x: 0, y: -1),
+                    controlPoint2: NSPoint(x: 18.5, y: 3)
+                )
+                orbit.lineWidth = 1
+                orbit.stroke()
+                return true
+            }
+        }
+        image.size = NSSize(width: 18, height: 18)
+        image.accessibilityDescription = "Darniri"
+        image.isTemplate = true
+        return image
     }
 
     @objc private func handleClick(_: NSStatusBarButton) {

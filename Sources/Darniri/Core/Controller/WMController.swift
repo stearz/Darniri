@@ -117,6 +117,8 @@ final class WMController {
     @ObservationIgnored
     private(set) lazy var mouseEventHandler = MouseEventHandler(controller: self)
     @ObservationIgnored
+    private(set) lazy var trackpadGestureMonitor = TrackpadGestureMonitor(controller: self)
+    @ObservationIgnored
     private(set) lazy var mouseWarpHandler = MouseWarpHandler(controller: self)
     @ObservationIgnored
     private(set) lazy var axEventHandler = AXEventHandler(controller: self)
@@ -607,6 +609,7 @@ final class WMController {
     /// Updates the active keymap and re-registers the navigation hotkeys to match.
     func setHotkeyKeymap(_ keymap: HotkeyKeymap) {
         settings.hotkeyKeymap = keymap
+        symbolicHotkeyController.setModifier(settings.navigationModifier)
         updateHotkeyBindings(
             effectiveBindings(
                 for: settings.hotkeyBindings,

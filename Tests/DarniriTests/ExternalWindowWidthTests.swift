@@ -88,4 +88,32 @@ final class ExternalWindowWidthTests: XCTestCase {
         XCTAssertTrue(engine.adoptWindowWidth(800, for: first, in: workspaceId))
         XCTAssertEqual(layout(engine)[first.token]?.height, initialFrame.height)
     }
+
+    func testWidthStepsFollowQuarterPresetsAndStopAtEndpoints() throws {
+        let engine = NiriLayoutEngine()
+        let first = engine.addWindow(token: WindowToken(pid: 1, windowId: 1), to: workspaceId, afterSelection: nil)
+        _ = engine.addWindow(token: WindowToken(pid: 1, windowId: 2), to: workspaceId, afterSelection: nil)
+        let column = try XCTUnwrap(engine.findColumn(containing: first, in: workspaceId))
+        _ = layout(engine)
+        var state = ViewportState()
+        for (forward, expected): (Bool, CGFloat) in [
+            (true, 0.75), (true, 1), (true, 1),
+            (false, 0.75), (false, 0.5), (false, 0.25), (false, 0.25)
+        ] {
+            engine.toggleColumnWidth(
+                column, forwards: forward, in: workspaceId,
+                motion: .disabled, state: &state, workingFrame: screen, gaps: 12
+            )
+            XCTAssertEqual(column.width, .proportion(expected))
+        }
+        // A native resize clears the preset index. The next step must select
+        // the next larger/smaller preset from the actual width as well.
+        _ = layout(engine)
+        XCTAssertTrue(engine.adoptWindowWidth(850, for: first, in: workspaceId))
+        engine.toggleColumnWidth(
+            column, forwards: true, in: workspaceId,
+            motion: .disabled, state: &state, workingFrame: screen, gaps: 12
+        )
+        XCTAssertEqual(column.width, .proportion(0.75))
+    }
 }

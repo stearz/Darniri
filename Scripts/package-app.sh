@@ -4,21 +4,22 @@ set -euo pipefail
 CONFIG="${1:-release}"
 SIGN_AND_NOTARIZE="${2:-true}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_CAPITALIZED="$(tr '[:lower:]' '[:upper:]' <<< "${CONFIG:0:1}")${CONFIG:1}"
-BUILD_DIR="$ROOT_DIR/.build/apple/Products/$CONFIG_CAPITALIZED"
+BUILD_DIR="$(swift build --package-path "$ROOT_DIR" -c "$CONFIG" --arch arm64 --arch x86_64 --show-bin-path)"
 EXECUTABLE="$BUILD_DIR/Darniri"
 APP_DIR="$ROOT_DIR/dist/Darniri.app"
 
-# Signing identity and notarization profile
-SIGNING_IDENTITY="${DARNIRI_SIGNING_IDENTITY:-}"
-NOTARIZE_PROFILE="${DARNIRI_NOTARIZE_PROFILE:-}"
-ENTITLEMENTS="$ROOT_DIR/Darniri.entitlements"
+if [ "$SIGN_AND_NOTARIZE" = true ]; then
+  "$ROOT_DIR/Scripts/sign-app.sh" --check
+  : "${DARNIRI_NOTARIZE_PROFILE:?Set the notarization Keychain profile}"
+else
+  export DARNIRI_SIGNING_MODE=adhoc
+fi
 
 echo "Running release checks..."
 make -C "$ROOT_DIR" release-check
 
 echo "Building Darniri universal binary ($CONFIG)..."
-swift build -c "$CONFIG" --arch arm64 --arch x86_64
+swift build --package-path "$ROOT_DIR" -c "$CONFIG" --arch arm64 --arch x86_64
 
 echo "Verifying universal binary..."
 lipo -info "$EXECUTABLE"
@@ -30,36 +31,10 @@ if command -v plutil >/dev/null 2>&1; then
   plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 fi
 
-if [ "$SIGN_AND_NOTARIZE" = "true" ]; then
-  if [ -z "$SIGNING_IDENTITY" ] || [ -z "$NOTARIZE_PROFILE" ]; then
-    echo "error: set DARNIRI_SIGNING_IDENTITY and DARNIRI_NOTARIZE_PROFILE, or pass 'false' as the second argument" >&2
-    exit 1
-  fi
-
-  echo "Signing $APP_DIR with hardened runtime..."
-  codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" --timestamp "$APP_DIR/Contents/MacOS/Darniri"
-  codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" --timestamp "$APP_DIR"
-
-  echo "Verifying signature..."
-  codesign --verify --verbose "$APP_DIR"
-
-  echo "Creating ZIP for notarization..."
-  ZIP_PATH="$ROOT_DIR/dist/Darniri.zip"
-  rm -f "$ZIP_PATH"
-  ditto -c -k --keepParent "$APP_DIR" "$ZIP_PATH"
-
-  echo "Submitting for notarization (this may take a few minutes)..."
-  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARIZE_PROFILE" --wait
-
-  echo "Stapling notarization ticket..."
-  xcrun stapler staple "$APP_DIR"
-
-  echo "Verifying notarization..."
-  spctl --assess --verbose=2 "$APP_DIR"
-
-  rm -f "$ZIP_PATH"
+"$ROOT_DIR/Scripts/sign-app.sh" "$APP_DIR"
+if [ "$SIGN_AND_NOTARIZE" = true ]; then
+  "$ROOT_DIR/Scripts/notarize-app.sh" "$APP_DIR"
   echo "Done! $APP_DIR is signed and notarized."
 else
-  echo "Done. Open $APP_DIR to grant Accessibility permissions."
-  echo "Note: App is not signed. Run with 'release true' to sign and notarize."
+  echo "Done! $APP_DIR is ad-hoc signed for testing only."
 fi

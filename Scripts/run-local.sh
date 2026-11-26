@@ -6,6 +6,8 @@ APP="$ROOT_DIR/dist/Darniri-dev.app"
 
 cd "$ROOT_DIR"
 
+"$ROOT_DIR/Scripts/sign-app.sh" --check
+
 echo "Building..."
 swift build
 BUILD_DIR="$(swift build --show-bin-path)"
@@ -13,24 +15,12 @@ BUILD_DIR="$(swift build --show-bin-path)"
 echo "Assembling $APP..."
 "$ROOT_DIR/Scripts/assemble-app.sh" "$BUILD_DIR/Darniri" "$APP"
 
-# Sign with a stable self-signed identity ("Darniri Dev") rather than ad-hoc (-).
-# A stable identity gives an identity-based designated requirement, so macOS TCC
-# (Accessibility / Input Monitoring) grants persist across rebuilds instead of being
-# dropped every time the binary's cdhash changes. Falls back to ad-hoc if the cert
-# is missing (e.g. CI / a fresh machine).
-SIGN_IDENTITY="Darniri Dev"
-if security find-certificate -c "$SIGN_IDENTITY" >/dev/null 2>&1; then
-  echo "Signing with '$SIGN_IDENTITY'..."
-  codesign --force --deep --sign "$SIGN_IDENTITY" "$APP"
-else
-  echo "Signing (ad-hoc; '$SIGN_IDENTITY' cert not found)..."
-  codesign --force --deep --sign - "$APP"
-fi
+"$ROOT_DIR/Scripts/sign-app.sh" "$APP"
 
 echo "Launching..."
 pkill -x Darniri 2>/dev/null || true
 sleep 0.5
 open "$APP"
 
-echo "Done. Look for the ⊙ icon in your menu bar."
+echo "Done. Look for the Darniri window icon in your menu bar."
 echo "Grant Accessibility access in System Settings → Privacy & Security → Accessibility if prompted."

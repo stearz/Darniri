@@ -30,4 +30,6 @@ jobs:
       - name: Check formatting, lint, build, and tests
         run: make verify
       - name: Verify ARM64 release packaging
+        env:
+          DARNIRI_SIGNING_MODE: adhoc
         run: ./Scripts/package-release.sh

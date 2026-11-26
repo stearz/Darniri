@@ -333,6 +333,25 @@ final class WindowRuleEngine {
         token: WindowToken?,
         appFullscreen: Bool
     ) -> WindowDecision {
+        // CleanShot's capture UI uses screen-sized dialogs, including desktop-level
+        // backing windows. Tracking them allows layout/focus recovery to move them.
+        if facts.ax.bundleId?.lowercased() == Self.cleanShotBundleId,
+           facts.ax.subrole == (kAXDialogSubrole as String)
+           || facts.ax.subrole == (kAXSystemDialogSubrole as String),
+           let level = facts.windowServer?.level,
+           level != 0
+        {
+            return WindowDecision(
+                disposition: .unmanaged,
+                source: .builtInRule("cleanShotCaptureOverlay"),
+                layoutDecisionKind: .explicitLayout,
+                workspaceName: nil,
+                ruleEffects: .none,
+                heuristicReasons: [],
+                deferredReason: nil
+            )
+        }
+
         if let bundleId = facts.ax.bundleId?.lowercased(),
            Self.systemTextInputPanelBundleIds.contains(bundleId)
         {
