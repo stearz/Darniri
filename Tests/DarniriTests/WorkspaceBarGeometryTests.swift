@@ -40,11 +40,19 @@ final class WorkspaceBarGeometryTests: XCTestCase {
     func testBorderlessFullscreenFrameIsDetected() {
         let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
 
-        XCTAssertTrue(AXWindowService.isFullscreenFrame(screen, screenFrames: [screen]))
+        XCTAssertTrue(AXWindowService.isFullscreenFrame(screen, subrole: "AXStandardWindow", screenFrames: [screen]))
         XCTAssertFalse(AXWindowService.isFullscreenFrame(
             CGRect(x: 0, y: 25, width: 1920, height: 1055),
+            subrole: "AXStandardWindow",
             screenFrames: [screen]
         ))
+    }
+
+    func testScreenSizedDialogsAreNotFullscreen() {
+        let screen = CGRect(x: 0, y: 0, width: 3440, height: 1440)
+        for subrole in ["AXDialog", "AXSystemDialog", "AXFloatingWindow", nil] {
+            XCTAssertFalse(AXWindowService.isFullscreenFrame(screen, subrole: subrole, screenFrames: [screen]))
+        }
     }
 
     // MARK: - Fixtures

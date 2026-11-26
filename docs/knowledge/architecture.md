@@ -27,6 +27,8 @@ The [architecture guide](../ARCHITECTURE.md) maps application bootstrap, window 
 
 Window identity distinguishes `WindowToken`, reference-oriented `WindowHandle`, and the accessibility bridge `AXWindowRef`. Preserve those distinctions when changing window lifecycle behavior.
 
+CleanShot X capture dialogs on nonzero WindowServer levels are transient overlays and remain unmanaged, including their desktop-level backing windows. Normal CleanShot windows and the recording overlay retain their existing rules. Screen-sized geometry implies fullscreen only for standard windows; dialogs require explicit native fullscreen evidence.
+
 Runtime coordination also has explicit reconciliation types under `Core/Reconcile/`, including [RuntimeStore](../../Sources/Darniri/Core/Reconcile/RuntimeStore.swift), `StateReducer`, and `Planner`. Treat the guide as an architectural map and inspect current code for exact behavior rather than assuming every diagram describes every path.
 
 # Persistence and permissions

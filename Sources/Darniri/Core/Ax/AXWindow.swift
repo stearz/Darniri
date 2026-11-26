@@ -408,7 +408,8 @@ enum AXWindowService {
     }
 
     static func isFullscreen(_ window: AXWindowRef) -> Bool {
-        if let subrole = subrole(window), subrole == "AXFullScreenWindow" {
+        let subrole = subrole(window)
+        if subrole == "AXFullScreenWindow" {
             return true
         }
 
@@ -424,7 +425,7 @@ enum AXWindowService {
         }
 
         if let frame = try? frame(window) {
-            return isFullscreenFrame(frame)
+            return isFullscreenFrame(frame, subrole: subrole, screenFrames: NSScreen.screens.map(\.frame))
         }
 
         return false
@@ -459,11 +460,9 @@ enum AXWindowService {
         return result == .success
     }
 
-    private static func isFullscreenFrame(_ frame: CGRect) -> Bool {
-        isFullscreenFrame(frame, screenFrames: NSScreen.screens.map(\.frame))
-    }
-
-    static func isFullscreenFrame(_ frame: CGRect, screenFrames: [CGRect]) -> Bool {
+    static func isFullscreenFrame(_ frame: CGRect, subrole: String?, screenFrames: [CGRect]) -> Bool {
+        // Capture overlays and dialogs can cover a display without entering native fullscreen.
+        guard subrole == (kAXStandardWindowSubrole as String) else { return false }
         let center = frame.center
         guard let screenFrame = screenFrames.first(where: { $0.contains(center) }) else { return false }
         return frame.approximatelyEqual(to: screenFrame, tolerance: 2.0)
